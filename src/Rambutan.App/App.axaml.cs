@@ -242,6 +242,7 @@ public partial class App : Application
         {
             AmbientBackground = settings.AmbientBackground,
             ArtworkMeter = settings.ArtworkMeter,
+            VisualizerFrameRate = AppearanceSettings.ParseFrameRate(settings.VisualizerFrameRate),
             Motion = AppearanceSettings.ParseMotion(settings.Motion),
         });
 
@@ -657,6 +658,7 @@ public partial class App : Application
         var appearance = services.GetRequiredService<AppearanceSettings>();
         settings.AmbientBackground = appearance.AmbientBackground;
         settings.ArtworkMeter = appearance.ArtworkMeter;
+        settings.VisualizerFrameRate = appearance.VisualizerFrameRate;
         settings.Motion = AppearanceSettings.FormatMotion(appearance.Motion);
         services.GetRequiredService<AppSettingsStore>().Save(settings);
 
