@@ -6,7 +6,9 @@ namespace Rambutan.Audio;
 /// IAudioPlayer adapter over the engine (PlaybackEngine + CrossfadeMixer +
 /// BufferedTrack). Owns the progress timer and translates engine happenings
 /// (promotion, drain, decode fault) into coordinator events. Requires
-/// <see cref="FfmpegRuntime.Initialize"/> to have run.
+/// <see cref="FfmpegRuntime.Initialize"/> to have run. After
+/// <see cref="OutputIdleTimer.Delay"/> paused or stopped, it stops the output
+/// device and the progress timer; play and resume start them again.
 /// </summary>
 public sealed class EngineAudioPlayer : IAudioPlayer, IDisposable
 {
@@ -28,6 +30,9 @@ public sealed class EngineAudioPlayer : IAudioPlayer, IDisposable
     private bool _equalizerOn;
     private IReadOnlyList<double> _equalizerGains = [];
     private long _chains;
+    private readonly OutputIdleTimer _idle;
+
+    public EngineAudioPlayer() => _idle = new OutputIdleTimer(StopIdleOutput);
 
     /// <param name="Chain">Names this decode chain in progress ticks; a seek keeps the
     /// key and mints a new one.</param>
@@ -99,6 +104,7 @@ public sealed class EngineAudioPlayer : IAudioPlayer, IDisposable
 
     public async Task PlayAsync(AudioTrackRequest request, CancellationToken ct = default)
     {
+        _idle.Disarm();
         var engine = EnsureEngine();
         var track = await PrepareTrackAsync(request, request.StartAt, PlayPrebuffer, ct);
 
@@ -113,7 +119,6 @@ public sealed class EngineAudioPlayer : IAudioPlayer, IDisposable
         }
 
         StartDevice(engine);
-        _timer ??= new Timer(OnTick, null, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(250));
     }
 
     public async Task PreloadNextAsync(AudioTrackRequest request, CancellationToken ct = default)
@@ -183,14 +188,30 @@ public sealed class EngineAudioPlayer : IAudioPlayer, IDisposable
 
     public void Pause()
     {
-        if (_engine is not null)
-            _engine.Mixer.Paused = true;
+        if (_engine is null)
+            return;
+        _engine.Mixer.Paused = true;
+        _idle.Arm();
     }
 
     public void Resume()
     {
-        if (_engine is not null)
-            _engine.Mixer.Paused = false;
+        if (_engine is not { } engine)
+            return;
+        _idle.Disarm();
+        try
+        {
+            StartDevice(engine);
+        }
+        catch (Exception ex)
+        {
+            // The output stopped for idleness and no device opens now: the same
+            // honest state as a device lost while playing.
+            Rambutan.Core.Diagnostics.AppLog.Write("audio", $"resuming the output: {ex.Message}");
+            Task.Run(() => EventRaised?.Invoke(new DeviceLostEvent()));
+            return;
+        }
+        engine.Mixer.Paused = false;
     }
 
     public void Stop()
@@ -205,6 +226,25 @@ public sealed class EngineAudioPlayer : IAudioPlayer, IDisposable
                 _engine.Mixer.Paused = false;
             }
         }
+        if (_engine is not null)
+            _idle.Arm();
+    }
+
+    /// <summary>On the idle timer's thread. A device that is already stopped (a
+    /// stop before the first play) is left alone.</summary>
+    private void StopIdleOutput()
+    {
+        lock (_sync)
+        {
+            if (_engine is null || !_deviceStarted)
+                return;
+            _engine.Stop();
+            _deviceStarted = false;
+            _timer?.Dispose();
+            _timer = null;
+        }
+        Rambutan.Core.Diagnostics.AppLog.Write(
+            "audio", $"output stopped after {_idle.Delay} with nothing playing");
     }
 
     private static async Task<BufferedTrack> PrepareTrackAsync(
@@ -255,16 +295,19 @@ public sealed class EngineAudioPlayer : IAudioPlayer, IDisposable
 
     private void StartDevice(PlaybackEngine engine)
     {
-        bool announceNullDevice;
+        bool announceNullDevice = false;
         lock (_sync)
         {
-            if (_deviceStarted)
-                return;
-            engine.Start();
-            _deviceStarted = true;
-            // WSL finding: miniaudio can open a silent null backend and "play"
-            // into the void — announce it, never silent playback unannounced.
-            announceNullDevice = engine.IsNullDevice;
+            if (!_deviceStarted)
+            {
+                engine.Start();
+                _deviceStarted = true;
+                // WSL finding: miniaudio can open a silent null backend and "play"
+                // into the void — announce it, never silent playback unannounced.
+                announceNullDevice = engine.IsNullDevice;
+            }
+            // After the start, so a device that fails to start leaves no timer ticking.
+            _timer ??= new Timer(OnTick, null, TimeSpan.FromMilliseconds(250), TimeSpan.FromMilliseconds(250));
         }
 
         if (announceNullDevice)
@@ -338,6 +381,7 @@ public sealed class EngineAudioPlayer : IAudioPlayer, IDisposable
 
     public void Dispose()
     {
+        _idle.Dispose();
         _timer?.Dispose();
         lock (_sync)
         {

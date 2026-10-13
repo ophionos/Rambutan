@@ -149,6 +149,11 @@ file sink), never to files directly.
   fails there. The dock icon comes from the hidden `rambutan.desktop` and hicolor
   PNGs that `Integrations/Linux/LinuxAppEntry` writes; the AppImage owns the
   entry, other runs on the installed data folder only fill a missing one.
+- Output device: it runs while anything plays, and `EngineAudioPlayer` stops
+  it, with the progress timer, after `OutputIdleTimer.DefaultDelay` (10 minutes)
+  paused or stopped; play and resume start it again. A shorter delay makes
+  quick resumes slow (a Bluetooth output can lose the start of a track), so
+  don't shorten it without the maintainer.
 - Lyrics degrade in explicit states: word-synced → line-synced → plain → "no
   lyrics found". Imported custom lyrics always win over providers.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.
