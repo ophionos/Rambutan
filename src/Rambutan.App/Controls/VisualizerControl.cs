@@ -80,6 +80,18 @@ public sealed class VisualizerControl : Control
         set => SetValue(ShowPeaksProperty, value);
     }
 
+    /// <summary>Above 0, redraws at most this many times a second; 0 follows the
+    /// display. Each redraw makes the compositor present a frame, so a small meter
+    /// that can't show more motion than this needn't pay for the display rate.</summary>
+    public static readonly StyledProperty<int> MaxFrameRateProperty =
+        AvaloniaProperty.Register<VisualizerControl, int>(nameof(MaxFrameRate));
+
+    public int MaxFrameRate
+    {
+        get => GetValue(MaxFrameRateProperty);
+        set => SetValue(MaxFrameRateProperty, value);
+    }
+
     /// <summary>Peak colour; translucent white when unset.</summary>
     public static readonly StyledProperty<Color?> PeakColorProperty =
         AvaloniaProperty.Register<VisualizerControl, Color?>(nameof(PeakColor));
@@ -154,6 +166,7 @@ public sealed class VisualizerControl : Control
         _visual.SendHandlerMessage(CurrentPalette());
         _visual.SendHandlerMessage(new BarsHandler.Compact(Groups));
         _visual.SendHandlerMessage(new BarsHandler.Overlay(OverlayBars, ShowPeaks));
+        _visual.SendHandlerMessage(new BarsHandler.Pacing(MaxFrameRate));
         if (IsActive)
             _visual.SendHandlerMessage(BarsHandler.StartMessage);
     }
@@ -191,6 +204,10 @@ public sealed class VisualizerControl : Control
         {
             _visual?.SendHandlerMessage(new BarsHandler.Overlay(OverlayBars, ShowPeaks));
         }
+        else if (change.Property == MaxFrameRateProperty)
+        {
+            _visual?.SendHandlerMessage(new BarsHandler.Pacing(MaxFrameRate));
+        }
     }
 
     private BarsHandler.Palette CurrentPalette() => new(BarColor ?? ResolveAccent(), PeakColor);
@@ -207,6 +224,7 @@ public sealed class VisualizerControl : Control
         public sealed record Palette(Color Accent, Color? Peak);
         public sealed record Compact(int Groups);
         public sealed record Overlay(int Bars, bool Peaks);
+        public sealed record Pacing(int MaxFrameRate);
 
         private const double BarGap = 3;
         private const double CompactBarGap = 3;
@@ -228,6 +246,8 @@ public sealed class VisualizerControl : Control
         private float[] _overlayLevels = [];
         private float[] _overlayPeaks = [];
         private bool _showPeaks = true;
+        private readonly VisualizerRedrawGate _gate = new();
+        private Vector _gateSize;
 
         private ImmutableSolidColorBrush _barBrush = new(Color.FromRgb(0xFF, 0x4E, 0x45));
         private ImmutableSolidColorBrush _peakBrush = new(Colors.White, 0.55);
@@ -241,6 +261,7 @@ public sealed class VisualizerControl : Control
             Environment.GetEnvironmentVariable("RAMBUTAN_VIZ_TRACE") is not (null or "");
         private double _traceWorstMs;
         private int _traceFrames;
+        private int _traceDraws;
         private TimeSpan _traceStartedAt;
 
         public override void OnMessage(object message)
@@ -251,7 +272,9 @@ public sealed class VisualizerControl : Control
                 _lastFrameAt = CompositionNow;
                 _versionChangedAt = CompositionNow;
                 _traceFrames = 0;
+                _traceDraws = 0;
                 _traceWorstMs = 0;
+                _gate.Reset();
                 RegisterForNextAnimationFrameUpdate();
             }
             else if (ReferenceEquals(message, StopMessage))
@@ -264,6 +287,7 @@ public sealed class VisualizerControl : Control
                 _peakBrush = palette.Peak is { } peak
                     ? new ImmutableSolidColorBrush(peak)
                     : new ImmutableSolidColorBrush(Colors.White, 0.55);
+                _gate.Reset();
                 Invalidate();
             }
             else if (message is Overlay overlay)
@@ -272,11 +296,20 @@ public sealed class VisualizerControl : Control
                 _overlayLevels = new float[bars];
                 _overlayPeaks = new float[bars];
                 _showPeaks = overlay.Peaks;
+                _gate.Reset();
                 Invalidate();
             }
             else if (message is Compact compact)
             {
                 _grouped = new float[Math.Max(0, compact.Groups)];
+                _gate.Reset();
+                Invalidate();
+            }
+            else if (message is Pacing pacing)
+            {
+                _gate.MinInterval = pacing.MaxFrameRate > 0
+                    ? TimeSpan.FromSeconds(1.0 / pacing.MaxFrameRate)
+                    : TimeSpan.Zero;
             }
         }
 
@@ -311,11 +344,44 @@ public sealed class VisualizerControl : Control
                 _peaks[i] = Math.Max(_display[i], _peaks[i] - (float)(PeakFallPerSecond * dt));
             }
 
-            if (Trace)
-                RecordFrame(now, dt);
+            var size = EffectiveSize;
+            if (size != _gateSize)
+            {
+                _gateSize = size;
+                _gate.Reset();
+            }
 
-            Invalidate();
+            var draw = false;
+            if (size.X > 0 && size.Y > 0)
+            {
+                var (levels, peaks) = Bars();
+                draw = _gate.ShouldDraw(now, levels, peaks, size.Y);
+            }
+            if (draw)
+                Invalidate();
+
+            if (Trace)
+                RecordFrame(now, dt, draw);
+
             RegisterForNextAnimationFrameUpdate();
+        }
+
+        /// <summary>The levels and peaks as drawn: grouped for the compact meter or
+        /// the overlay's bars, and no peaks where none are drawn.</summary>
+        private (float[] Levels, float[] Peaks) Bars()
+        {
+            if (_grouped.Length > 0)
+            {
+                GroupBands(_display, _grouped);
+                return (_grouped, []);
+            }
+            if (_overlayLevels.Length > 0)
+            {
+                GroupOverlayBands(_display, _overlayLevels);
+                GroupOverlayBands(_peaks, _overlayPeaks);
+                return (_overlayLevels, _showPeaks ? _overlayPeaks : []);
+            }
+            return (_display, _showPeaks ? _peaks : []);
         }
 
         public override void OnRender(ImmediateDrawingContext context)
@@ -324,23 +390,14 @@ public sealed class VisualizerControl : Control
             if (size.X <= 0 || size.Y <= 0)
                 return;
 
+            var (levels, peaks) = Bars();
             if (_grouped.Length > 0)
             {
-                RenderCompact(context, size);
+                RenderCompact(context, size, levels);
                 return;
             }
 
-            ReadOnlySpan<float> levels = _display;
-            ReadOnlySpan<float> peaks = _peaks;
-            var gap = BarGap;
-            if (_overlayLevels.Length > 0)
-            {
-                GroupOverlayBands(_display, _overlayLevels);
-                GroupOverlayBands(_peaks, _overlayPeaks);
-                levels = _overlayLevels;
-                peaks = _overlayPeaks;
-                gap = OverlayGap(size.X, levels.Length);
-            }
+            var gap = _overlayLevels.Length > 0 ? OverlayGap(size.X, levels.Length) : BarGap;
 
             var count = levels.Length;
             var barWidth = (size.X - (count - 1) * gap) / count;
@@ -356,7 +413,7 @@ public sealed class VisualizerControl : Control
                     _barBrush, null,
                     new Rect(x, size.Y - height, barWidth, height), radius, radius);
 
-                if (!_showPeaks)
+                if (peaks.Length == 0)
                     continue;
                 var peakY = size.Y - Math.Max(MinBarHeight, peaks[i] * size.Y);
                 if (peakY < size.Y - height - PeakThickness)
@@ -368,14 +425,13 @@ public sealed class VisualizerControl : Control
             }
         }
 
-        private void RenderCompact(ImmediateDrawingContext context, Vector size)
+        private void RenderCompact(ImmediateDrawingContext context, Vector size, float[] levels)
         {
-            GroupBands(_display, _grouped);
-            var count = _grouped.Length;
+            var count = levels.Length;
             var area = new Size(size.X, size.Y);
             for (var i = 0; i < count; i++)
             {
-                var bar = CompactBar(i, count, _grouped[i], area, CompactBarGap, MinBarHeight);
+                var bar = CompactBar(i, count, levels[i], area, CompactBarGap, MinBarHeight);
                 if (bar.Width <= 0)
                     return;
                 var radius = Math.Min(bar.Width / 2, 1.5);
@@ -383,11 +439,13 @@ public sealed class VisualizerControl : Control
             }
         }
 
-        private void RecordFrame(TimeSpan now, double dt)
+        private void RecordFrame(TimeSpan now, double dt, bool drew)
         {
             if (_traceFrames == 0)
                 _traceStartedAt = now;
             _traceFrames++;
+            if (drew)
+                _traceDraws++;
             _traceWorstMs = Math.Max(_traceWorstMs, dt * 1000);
 
             var elapsed = (now - _traceStartedAt).TotalSeconds;
@@ -395,8 +453,9 @@ public sealed class VisualizerControl : Control
             {
                 AppLog.Write("viz", string.Create(
                     System.Globalization.CultureInfo.InvariantCulture,
-                    $"{_traceFrames / elapsed:F1} fps avg, worst frame {_traceWorstMs:F1} ms"));
+                    $"{_traceFrames / elapsed:F1} fps avg, {_traceDraws / elapsed:F1} draws/s, worst frame {_traceWorstMs:F1} ms"));
                 _traceFrames = 0;
+                _traceDraws = 0;
                 _traceWorstMs = 0;
             }
         }
