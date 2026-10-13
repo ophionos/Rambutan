@@ -31,7 +31,7 @@ $publishDir = "$PSScriptRoot/publish/$Rid"
 dotnet publish "$repo/src/Rambutan.App" -c Release -r $Rid -o $publishDir
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
-vpk pack --packId Rambutan.Desktop --packTitle Rambutan `
+vpk pack --packId Rambutan.Desktop --packTitle "Rambutan Music Player" `
     --packVersion $version --packDir $publishDir `
     --mainExe $mainExe --channel $Channel --outputDir $OutputDir
 exit $LASTEXITCODE
