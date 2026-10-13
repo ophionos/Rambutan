@@ -31,6 +31,7 @@ public sealed class PlaybackEngine : IDisposable
     private readonly PullComponent _pull;
     private string? _preferred;
     private bool _started;
+    private volatile bool _idleStopped;
     private volatile bool _closing;
     private int _recovering;
 
@@ -145,12 +146,51 @@ public sealed class PlaybackEngine : IDisposable
         DeviceName.Contains("null", StringComparison.OrdinalIgnoreCase) ||
         DeviceName.StartsWith("Discard all samples", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Starts the output, or starts it again after <see cref="Stop"/>.
+    /// A device that went away while stopped is replaced by the usual rule; throws
+    /// when no device can be opened.</summary>
     public void Start()
     {
         lock (_deviceLock)
         {
-            _device.Start();
+            var restarting = _idleStopped;
+            _idleStopped = false;
             _started = true;
+            try
+            {
+                _device.Start();
+            }
+            catch (Exception ex) when (restarting)
+            {
+                AppLog.Write("audio", $"starting the output again: {ex.Message}; opening it anew");
+                _engine.UpdateAudioDevicesInfo();
+                var devices = _engine.PlaybackDevices;
+                if (devices.Length == 0)
+                    throw new InvalidOperationException("No playback devices available.", ex);
+                MoveTo(Open(devices));
+            }
+        }
+    }
+
+    /// <summary>Stops the output while there is nothing to play; <see cref="Start"/>
+    /// resumes it. Not a device loss: recovery leaves a device stopped this way alone.</summary>
+    public void Stop()
+    {
+        lock (_deviceLock)
+        {
+            if (!_started)
+                return;
+            // Set first: the backend reports the stop through DeviceStopped.
+            _idleStopped = true;
+            _started = false;
+            try
+            {
+                _device.Stop();
+            }
+            catch (Exception ex)
+            {
+                AppLog.Write("audio", $"stopping the output: {ex.Message}");
+            }
         }
     }
 
@@ -158,7 +198,7 @@ public sealed class PlaybackEngine : IDisposable
     /// worker; SwitchDevice from inside the callback would re-enter the backend.</summary>
     private void OnDeviceStopped(object? sender, DeviceEventArgs e)
     {
-        if (_closing || !ReferenceEquals(e.Device, _device))
+        if (_closing || _idleStopped || !ReferenceEquals(e.Device, _device))
             return;
         if (Interlocked.Exchange(ref _recovering, 1) == 1)
             return;
@@ -182,7 +222,9 @@ public sealed class PlaybackEngine : IDisposable
                         var devices = _engine.PlaybackDevices;
                         if (devices.Length == 0)
                             continue;
-                        _started = true;
+                        // Stopped for idleness meanwhile: open the new device, but
+                        // leave it to the next Start.
+                        _started = !_idleStopped;
                         MoveTo(Open(devices));
                     }
 
