@@ -138,7 +138,10 @@ file sink), never to files directly.
   `Controls/VisualizerControl`, which draws on the composition thread. Keep it
   that way: the OBS overlay smooths the raw bands itself. The overlay style
   editor's native preview reuses the control with `OverlayBars`, which groups
-  bands as the overlay page does.
+  bands as the overlay page does. Each redraw costs a compositor frame, so the
+  control redraws only through `VisualizerRedrawGate` (visible change only, at
+  most `MaxFrameRate` a second); the meter and Now Playing follow the user's
+  "Visualizer frame rate" setting, 30 fps by default.
 - Native Wayland: `App/Services/WaylandFramePacing` (frame pacing) and
   `App/Services/WaylandToplevel` (app id `rambutan`, raising a window)
   reach into Avalonia.Wayland's internals by name; `WaylandFramePacingTests` and

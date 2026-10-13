@@ -298,6 +298,20 @@
             <Border Classes="settingrow">
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.appearance.visualizerFrameRate}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.appearance.visualizerFrameRateHelp}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" SelectedIndex="{Binding VisualizerFrameRateIndex}" VerticalAlignment="Center" MinWidth="170"
+                          AutomationProperties.Name="{l:T settings.appearance.visualizerFrameRate}">
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerFrameRate.30}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerFrameRate.60}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerFrameRate.display}" />
+                </ComboBox>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
                   <TextBlock x:Name="MotionLabel" Classes="settinglabel" Text="{l:T settings.appearance.motion}" />
                   <TextBlock Classes="settinghelp" Text="{Binding SystemMotionNote}"
                              IsVisible="{Binding SystemMotionNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />

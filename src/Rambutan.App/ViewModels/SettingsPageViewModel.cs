@@ -36,6 +36,9 @@ public partial class SettingsPageViewModel : ViewModelBase
     [ObservableProperty] private bool _ambientBackground = true;
     [ObservableProperty] private bool _artworkMeter = true;
 
+    /// <summary>Position in <see cref="AppearanceSettings.FrameRateChoices"/>.</summary>
+    [ObservableProperty] private int _visualizerFrameRateIndex;
+
     /// <summary>The lyrics pane may ask LRCLIB. Written through the
     /// pane's view model, which applies and remembers it.</summary>
     [ObservableProperty] private bool _lookUpLyricsOnline;
@@ -181,6 +184,8 @@ public partial class SettingsPageViewModel : ViewModelBase
         _closeToTray = app.CloseToTray;
         _ambientBackground = appearance.AmbientBackground;
         _artworkMeter = appearance.ArtworkMeter;
+        _visualizerFrameRateIndex = Math.Max(0,
+            Array.IndexOf(AppearanceSettings.FrameRateChoices, appearance.VisualizerFrameRate));
         _motionIndex = (int)appearance.Motion;
         _systemMotionNote = MotionNote(appearance.SystemReducesMotion);
         appearance.PropertyChanged += (_, e) =>
@@ -511,6 +516,14 @@ public partial class SettingsPageViewModel : ViewModelBase
         if (_appearance is null)
             return;
         _appearance.ArtworkMeter = value;
+        _persist?.Invoke();
+    }
+
+    partial void OnVisualizerFrameRateIndexChanged(int value)
+    {
+        if (_appearance is null || value < 0 || value >= AppearanceSettings.FrameRateChoices.Length)
+            return;
+        _appearance.VisualizerFrameRate = AppearanceSettings.FrameRateChoices[value];
         _persist?.Invoke();
     }
 

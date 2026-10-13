@@ -29,6 +29,23 @@ public sealed partial class AppearanceSettings : ObservableObject
     /// plays. Reduced motion hides it whatever this says.</summary>
     [ObservableProperty] private bool _artworkMeter = true;
 
+    /// <summary>The most times a second the meter and the Now Playing visualizer
+    /// redraw; 0 follows the display. One of <see cref="FrameRateChoices"/>.</summary>
+    [ObservableProperty] private int _visualizerFrameRate = DefaultFrameRate;
+
+    /// <summary>Each redraw makes the compositor present a frame, and that frame
+    /// is the visualizer's GPU cost (at 100 Hz the meter drops from about 3.7% to
+    /// 1.2%). The maintainer chose 30 as enough for the meter and Now Playing.</summary>
+    public const int DefaultFrameRate = 30;
+
+    /// <summary>The settings page's choices, in its order.</summary>
+    public static readonly int[] FrameRateChoices = [30, 60, 0];
+
+    /// <summary>A saved rate that isn't a choice (hand-edited, or from a newer
+    /// build) reads as the default.</summary>
+    public static int ParseFrameRate(int value) =>
+        Array.IndexOf(FrameRateChoices, value) >= 0 ? value : DefaultFrameRate;
+
     /// <summary>The user's choice; System by default, so an OS-wide setting is
     /// honoured without anyone visiting Settings.</summary>
     [ObservableProperty]

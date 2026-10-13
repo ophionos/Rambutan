@@ -159,7 +159,8 @@
                     </MultiBinding>
                   </Panel.IsVisible>
                   <Border CornerRadius="{StaticResource Token.Radius.Control}" Background="#59000000" />
-                  <controls:VisualizerControl Groups="5" BarColor="#E6FFFFFF" Width="31" Height="28" MaxFrameRate="30"
+                  <controls:VisualizerControl Groups="5" BarColor="#E6FFFFFF" Width="31" Height="28"
+                                              MaxFrameRate="{Binding Appearance.VisualizerFrameRate}"
                                               HorizontalAlignment="Center" VerticalAlignment="Center"
                                               IsActive="{Binding $parent[Panel].IsVisible}" />
                 </Panel>

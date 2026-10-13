@@ -81,8 +81,8 @@ public sealed class VisualizerControl : Control
     }
 
     /// <summary>Above 0, redraws at most this many times a second; 0 follows the
-    /// display. Each redraw makes the compositor present a frame, so a small meter
-    /// that can't show more motion than this needn't pay for the display rate.</summary>
+    /// display. Each redraw makes the compositor present a frame, and that frame
+    /// is the visualizer's GPU cost.</summary>
     public static readonly StyledProperty<int> MaxFrameRateProperty =
         AvaloniaProperty.Register<VisualizerControl, int>(nameof(MaxFrameRate));
 

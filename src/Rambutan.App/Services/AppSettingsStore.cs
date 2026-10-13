@@ -40,6 +40,10 @@ public sealed class AppSettings
     /// <summary>Show the meter over the player bar's artwork. Default on.</summary>
     public bool ArtworkMeter { get; set; } = true;
 
+    /// <summary>The most redraws a second for the meter and the Now Playing
+    /// visualizer: 30, 60, or 0 for the display rate. Default 30.</summary>
+    public int VisualizerFrameRate { get; set; } = AppearanceSettings.DefaultFrameRate;
+
     /// <summary>"system" (follow the OS's reduce-motion setting), "reduced" or
     /// "full". A string rather than an enum number so the file
     /// stays readable and an unknown value degrades to "system".</summary>
