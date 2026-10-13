@@ -8,6 +8,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- The exe's own icon (Explorer, pinned shortcuts); the window sets its own. -->
     <ApplicationIcon>Assets\rambutan.ico</ApplicationIcon>
+    <!-- The exe's version resource (Explorer, Task Manager, "Open with") carries
+         the full name; the app's own UI says only "Rambutan". -->
+    <Product>Rambutan Music Player</Product>
+    <AssemblyTitle>Rambutan Music Player</AssemblyTitle>
     <!-- Reflection bindings are AOT-hostile; every template declares x:DataType. -->
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <!-- NativeAOT for publish only; dev builds stay JIT for fast inner loop. -->

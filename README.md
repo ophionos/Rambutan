@@ -1,8 +1,9 @@
-# Rambutan
+# Rambutan Music Player
 
-A native desktop client for YouTube Music, for Windows and Linux — .NET 10 +
-Avalonia, no webview anywhere in the process. Word-by-word karaoke lyrics,
-crossfade, visualizer, phone remote, OBS overlay — compiled and Skia-rendered.
+Rambutan Music Player is a native desktop client for YouTube Music, for
+Windows and Linux — .NET 10 + Avalonia, no webview anywhere in the process.
+Word-by-word karaoke lyrics, crossfade, visualizer, phone remote, OBS overlay —
+compiled and Skia-rendered.
 
 Work, bugs and decisions are tracked in
 [GitHub issues](https://github.com/ophionos/Rambutan/issues).

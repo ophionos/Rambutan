@@ -123,4 +123,4 @@ jobs:
           EOF
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
             ${{ needs.check.outputs.beta == 'true' && '--prerelease' || '' }} \
-            --title "Rambutan $GITHUB_REF_NAME" --notes-file notes.md build/releases/*
+            --title "Rambutan Music Player $GITHUB_REF_NAME" --notes-file notes.md build/releases/*
