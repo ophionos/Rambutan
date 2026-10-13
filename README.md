@@ -170,7 +170,7 @@ use source-generated `System.Text.Json` everywhere.
 Tagging `v<version>` (matching `<Version>` in `Directory.Build.props`) drafts a
 GitHub release with the Windows installer, portable zip and delta packages, plus
 the Linux AppImage. A tag with a prerelease suffix
-(`v0.1.0-alpha.0`) goes to the beta channels (`win-beta`, `linux-beta`) and is
+(`v0.1.0-beta.1`) goes to the beta channels (`win-beta`, `linux-beta`) and is
 marked a prerelease. Installed builds update from the published releases of this
 repository, in the channel they were packed with. The release workflow reads the integration keys from the
 secrets `RAMBUTAN_DISCORD_APP_ID`, `RAMBUTAN_LASTFM_API_KEY` and

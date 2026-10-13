@@ -1,5 +1,5 @@
 # Tag v* → NativeAOT publish → vpk pack (Windows and Linux) →
-# draft GitHub release. Tags with a prerelease suffix (v0.1.0-alpha.1) go to the
+# draft GitHub release. Tags with a prerelease suffix (v0.1.0-beta.1) go to the
 # beta channels and are marked prereleases; UpdateService follows whichever
 # channel the installed build came from. Channels are per OS (win, win-beta,
 # linux, linux-beta), so the two platforms' release feeds never collide.
@@ -99,13 +99,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # The standing notes for the alpha; a release's own changes are added to
+          # The standing notes for the beta; a release's own changes are added to
           # the draft by hand.
           cat > notes.md <<'EOF'
           _What changed in this build goes here._
 
-          What the alpha does, and its limits, is in the README under
-          "What the alpha does". Report bugs and feedback with the issue forms.
+          What the beta does, and its limits, is in the README under
+          "What it does". Report bugs and feedback with the issue forms.
 
           **Windows:** run the `Setup.exe`. It isn't code-signed, so Windows
           SmartScreen warns first: choose "More info", then "Run anyway".
