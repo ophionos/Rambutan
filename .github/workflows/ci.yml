@@ -6,7 +6,46 @@ on:
   pull_request:
 
 jobs:
+  # A change that touches only Markdown can't change the build. The shipped
+  # notices (THIRD-PARTY-NOTICES.md, licenses/) are copied by the App project,
+  # so they count as code.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Look for changes outside documentation
+        id: diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # No usable base (a new branch, a force push): build.
+          if ! files=$(git diff --name-only "$BASE...$HEAD" 2>/dev/null); then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=false
+          while IFS= read -r f; do
+            case "$f" in
+              THIRD-PARTY-NOTICES.md|licenses/*) code=true ;;
+              *.md) ;;
+              *) code=true ;;
+            esac
+          done <<< "$files"
+          echo "$files"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  # The job always runs and only its steps skip: the branch ruleset requires
+  # these check names, and a skipped matrix job doesn't report them. If
+  # `changes` fails, the output is empty and the build runs.
   build-test:
+    needs: changes
+    if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
       matrix:
@@ -16,20 +55,31 @@ jobs:
           - os: ubuntu-latest
             rid: linux-x64
     runs-on: ${{ matrix.os }}
+    env:
+      BUILD: ${{ needs.changes.outputs.code != 'false' }}
     steps:
+      - name: Documentation only, nothing to build
+        if: env.BUILD != 'true'
+        run: echo "Only Markdown changed; build, test and publish are skipped."
+
       - uses: actions/checkout@v4
+        if: env.BUILD == 'true'
 
       - uses: actions/setup-dotnet@v4
+        if: env.BUILD == 'true'
         with:
           dotnet-version: 10.0.x
 
       # Warnings are regressions; the baseline is zero (CLAUDE.md).
       - name: Build
+        if: env.BUILD == 'true'
         run: dotnet build Rambutan.slnx -warnaserror
 
       - name: Test
+        if: env.BUILD == 'true'
         run: dotnet test Rambutan.slnx --no-build
 
       # NativeAOT is a day-one commitment: publishing must never rot.
       - name: NativeAOT publish smoke
+        if: env.BUILD == 'true'
         run: dotnet publish src/Rambutan.App -c Release -r ${{ matrix.rid }}
