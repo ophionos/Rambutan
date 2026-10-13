@@ -1,0 +1,15 @@
+# Only GitHub Actions gets version updates. A NuGet bump can need new license
+# notices, which Dependabot can't write, and an npm bump would leave the
+# committed build in src/Rambutan.LocalApi/wwwroot stale, because CI doesn't run
+# npm. Security alerts for NuGet and npm come from the repository settings, not
+# from this file.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns:
+          - "*"
