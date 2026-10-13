@@ -228,6 +228,10 @@ When two of these conflict, the one higher in the list wins.
   only, no reflection-based serializers or runtime codegen, and **vet every new
   NuGet package for trim/AOT safety before adding it**. Say how you vetted it
   (AOT publish with no new warnings, at minimum).
+- **License:** GPL-3.0-or-later. Every component that ships in the build (NuGet
+  packages and their native libraries, fonts, the Svelte runtime) has its notice
+  in `THIRD-PARTY-NOTICES.md` or under `licenses/`, and both ship beside the
+  executable. A new or updated shipped dependency updates them in the same change.
 - **No webview, ever.** No WebView2/CEF/Photino.
 - **Own formats, versioned from day one:** anything a user invests effort in
   (settings, overlay configs, custom lyrics, caches with a schema) is versioned

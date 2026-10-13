@@ -27,6 +27,15 @@
     <InternalsVisibleTo Include="Rambutan.App.Tests" />
   </ItemGroup>
 
+  <!-- The licenses travel with every copy: the GPL for the app, and the notices
+       that the MIT, BSD and OFL components require in binary copies. -->
+  <ItemGroup>
+    <None Include="..\..\LICENSE;..\..\THIRD-PARTY-NOTICES.md" Link="%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\licenses\*" Link="licenses\%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.3" />
     <PackageReference Include="Avalonia.Controls.ColorPicker" Version="12.1.3" />
