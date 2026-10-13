@@ -10,11 +10,9 @@ follows the [code of conduct](CODE_OF_CONDUCT.md).
   [GitHub issues](https://github.com/ophionos/Rambutan/issues). For anything
   larger than a small fix, open or comment on an issue first, so we agree on
   the change before you write it.
-- **Decisions belong to the maintainer.** An issue labelled `decision` is
-  open until the maintainer decides it; please don't settle it in a pull
-  request.
-- **Labels:** `P0` blocks its milestone, `P1` is needed for 1.0, `P2` may
-  never ship. `maintainer-check` needs the maintainer's accounts or hardware.
+- **Decisions belong to the maintainer.** A question an issue leaves open
+  stays open until the maintainer decides it; please don't settle it in a
+  pull request.
 
 ## Build and run
 

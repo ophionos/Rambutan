@@ -22,14 +22,9 @@ is not is an issue.
   decisions. A design note for a feature goes in its issue. Open a new issue for
   anything found and not fixed in the change at hand; close issues with the PR
   that fixes them (`Fixes #n`).
-- **Milestones** are phases; a phase's exit criteria are in its milestone
-  description. An issue with no milestone is not scheduled.
-- **Labels:** `P0` = its milestone can't close without it; `P1` = required for
-  1.0; `P2` = may never ship. `maintainer-check` = only the maintainer can do it
-  (live services, real hardware, by-ear checks). `decision` = a maintainer decision.
 
-**Decisions belong to the maintainer.** Don't resolve an open `decision` issue by
-implementing it. If a task depends on one, say so and ask. When a decision is
+**Decisions belong to the maintainer.** Don't settle an open question in an issue by
+implementing an answer. If a task depends on one, say so and ask. When a decision is
 made, comment it on the issue (what was decided, by whom, when) before the issue
 closes, and move any lasting rule into this file, without an issue number.
 
