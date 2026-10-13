@@ -1,0 +1,19 @@
+{
+  "app.title": "Rambutan Overlay",
+  "artwork.none": "No cover",
+  "artwork.of": "Cover of {title}",
+  "connection.connecting": "Connecting to Rambutan…",
+  "connection.lost": "Rambutan isn't reachable. Trying again…",
+  "connection.lostHelp": "Open Rambutan on this computer and turn on Settings → OBS overlay.",
+  "key.missing": "This overlay URL has no key",
+  "key.missingHelp": "In Rambutan, open Settings → OBS overlay, select Copy overlay URL, and paste it into the browser source.",
+  "key.rejected": "This overlay URL no longer works",
+  "key.rejectedHelp": "The URL was reset in Rambutan. Copy the new one from Settings → OBS overlay and paste it into the browser source.",
+  "playback.buffering": "Buffering…",
+  "playback.faulted": "Couldn't play this track.",
+  "playback.loading": "Loading…",
+  "playback.nothing": "Nothing playing",
+  "playback.paused": "Paused",
+  "playback.progress": "{elapsed} of {duration}",
+  "playback.waitingForNetwork": "Waiting for the network…"
+}

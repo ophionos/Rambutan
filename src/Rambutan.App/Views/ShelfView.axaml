@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:views="using:Rambutan.App.Views"
+             xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:core="using:Rambutan.Core.Models"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             x:Class="Rambutan.App.Views.ShelfView"
+             x:Name="Shelf"
+             x:DataType="core:Shelf">
+
+  <!-- A horizontal shelf of cards (Home, artist pages) with ‹ › paging in its
+       header. The scrollbar is hidden rather than disabled:
+       touchpads and Shift+wheel still scroll, and the resting bar no longer
+       draws a light line under every row. -->
+  <StackPanel Spacing="8">
+    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+      <TextBlock Text="{Binding Title}" FontSize="{StaticResource Token.Font.Section}" FontWeight="Bold"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      <Button Grid.Column="1" Classes="textlink" Margin="0,0,8,0" VerticalAlignment="Center"
+              Content="{l:T shelf.seeAll}"
+              ToolTip.Tip="{Binding Title, Converter={x:Static vm:Converters.SeeAllName}}"
+              AutomationProperties.Name="{Binding Title, Converter={x:Static vm:Converters.SeeAllName}}"
+              Command="{Binding #Shelf.SeeAllCommand}" CommandParameter="{Binding #Shelf.SeeAllCommandParameter}"
+              IsVisible="{Binding #Shelf.SeeAllCommand, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <Button x:Name="PageBack" Grid.Column="2" Classes="icon subtle small"
+              ToolTip.Tip="{l:T shelf.scrollBack}" AutomationProperties.Name="{l:T shelf.scrollBack}"
+              IsTabStop="False" IsVisible="False">
+        <PathIcon Data="{StaticResource Icon.ChevronLeft}" Width="18" Height="18" />
+      </Button>
+      <Button x:Name="PageForward" Grid.Column="3" Classes="icon subtle small"
+              ToolTip.Tip="{l:T shelf.scrollForward}" AutomationProperties.Name="{l:T shelf.scrollForward}"
+              IsTabStop="False" IsVisible="False" Margin="2,0,0,0">
+        <PathIcon Data="{StaticResource Icon.ChevronRight}" Width="18" Height="18" />
+      </Button>
+    </Grid>
+    <ScrollViewer x:Name="Scroller"
+                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled">
+      <!-- One tab stop per shelf, ←/→ inside it; moving focus
+           scrolls the shelf, which is why ‹ › above aren't tab stops. -->
+      <ItemsControl x:Name="Items" ItemsSource="{Binding Entries}"
+                    AutomationProperties.Name="{Binding Title}"
+                    controls:RovingFocus.IsEnabled="True">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="4" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="core:CatalogEntry">
+            <views:EntryCard OpenCommand="{Binding #Shelf.OpenCommand}"
+                             PlayCommand="{Binding #Shelf.PlayCommand}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </StackPanel>
+</UserControl>

@@ -1,0 +1,108 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:Rambutan.App.Localization"
+        xmlns:vm="using:Rambutan.App.ViewModels"
+        x:Class="Rambutan.App.Views.SignInDialog"
+        x:DataType="vm:SignInDialogViewModel"
+        Title="{l:T dialog.signIn.title}"
+        Width="580" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF16161C">
+
+  <StackPanel Margin="20" Spacing="14">
+    <StackPanel Spacing="4">
+      <TextBlock FontSize="16" FontWeight="SemiBold" Text="{l:T dialog.signIn.heading}" />
+      <TextBlock TextWrapping="Wrap" Opacity="0.75" FontSize="12"
+                 Text="{l:T dialog.signIn.intro}" />
+    </StackPanel>
+
+    <!-- Unencrypted storage is said before the steps, at full strength, so
+         nobody signs in without having read it. -->
+    <Border IsVisible="{Binding !IsStorageEncrypted}"
+            Background="{StaticResource Token.Brush.Overlay.14}" BorderBrush="{StaticResource Token.Brush.Overlay.38}" BorderThickness="1"
+            CornerRadius="{StaticResource Token.Radius.Small}" Padding="12,10">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+        <PathIcon Data="{StaticResource Icon.Warning}" Width="16" Height="16" VerticalAlignment="Top" />
+        <TextBlock Grid.Column="1" Text="{Binding StorageNote}" TextWrapping="Wrap" FontSize="12" />
+      </Grid>
+    </Border>
+
+    <!-- The guided steps. Copying the whole request as cURL works the same
+         in every browser and needs no hunting for the Cookie header; Rambutan
+         keeps only the cookies from it (InnerTube.CookieText). -->
+    <Grid ColumnDefinitions="22,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="10">
+      <TextBlock Grid.Row="0" Text="1." FontSize="12" Opacity="0.6" VerticalAlignment="Center" />
+      <!-- A grid, not a horizontal panel: the step has to wrap beside the button
+           once a translation outgrows one line. -->
+      <Grid Grid.Row="0" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+        <TextBlock FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center"
+                   Text="{l:T dialog.signIn.step1}" />
+        <!-- Copies rather than opens: the default browser would open a normal
+             window, and the sign-in has to be made in a private one. -->
+        <Button Grid.Column="1" x:Name="CopyLinkButton" Content="{l:T dialog.signIn.copyLink}" FontSize="12" Padding="10,3"
+                VerticalAlignment="Center" Click="OnCopyLink" />
+      </Grid>
+
+      <TextBlock Grid.Row="1" Text="2." FontSize="12" Opacity="0.6" />
+      <TextBlock Grid.Row="1" Grid.Column="1" FontSize="12" TextWrapping="Wrap"
+                 Text="{l:T dialog.signIn.step2}" />
+
+      <TextBlock Grid.Row="2" Text="3." FontSize="12" Opacity="0.6" />
+      <StackPanel Grid.Row="2" Grid.Column="1" Spacing="4">
+        <TextBlock FontSize="12" TextWrapping="Wrap">
+          <Run Text="{l:T dialog.signIn.step3Before}" />
+          <Run FontFamily="Consolas,monospace" FontWeight="SemiBold" Text="browse" />
+          <Run Text="{l:T dialog.signIn.step3After}" />
+        </TextBlock>
+        <TextBlock FontSize="12" Opacity="0.75" TextWrapping="Wrap" Margin="12,0,0,0">
+          <Run FontWeight="SemiBold" Text="{l:T dialog.signIn.chromium}" />
+          <Run Text="{l:T dialog.signIn.chromiumMenu}" />
+        </TextBlock>
+        <TextBlock FontSize="12" Opacity="0.75" TextWrapping="Wrap" Margin="12,0,0,0">
+          <Run FontWeight="SemiBold" Text="{l:T dialog.signIn.firefox}" />
+          <Run Text="{l:T dialog.signIn.firefoxMenu}" />
+        </TextBlock>
+      </StackPanel>
+
+      <TextBlock Grid.Row="3" Text="4." FontSize="12" Opacity="0.6" />
+      <TextBlock Grid.Row="3" Grid.Column="1" FontSize="12" TextWrapping="Wrap"
+                 Text="{l:T dialog.signIn.step4}" />
+    </Grid>
+
+    <StackPanel Spacing="6">
+      <TextBox x:Name="CookieBox" Height="96" AcceptsReturn="True" TextWrapping="Wrap"
+               FontSize="11" FontFamily="Consolas,monospace"
+               AutomationProperties.Name="{l:T dialog.signIn.boxName}"
+               IsEnabled="{Binding !IsChecking}"
+               Text="{Binding CookieText}"
+               PlaceholderText="{l:T dialog.signIn.placeholder}" />
+      <!-- Neutral, not accent: the accent is red and would read as an error. -->
+      <TextBlock Text="{Binding ClipboardNote}" FontSize="12" TextWrapping="Wrap" Opacity="0.85"
+                 IsVisible="{Binding ClipboardNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      <!-- Problems land here, beside the text that caused them, and the
+           dialog stays open so the fix is one re-copy, not a restart. -->
+      <TextBlock Text="{Binding Error}" FontSize="12" TextWrapping="Wrap"
+                 Foreground="{StaticResource Token.Brush.Error}"
+                 IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+    </StackPanel>
+
+    <TextBlock Text="{Binding StorageNote}" TextWrapping="Wrap" Opacity="0.6" FontSize="12"
+               IsVisible="{Binding IsStorageEncrypted}" />
+
+    <DockPanel>
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
+        <Button Content="{l:T common.cancel}" IsCancel="True" Click="OnCancel" />
+        <Button Content="{l:T common.signIn}" Classes="accent" IsDefault="True"
+                Command="{Binding SignInCommand}" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                  IsVisible="{Binding IsChecking}">
+        <!-- The text beside it says what is happening. -->
+        <ProgressBar IsIndeterminate="True" Width="60" MinWidth="0" AutomationProperties.AccessibilityView="Raw" />
+        <TextBlock Text="{l:T dialog.signIn.checking}" FontSize="12" Opacity="0.75"
+                   VerticalAlignment="Center" />
+      </StackPanel>
+    </DockPanel>
+  </StackPanel>
+</Window>

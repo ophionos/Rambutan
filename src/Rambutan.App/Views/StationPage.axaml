@@ -1,0 +1,157 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:conv="using:Rambutan.App.Converters"
+             x:Class="Rambutan.App.Views.StationPage"
+             x:Name="Root"
+             x:DataType="vm:StationPageViewModel">
+
+  <!-- A Last.fm station's page: the shelf's own rows, every one of them.
+       A track with nothing to play stays in the list, marked; one that plays
+       Last.fm's YouTube link says so. -->
+  <Grid RowDefinitions="Auto,*" DataContext="{Binding Station}" x:DataType="vm:StationShelfViewModel">
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="4,0,16,20">
+      <Border Classes="heroart" Width="176" Height="176">
+        <controls:RemoteImage Url="{Binding CoverUrl}" Stretch="UniformToFill" />
+      </Border>
+      <StackPanel Grid.Column="1" Margin="24,0,0,0" Spacing="6" VerticalAlignment="Bottom">
+        <TextBlock Classes="herotitle" Text="{Binding Title}" />
+        <TextBlock Classes="headermeta" Text="{Binding LoadedText}"
+                   IsVisible="{Binding LoadedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <TextBlock Classes="headersummary" Text="{Binding Summary}" IsVisible="{Binding !!Items.Count}" />
+        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
+          <Button Classes="cardplay hero" Command="{Binding PlayAllCommand}"
+                  ToolTip.Tip="{l:T common.playAll}" AutomationProperties.Name="{l:T common.playAll}">
+            <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24" />
+          </Button>
+          <Button Classes="icon outline" Command="{Binding ShuffleCommand}"
+                  ToolTip.Tip="{l:T common.shuffle}" AutomationProperties.Name="{l:T common.shuffle}">
+            <PathIcon Data="{StaticResource Icon.Shuffle}" Width="18" Height="18" />
+          </Button>
+          <!-- A new sample, for this page and the shelf on Home alike. -->
+          <Button Classes="icon outline" Command="{Binding LoadCommand}"
+                  ToolTip.Tip="{l:T station.page.refreshTip}" AutomationProperties.Name="{l:T station.page.refreshTip}">
+            <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
+          </Button>
+          <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T home.station.loading}"
+                       IsVisible="{Binding IsLoading}" />
+        </StackPanel>
+        <ContentControl Content="{Binding LoadError}"
+                        ContentTemplate="{StaticResource ErrorState.Compact}"
+                        HorizontalAlignment="Left"
+                        IsVisible="{Binding LoadError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <TextBlock Classes="headermeta" Text="{Binding SavedNotice}" AutomationProperties.LiveSetting="Polite"
+                   IsVisible="{Binding SavedNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <TextBlock Classes="headermeta" Text="{Binding Unavailable}" TextWrapping="Wrap" MaxWidth="640"
+                   HorizontalAlignment="Left"
+                   IsVisible="{Binding Unavailable, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <TextBlock Classes="headermeta" Text="{l:T station.page.empty}" IsVisible="{Binding HasNoTracks}" />
+      </StackPanel>
+    </Grid>
+
+    <ListBox Grid.Row="1" Classes="tracks pagescroll" Background="Transparent" ItemsSource="{Binding Items}"
+             AutomationProperties.Name="{l:T common.tracks}"
+             controls:ScrollMemory.IsEnabled="True"
+             controls:RowNumber.IsEnabled="True"
+             controls:ItemActivation.Command="{Binding PlayRowCommand}">
+      <ListBox.Styles>
+        <Style Selector="ListBoxItem" x:DataType="vm:StationRowItem">
+          <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+        </Style>
+        <!-- Nothing to play: the row stays, quieter. -->
+        <Style Selector="StackPanel.unplayable">
+          <Setter Property="Opacity" Value="0.6" />
+        </Style>
+      </ListBox.Styles>
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:StationRowItem">
+          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+                Background="Transparent"
+                controls:TrackMenu.Track="{Binding Track}">
+            <Panel Grid.Column="0" Width="28" Margin="0,0,12,0">
+              <TextBlock Classes="tracknumber" Text="{Binding $parent[ListBoxItem].(controls:RowNumber.Number)}">
+                <TextBlock.IsVisible>
+                  <MultiBinding Converter="{x:Static conv:IsPlayingTrackConverter.Inverted}">
+                    <Binding Path="Track.Identity" FallbackValue="{x:Null}" />
+                    <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Player.NowPlaying.Identity" />
+                  </MultiBinding>
+                </TextBlock.IsVisible>
+              </TextBlock>
+              <PathIcon Data="{StaticResource Icon.Play}" Width="12" Height="12"
+                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Foreground="{StaticResource Token.Brush.Accent}">
+                <PathIcon.IsVisible>
+                  <MultiBinding Converter="{x:Static conv:IsPlayingTrackConverter.Instance}">
+                    <Binding Path="Track.Identity" FallbackValue="{x:Null}" />
+                    <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Player.NowPlaying.Identity" />
+                  </MultiBinding>
+                </PathIcon.IsVisible>
+              </PathIcon>
+            </Panel>
+            <Border Grid.Column="1" Classes="rowart">
+              <Panel>
+                <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill"
+                                      IsVisible="{Binding IsPlayable}" />
+                <PathIcon Data="{StaticResource Icon.Warning}" Width="18" Height="18" Opacity="0.6"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                          IsVisible="{Binding !IsPlayable}" />
+              </Panel>
+            </Border>
+            <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center"
+                        Classes.unplayable="{Binding !IsPlayable}">
+              <TextBlock Classes="rowtitle" Text="{Binding Title}" />
+              <TextBlock Classes="rowmeta" Text="{Binding Artist}" />
+              <TextBlock Classes="rowmeta" Text="{Binding Note}" FontStyle="Italic"
+                         IsVisible="{Binding Note, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+            <TextBlock Grid.Column="4" Classes="rowmeta"
+                       Text="{Binding Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                       MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+            <Panel Grid.Column="3" Width="112">
+              <StackPanel Classes="rowactions" Orientation="Horizontal"
+                          HorizontalAlignment="Right" VerticalAlignment="Center"
+                          IsVisible="{Binding IsPlayable}">
+                <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.playFromHere}"
+                        Command="{Binding #Root.((vm:StationPageViewModel)DataContext).Station.PlayRowCommand}"
+                        CommandParameter="{Binding}">
+                  <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" />
+                </Button>
+                <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToQueue}"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToQueueCommand}"
+                        CommandParameter="{Binding Track}">
+                  <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+                </Button>
+                <controls:RateButton Classes="icon subtle small" IconSize="16" Kind="Like"
+                                     Track="{Binding Track}"
+                                     Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.LikeCommand}"
+                                     CommandParameter="{Binding Track}" />
+                <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToPlaylist}"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToPlaylistCommand}"
+                        CommandParameter="{Binding Track}">
+                  <PathIcon Data="{StaticResource Icon.AddToPlaylist}" Width="16" Height="16" />
+                </Button>
+              </StackPanel>
+            </Panel>
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <!-- Loading with nothing yet to show. -->
+    <StackPanel Grid.Row="1" Spacing="8" VerticalAlignment="Top" Margin="4,0,16,0">
+      <StackPanel.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="IsLoading" />
+          <Binding Path="!Items.Count" />
+        </MultiBinding>
+      </StackPanel.IsVisible>
+      <Border Classes="skeleton" Height="40" CornerRadius="6" />
+      <Border Classes="skeleton" Height="40" CornerRadius="6" />
+      <Border Classes="skeleton" Height="40" CornerRadius="6" />
+      <Border Classes="skeleton" Height="40" CornerRadius="6" />
+      <Border Classes="skeleton" Height="40" CornerRadius="6" />
+    </StackPanel>
+  </Grid>
+</UserControl>

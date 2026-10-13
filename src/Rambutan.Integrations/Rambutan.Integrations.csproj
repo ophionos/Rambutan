@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rambutan.Core\Rambutan.Core.csproj" />
+    <InternalsVisibleTo Include="Rambutan.Integrations.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- AOT-vetted: Rust updater binary + trim-safe C# SDK (phase1-plan §1.5). -->
+    <PackageReference Include="Velopack" Version="1.2.161" />
+    <!-- D-Bus for the Linux Secret Service and MPRIS (Linux/). Built for
+         NativeAOT, and already in the app: Avalonia.FreeDesktop depends on this
+         exact version. Keep the two in step when Avalonia moves. -->
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.94.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Service credentials, injected at build time and never committed; read
+         by IntegrationKeys. Empty values mean "not available in this build". -->
+    <AssemblyMetadata Include="RambutanDiscordAppId" Value="$(RambutanDiscordAppId)" />
+    <AssemblyMetadata Include="RambutanLastFmApiKey" Value="$(RambutanLastFmApiKey)" />
+    <AssemblyMetadata Include="RambutanLastFmSharedSecret" Value="$(RambutanLastFmSharedSecret)" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- SMTC needs the Windows.Media projections, so Windows hosts build the
+         Windows TFM; Linux dev builds stay plain net10.0 and the SMTC adapter
+         compiles out (#if WINDOWS). MPRIS (Linux/) needs no platform TFM. -->
+    <TargetFramework Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

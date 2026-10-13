@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rambutan.Core\Rambutan.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- In-process Kestrel host for the network-facing surface:
+       /remote/* and /overlay/*. Started on demand by the app. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <InternalsVisibleTo Include="Rambutan.LocalApi.Tests" />
+  </ItemGroup>
+
+  <!-- web/remote and web/overlay build outputs are embedded here as static assets
+       (StaticAssets.cs reads them back by these names). The build output is
+       committed, so a .NET build alone ships the pages (CI doesn't run npm). -->
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\**" LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,370 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Browse surfaces: card play button, album/playlist headers, album track
+       numbers. -->
+
+  <!-- Card play button. Absent at rest for the reason row actions are
+       (Controls.axaml, B4): an invisible button would still hit-test and take a
+       tab stop. Revealed by hover, and by keyboard focus anywhere in the card,
+       so Tab onto a card and Tab again reaches it. -->
+  <!-- Artists get round art on cards too, as in every list. -->
+  <Style Selector="Border.cardart">
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Card}" />
+  </Style>
+  <Style Selector="Border.cardart.artist">
+    <Setter Property="CornerRadius" Value="80" />
+  </Style>
+
+  <Style Selector="Panel.cardhost Button.cardplay">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Panel.cardhost:pointerover Button.cardplay">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <Style Selector="Panel.cardhost:focus-within Button.cardplay">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+
+  <Style Selector="Button.cardplay">
+    <Setter Property="Width" Value="44" />
+    <Setter Property="Height" Value="44" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="999" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+    <Setter Property="RenderTransform" Value="none" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Button.cardplay /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+  </Style>
+  <Style Selector="Button.cardplay:pointerover">
+    <Setter Property="RenderTransform" Value="scale(1.08)" />
+  </Style>
+  <!-- Reduced motion: the button still grows under the pointer, but in one
+       step rather than an animated swell. -->
+  <Style Selector="Window.reducedmotion Button.cardplay">
+    <Setter Property="Transitions" Value="{x:Null}" />
+  </Style>
+  <Style Selector="Button.cardplay:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPointerOver}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+  </Style>
+  <Style Selector="Button.cardplay:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressed}" />
+  </Style>
+  <!-- The glyph's box is centred, but a triangle's weight isn't: nudge it right. -->
+  <Style Selector="Button.cardplay > PathIcon">
+    <Setter Property="Margin" Value="2,0,0,0" />
+  </Style>
+
+  <!-- The header's Play all: the card play button, larger. -->
+  <Style Selector="Button.cardplay.hero">
+    <Setter Property="Width" Value="52" />
+    <Setter Property="Height" Value="52" />
+  </Style>
+  <Style Selector="Button.cardplay.hero:pointerover">
+    <Setter Property="RenderTransform" Value="scale(1.05)" />
+  </Style>
+  <Style Selector="Button.cardplay:disabled">
+    <Setter Property="Opacity" Value="0.4" />
+  </Style>
+
+  <!-- Secondary header actions: icon buttons with an outline, so they read as
+       buttons beside the filled Play all without competing with it. -->
+  <Style Selector="Button.icon.outline">
+    <Setter Property="Padding" Value="10" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Overlay.38}" />
+  </Style>
+  <Style Selector="Button.icon.outline:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Overlay.73}" />
+  </Style>
+
+  <!-- Download progress round an outlined header button's icon:
+       determinate and still, so reduced motion needs nothing of it. It spans
+       the button's padding, just inside the outline. -->
+  <Style Selector="Arc.downloadprogress">
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Margin" Value="-7" />
+    <Setter Property="StartAngle" Value="-90" />
+    <Setter Property="Stroke" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="StrokeThickness" Value="2" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+  </Style>
+
+  <Style Selector="Border.heroart">
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Card}" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="BoxShadow" Value="0 8 24 0 #66000000" />
+  </Style>
+  <Style Selector="TextBlock.herotitle">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Hero}" />
+    <Setter Property="FontWeight" Value="ExtraBold" />
+    <Setter Property="LineHeight" Value="50" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="MaxLines" Value="2" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+
+  <!-- Track rows: a 40px cover, then the title over its artist, both on the
+       type scale. The stock item padding (12,9,12,12) would add most of a row's
+       height again around the cover. -->
+  <Style Selector="ListBox.tracks ListBoxItem">
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Control}" />
+  </Style>
+  <Style Selector="Border.rowart">
+    <Setter Property="Width" Value="40" />
+    <Setter Property="Height" Value="40" />
+    <Setter Property="Margin" Value="0,0,12,0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Small}" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+  </Style>
+  <!-- A section of a page's list (Downloads: in progress, downloaded). -->
+  <Style Selector="TextBlock.sectiontitle">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Group}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <!-- A row whose file is gone: still listed, visibly not playable. -->
+  <Style Selector="Grid.missing > Border.rowart, Grid.missing > StackPanel.rowtext">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <Style Selector="TextBlock.rowtitle">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Body}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+  <Style Selector="TextBlock.rowmeta">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Meta}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+
+  <!-- A track row's "downloaded" mark, at the start of its meta line. Visual
+       only: the row's spoken name says "downloaded" (AccessibleNames). -->
+  <Style Selector="PathIcon.downloadmark">
+    <Setter Property="Data" Value="{StaticResource Icon.DownloadDone}" />
+    <Setter Property="Width" Value="12" />
+    <Setter Property="Height" Value="12" />
+    <Setter Property="Margin" Value="0,0,4,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Accent}" />
+  </Style>
+
+  <!-- Search's top-result card: a card surface around a larger
+       cover and title, with the card's own rows below on the same row styles.
+       No side padding: the card's rows then sit at the same x as the results
+       below it, and the cover's 8 (the item padding) puts it on their edge. -->
+  <Style Selector="Border.topresult">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Surface.Card}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Card}" />
+    <Setter Property="Padding" Value="0,16,0,8" />
+  </Style>
+  <Style Selector="Border.topart">
+    <Setter Property="Width" Value="96" />
+    <Setter Property="Height" Value="96" />
+    <Setter Property="Margin" Value="8,0,20,0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Control}" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+  </Style>
+  <Style Selector="Border.topart.round">
+    <Setter Property="CornerRadius" Value="48" />
+  </Style>
+  <Style Selector="TextBlock.topcaption">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Caption}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+  </Style>
+  <!-- Search's drop-down: an opaque raised panel under the box, with rows on
+       the track-row type scale but shorter, as a menu's are. -->
+  <Style Selector="Border.dropdown">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Surface.Popup}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Line}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Card}" />
+    <Setter Property="Padding" Value="4" />
+    <Setter Property="BoxShadow" Value="0 8 24 0 #66000000" />
+  </Style>
+  <Style Selector="ListBox.dropdown ListBoxItem">
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="MinHeight" Value="36" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Control}" />
+  </Style>
+  <!-- 8 + 16 + 18 = the 32px cover plus its 10px gap, so query text and entity
+       titles start at the same x. -->
+  <Style Selector="PathIcon.dropicon">
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+    <Setter Property="Margin" Value="8,0,18,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+  </Style>
+  <Style Selector="Border.droppart">
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Margin" Value="0,0,10,0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Small}" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+  </Style>
+
+  <Style Selector="TextBlock.toptitle">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Section}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+
+  <!-- The search field: a pill with its icon inside, a soft fill instead of
+       the stock black well, and a quiet outline when focused. -->
+  <Style Selector="TextBox.searchfield">
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="Padding" Value="10,9,16,9" />
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Body}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBox.searchfield /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+  <Style Selector="TextBox.searchfield:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Overlay.2B}" />
+  </Style>
+  <Style Selector="TextBox.searchfield:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Overlay.59}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <!-- Search filters as chips: the selected one is filled white, the rest a
+       soft fill. The accent bar list selection uses elsewhere read as a tab
+       strip bolted onto the page here. -->
+  <Style Selector="ListBox.chips ListBoxItem">
+    <Setter Property="Padding" Value="14,6" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+  <Style Selector="ListBox.chips ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBox.chips ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.2B}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text}" />
+  </Style>
+  <Style Selector="ListBox.chips ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBox.chips ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Text}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Ground}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <!-- Home's mood chips: buttons dressed as the filter chips above, since one
+       press on the selected chip clears it, which a ChipList never does. -->
+  <Style Selector="Button.chip">
+    <Setter Property="Padding" Value="14,6" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.chip /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.2B}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text}" />
+  </Style>
+  <Style Selector="Button.chip.selected /template/ ContentPresenter#PART_ContentPresenter,
+                   Button.chip.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Text}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Ground}" />
+  </Style>
+
+  <!-- A Moods & genres tile: a soft block with YouTube Music's colour as a
+       stripe down its left edge, as its own grid draws them. -->
+  <Style Selector="Button.moodtile">
+    <Setter Property="Width" Value="196" />
+    <Setter Property="Height" Value="52" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <Style Selector="Button.moodtile /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.moodtile:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.2B}" />
+  </Style>
+
+  <!-- Header text: "Daft Punk • Album • 2013" then "13 songs • 1 hr 14 min". -->
+  <Style Selector="TextBlock.headermeta">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Body}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="TextBlock.headersummary">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Meta}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Faint}" />
+  </Style>
+
+  <!-- A link inside running text (the album header's artist): the text's own
+       size and weight, underlined under the pointer, no button chrome. -->
+  <Style Selector="Button.textlink">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.textlink /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#FFF2F2F5" />
+  </Style>
+  <Style Selector="Button.textlink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+  </Style>
+  <Style Selector="Button.textlink:pointerover TextBlock">
+    <Setter Property="TextDecorations" Value="Underline" />
+  </Style>
+  <Style Selector="Button.textlink:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Button.textlink:pressed">
+    <Setter Property="RenderTransform" Value="none" />
+  </Style>
+
+  <!-- Album track numbers: right-aligned so 9 and 10 line up. -->
+  <Style Selector="TextBlock.tracknumber">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Meta}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Faint}" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+</Styles>

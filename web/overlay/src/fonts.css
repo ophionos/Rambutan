@@ -1,0 +1,24 @@
+/* Figtree, the app's UI font (OFL, src/Rambutan.App/Assets/Fonts/OFL.txt), so
+   the overlay matches the app. The build copies the files into the
+   hashed assets; only the weights the overlay uses. Figtree is Latin-only, so
+   Inter and the system fonts follow it in the stack, as in the app. */
+@font-face {
+  font-family: Figtree;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../../../src/Rambutan.App/Assets/Fonts/Figtree-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: Figtree;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../../../src/Rambutan.App/Assets/Fonts/Figtree-SemiBold.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: Figtree;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../../../src/Rambutan.App/Assets/Fonts/Figtree-Bold.ttf') format('truetype');
+}

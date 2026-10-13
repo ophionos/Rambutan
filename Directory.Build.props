@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <!-- Single source of truth for the app version (CLAUDE.md: never hardcode). -->
+    <Version>0.1.0-alpha.1</Version>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!-- NativeAOT is a day-one commitment:
+         every library must stay trim/AOT-clean, so analyzers run on all of src/. -->
+    <IsAotCompatible Condition="'$(OutputType)' != 'WinExe' and !$(MSBuildProjectName.EndsWith('.Tests'))">true</IsAotCompatible>
+  </PropertyGroup>
+</Project>

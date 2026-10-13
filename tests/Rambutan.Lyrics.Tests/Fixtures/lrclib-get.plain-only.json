@@ -1,0 +1,13 @@
+{
+  "id": 37541876,
+  "name": "Greensleeves",
+  "trackName": "Greensleeves",
+  "artistName": "Dublin Ramblers",
+  "albumName": "Whiskey In The Jar From Ireland",
+  "duration": 97.0,
+  "instrumental": false,
+  "hasWordSync": false,
+  "plainLyrics": "Alas, my love, you do me wrong\nTo cast me off discourteously\nAnd I have loved you so long\nDelighting in your company\n\nGreensleeves was all my joy\nGreensleeves was my delight\nGreensleeves, my heart of gold\nAnd you are my lady Greensleeves\n\nI have been ready at your hand\nTo grant whatever you would claim\nI have both wage, laugh and land\nYour love and goodwill for to have\n\nGreensleeves was all my joy\nGreensleeves was my delight\nGreensleeves, my heart of gold\nAnd you are my lady Greensleeves",
+  "syncedLyrics": null,
+  "lyricsfile": "version: '1.0'\nmetadata:\n  title: Greensleeves\n  artist: Dublin Ramblers\n  album: Whiskey In The Jar From Ireland\n  duration_ms: 96888\n  instrumental: false\nlines: []\nplain: |-\n  Alas, my love, you do me wrong\n  To cast me off discourteously\n  And I have loved you so long\n  Delighting in your company\n\n  Greensleeves was all my joy\n  Greensleeves was my delight\n  Greensleeves, my heart of gold\n  And you are my lady Greensleeves\n\n  I have been ready at your hand\n  To grant whatever you would claim\n  I have both wage, laugh and land\n  Your love and goodwill for to have\n\n  Greensleeves was all my joy\n  Greensleeves was my delight\n  Greensleeves, my heart of gold\n  And you are my lady Greensleeves\n"
+}

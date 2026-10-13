@@ -1,0 +1,53 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:core="using:Rambutan.Core.Models"
+             x:Class="Rambutan.App.Views.EntryCard"
+             x:Name="Card"
+             x:DataType="core:CatalogEntry">
+
+  <!-- One catalog card for Home, artist shelves and Library. The play button
+       is a sibling of the card, not inside it, so a click on it never also opens
+       the page underneath. Styles/Browse.axaml reveals it on hover or keyboard
+       focus. -->
+  <Panel Classes="cardhost">
+    <Button Classes="card"
+            AutomationProperties.Name="{Binding Converter={x:Static controls:AccessibleNames.ItemConverter}}"
+            Command="{Binding #Card.OpenCommand}"
+            CommandParameter="{Binding}">
+      <StackPanel Width="160" Spacing="8">
+        <Border Classes="cardart" Classes.artist="{Binding Converter={x:Static vm:Converters.IsArtist}}"
+                ClipToBounds="True" Width="160" Height="160">
+          <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+        </Border>
+        <!-- MinHeight reserves two lines each for title and subtitle
+             (2 × 19 + 2 × 17 + 2), so cards stay one uniform size, while a
+             one-line title still sits right on top of its subtitle. -->
+        <StackPanel Spacing="2" MinHeight="74">
+          <TextBlock Text="{Binding Title}" FontSize="{StaticResource Token.Font.Body}" FontWeight="SemiBold"
+                     TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                     LineHeight="19" />
+          <TextBlock Text="{Binding Subtitle}" FontSize="{StaticResource Token.Font.Meta}"
+                     Foreground="{StaticResource Token.Brush.Text.Muted}"
+                     TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
+                     LineHeight="17" />
+        </StackPanel>
+      </StackPanel>
+    </Button>
+
+    <!-- Bottom-right corner of the artwork, 8px in from its edges: the card's
+         8px padding + 160px art - 44px button - 8px inset = 116 from the top. -->
+    <Panel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,116,16,0"
+           IsVisible="{Binding Converter={x:Static vm:Converters.HasCardPlayButton}}">
+      <Button Classes="cardplay"
+              ToolTip.Tip="{l:T common.play}"
+              AutomationProperties.Name="{l:T common.playNamed, Arg={Binding Title}}"
+              Command="{Binding #Card.PlayCommand}"
+              CommandParameter="{Binding}">
+        <PathIcon Data="{StaticResource Icon.Play}" Width="20" Height="20" />
+      </Button>
+    </Panel>
+  </Panel>
+</UserControl>

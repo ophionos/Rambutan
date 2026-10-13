@@ -1,0 +1,805 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:Rambutan.App.Localization"
+        xmlns:vm="using:Rambutan.App.ViewModels"
+        xmlns:conv="using:Rambutan.App.Converters"
+        xmlns:views="using:Rambutan.App.Views"
+        xmlns:controls="using:Rambutan.App.Controls"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="760"
+        x:Class="Rambutan.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/rambutan.ico"
+        Width="1280" Height="800"
+        Background="{StaticResource Token.Brush.Ground}"
+        Title="Rambutan"
+        Classes.reducedmotion="{Binding Appearance.ReduceMotion}"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="40">
+
+  <Design.DataContext>
+    <vm:MainViewModel />
+  </Design.DataContext>
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="{x:Type vm:HomePageViewModel}">
+      <views:HomePage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:SearchPageViewModel}">
+      <views:SearchPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:LibraryPageViewModel}">
+      <views:LibraryPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:DownloadsPageViewModel}">
+      <views:DownloadsPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:SettingsPageViewModel}">
+      <views:SettingsPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:AlbumPageViewModel}">
+      <views:AlbumPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:PlaylistPageViewModel}">
+      <views:PlaylistPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ArtistPageViewModel}">
+      <views:ArtistPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:StationPageViewModel}">
+      <views:StationPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:MoodsPageViewModel}">
+      <views:MoodsPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:MoodCategoryPageViewModel}">
+      <views:MoodCategoryPage />
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <!-- Its margin keeps the shell inside the visible frame (ShellMargin). -->
+  <Panel x:Name="Shell">
+
+    <!-- Page-background layer, behind the whole shell rather than just
+         the content region: the panels above it are translucent, and they are
+         what makes the language read. Needs both a track and the setting. -->
+    <controls:PageBackground Url="{Binding Player.ArtworkUrl}"
+                             ReduceMotion="{Binding Appearance.ReduceMotion}">
+      <controls:PageBackground.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="Appearance.AmbientBackground" />
+          <Binding Path="Player.ArtworkUrl" Converter="{x:Static ObjectConverters.IsNotNull}" />
+        </MultiBinding>
+      </controls:PageBackground.IsVisible>
+    </controls:PageBackground>
+
+  <!-- The shell: a title bar and a player bar on the window's ground, and
+       between them three rounded panels (sidebar, page, queue) with a gap
+       around each, so no two surfaces meet at a seam.
+
+       Tab order is reading order, not declaration order: title bar, sidebar,
+       page, queue, player bar, status strip. The DockPanel needs the page
+       declared last to fill, which put the queue before it. Each region is a
+       Local tab group, since TabIndex on a plain Border is ignored; Local still
+       tabs out into the next region. The title bar shares TabIndex 0 with the
+       sidebar and comes first by declaration. -->
+  <DockPanel>
+
+    <!-- Custom title bar: drag + double-click handled in code-behind;
+         the buttons in it take their own clicks, so a press on one never starts
+         a drag. It owns the app's name and the history buttons,
+         with Back and Forward at the same spot on every page, root or
+         drill-down. The window
+         decorations draw the caption buttons on the right: keep clear of them. -->
+    <Border DockPanel.Dock="Top" x:Name="TitleBar" Height="40" Background="Transparent"
+            KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="0">
+      <StackPanel Orientation="Horizontal" Spacing="4" Margin="16,0,150,0" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="8" Width="172" VerticalAlignment="Center">
+          <Image Source="/Assets/rambutan.ico" Width="16" Height="16" VerticalAlignment="Center" />
+          <TextBlock Text="Rambutan" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </StackPanel>
+        <!-- The sidebar's toggle: full sidebar or its icon rail. It sits
+             where the full sidebar ends, and doesn't move when it collapses. -->
+        <Button x:Name="SidebarToggle" Classes="icon subtle small" Command="{Binding ToggleSidebarCommand}"
+                ToolTip.Tip="{Binding IsSidebarOpen, Converter={x:Static vm:Converters.SidebarToggleTip}}">
+          <PathIcon Data="{StaticResource Icon.Sidebar}" Width="18" Height="18" />
+        </Button>
+        <Button Classes="icon subtle small" Command="{Binding Navigation.BackCommand}"
+                IsEnabled="{Binding Navigation.CanGoBack}"
+                ToolTip.Tip="{l:T nav.back}" AutomationProperties.Name="{l:T nav.back}">
+          <PathIcon Data="{StaticResource Icon.ArrowBack}" Width="18" Height="18" />
+        </Button>
+        <Button Classes="icon subtle small" Command="{Binding Navigation.ForwardCommand}"
+                IsEnabled="{Binding Navigation.CanGoForward}"
+                ToolTip.Tip="{l:T nav.forward}" AutomationProperties.Name="{l:T nav.forward}">
+          <PathIcon Data="{StaticResource Icon.ArrowForward}" Width="18" Height="18" />
+        </Button>
+      </StackPanel>
+    </Border>
+
+    <!-- Player bar: identity | transport over the seek line | lyrics, queue,
+         volume. It sits on the ground like the title bar. -->
+    <Border DockPanel.Dock="Bottom" Height="88" Background="Transparent"
+            KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="3">
+
+        <!-- Three zones: identity left, transport centred, modes
+             and volume right. The side columns are equal stars, so the transport
+             stays on the window's centre line whatever the title's length; a long
+             title trims instead. -->
+        <Grid x:Name="PlayerBarGrid" ColumnDefinitions="*,Auto,*" Margin="16,0,20,0">
+
+          <!-- Identity. The Grid hugs its content (left-aligned), and its star
+               column is what lets a long title trim before it meets the
+               transport: a StackPanel would hand the text infinite width. -->
+          <Grid x:Name="BarIdentity" Grid.Column="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12"
+                HorizontalAlignment="Left" VerticalAlignment="Center" Margin="0,0,16,0"
+                IsVisible="{Binding Player.ShownTrack, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <!-- The artwork doubles as the Now Playing expander; the chevron
+                 appears on hover so the thumbnail stays clean at rest. While a
+                 track plays, a small meter sits across the artwork's middle, its
+                 bars growing up and down; paused, turned off in Settings or under
+                 reduced motion it is gone, not frozen. -->
+            <Button Grid.Column="0" Padding="0" CornerRadius="{StaticResource Token.Radius.Control}"
+                    Background="Transparent" BorderThickness="0"
+                    Command="{Binding NowPlaying.ToggleCommand}"
+                    ToolTip.Tip="{l:T player.openNowPlaying}">
+              <Panel>
+                <Border CornerRadius="{StaticResource Token.Radius.Control}" ClipToBounds="True" Width="56" Height="56"
+                        Background="{StaticResource Token.Brush.Overlay.14}">
+                  <controls:RemoteImage Url="{Binding Player.ArtworkUrl}" DecodeWidth="128"
+                                        Stretch="UniformToFill" />
+                </Border>
+                <Panel x:Name="BarVisualizer" IsHitTestVisible="False">
+                  <Panel.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="Player.IsPlaying" />
+                      <Binding Path="Appearance.ArtworkMeter" />
+                      <Binding Path="!Appearance.ReduceMotion" />
+                    </MultiBinding>
+                  </Panel.IsVisible>
+                  <Border CornerRadius="{StaticResource Token.Radius.Control}" Background="#59000000" />
+                  <controls:VisualizerControl Groups="5" BarColor="#E6FFFFFF" Width="31" Height="28"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              IsActive="{Binding $parent[Panel].IsVisible}" />
+                </Panel>
+                <Border x:Name="ArtExpandHint" CornerRadius="{StaticResource Token.Radius.Control}" Background="#66000000"
+                        IsVisible="{Binding $parent[Button].IsPointerOver}">
+                  <PathIcon Data="{StaticResource Icon.ChevronUp}" Width="22" Height="22"
+                            Foreground="White" />
+                </Border>
+              </Panel>
+            </Button>
+
+            <!-- Title links the album, the byline its artist and album.
+                 A part with nowhere to go stays plain text: no hover, no
+                 hand cursor, no tab stop. -->
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" ClipToBounds="True">
+              <Button Classes="link" FontSize="{StaticResource Token.Font.Body}" FontWeight="SemiBold"
+                      Command="{Binding Actions.GoToAlbumCommand}"
+                      CommandParameter="{Binding Player.ShownTrack}"
+                      Classes.inert="{Binding Player.ShownTrack.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}"
+                      ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.Album}}">
+                <TextBlock x:Name="BarTitle" Text="{Binding Player.Title}" TextTrimming="CharacterEllipsis" />
+              </Button>
+              <Grid ColumnDefinitions="Auto,Auto,*" TextElement.Foreground="{StaticResource Token.Brush.Text.Muted}">
+                <Button Classes="link" FontSize="{StaticResource Token.Font.Meta}" FontWeight="Normal" MaxWidth="160"
+                        Command="{Binding Actions.GoToArtistCommand}"
+                        CommandParameter="{Binding Player.ShownTrack.PrimaryArtist}"
+                        Classes.inert="{Binding Player.ShownTrack.PrimaryArtist, Converter={x:Static ObjectConverters.IsNull}}"
+                        ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.PrimaryArtist.Name}}">
+                  <TextBlock Text="{Binding Player.ShownTrack.ArtistDisplay}" TextTrimming="CharacterEllipsis" />
+                </Button>
+                <TextBlock Grid.Column="1" Text=" • " FontSize="{StaticResource Token.Font.Meta}" VerticalAlignment="Center"
+                           IsVisible="{Binding Player.ShownTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <Button Grid.Column="2" Classes="link" FontSize="{StaticResource Token.Font.Meta}" FontWeight="Normal"
+                        HorizontalAlignment="Left"
+                        Command="{Binding Actions.GoToAlbumCommand}"
+                        CommandParameter="{Binding Player.ShownTrack}"
+                        Classes.inert="{Binding Player.ShownTrack.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}"
+                        IsVisible="{Binding Player.ShownTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                        ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.Album}}">
+                  <TextBlock Text="{Binding Player.ShownTrack.Album}" TextTrimming="CharacterEllipsis" />
+                </Button>
+              </Grid>
+            </StackPanel>
+
+            <!-- Rating and save. In a compact bar (PlayerBarLayout) they fold
+                 into More, whose flyout holds the same three. -->
+            <StackPanel x:Name="BarIdentityActions" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+              <StackPanel x:Name="BarFullActions" Orientation="Horizontal">
+                <!-- Toggles showing the song's rating; the control
+                     draws the thumb and names it for what a press does now. -->
+                <controls:RateButton Classes="icon subtle" Kind="Like"
+                                     Track="{Binding Player.ShownTrack}"
+                                     Command="{Binding Actions.LikeCommand}"
+                                     CommandParameter="{Binding Player.ShownTrack}" />
+                <controls:RateButton Classes="icon subtle" Kind="Dislike"
+                                     Track="{Binding Player.ShownTrack}"
+                                     Command="{Binding Actions.DislikeCommand}"
+                                     CommandParameter="{Binding Player.ShownTrack}" />
+                <Button x:Name="SaveButton" Classes="icon subtle" ToolTip.Tip="{l:T player.saveToPlaylist}"
+                        Command="{Binding Actions.AddToPlaylistCommand}"
+                        CommandParameter="{Binding Player.ShownTrack}">
+                  <PathIcon Data="{StaticResource Icon.Save}" Width="20" Height="20" />
+                </Button>
+              </StackPanel>
+              <Button x:Name="BarMoreButton" Classes="icon subtle" IsVisible="False"
+                      ToolTip.Tip="{l:T player.moreActions}">
+                <PathIcon Data="{StaticResource Icon.More}" Width="20" Height="20" />
+                <Button.Flyout>
+                  <Flyout Placement="Top" FlyoutPresenterClasses="barColumn">
+                    <StackPanel>
+                      <controls:RateButton Classes="icon subtle" Kind="Like"
+                                           Track="{Binding Player.ShownTrack}"
+                                           Command="{Binding Actions.LikeCommand}"
+                                           CommandParameter="{Binding Player.ShownTrack}" />
+                      <controls:RateButton Classes="icon subtle" Kind="Dislike"
+                                           Track="{Binding Player.ShownTrack}"
+                                           Command="{Binding Actions.DislikeCommand}"
+                                           CommandParameter="{Binding Player.ShownTrack}" />
+                      <!-- Saving opens the playlist picker: the flyout closes first. -->
+                      <Button x:Name="BarMoreSave" Classes="icon subtle" ToolTip.Tip="{l:T player.saveToPlaylist}"
+                              Command="{Binding Actions.AddToPlaylistCommand}"
+                              CommandParameter="{Binding Player.ShownTrack}">
+                        <PathIcon Data="{StaticResource Icon.Save}" Width="20" Height="20" />
+                      </Button>
+                    </StackPanel>
+                  </Flyout>
+                </Button.Flyout>
+              </Button>
+            </StackPanel>
+          </Grid>
+
+          <!-- Nothing loaded: a quiet line where the identity goes, not an
+               empty slot beside a transport that looks live. -->
+          <TextBlock Grid.Column="0" Text="{l:T player.nothingPlaying}" FontSize="{StaticResource Token.Font.Meta}"
+                     Foreground="{StaticResource Token.Brush.Text.Faint}"
+                     VerticalAlignment="Center" Margin="4,0,0,0"
+                     IsVisible="{Binding Player.ShownTrack, Converter={x:Static ObjectConverters.IsNull}}" />
+
+          <!-- Transport, centred, over the seek line with its two ends beside it.
+               Shuffle and repeat flank the transport, as modes of it. The time
+               slots are fixed-width so ticking digits never nudge the line;
+               idle, the whole group dims. -->
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6"
+                      Classes.idle="{Binding Player.ShownTrack, Converter={x:Static ObjectConverters.IsNull}}">
+            <Panel HorizontalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Classes="icon subtle" Classes.active="{Binding Player.IsShuffleOn}"
+                        Command="{Binding Player.ToggleShuffleCommand}"
+                        ToolTip.Tip="{Binding Player.ShuffleTip}">
+                  <PathIcon Data="{StaticResource Icon.Shuffle}" Width="18" Height="18" />
+                </Button>
+                <Button Classes="icon" Command="{Binding Player.PreviousCommand}" ToolTip.Tip="{l:T player.previous}"
+                        IsEnabled="{Binding Player.HasQueue}">
+                  <PathIcon Data="{StaticResource Icon.Previous}" Width="24" Height="24" />
+                </Button>
+                <Button Classes="playcircle" Command="{Binding Player.TogglePlayPauseCommand}" ToolTip.Tip="{Binding Player.PlayPauseTip}"
+                        IsEnabled="{Binding Player.HasQueue}">
+                  <!-- Buffering: the spinner takes the glyph's place; the button
+                       still pauses. -->
+                  <Panel>
+                    <Panel IsVisible="{Binding !Player.IsBuffering}">
+                      <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24"
+                                IsVisible="{Binding !Player.IsPlaying}" />
+                      <PathIcon Data="{StaticResource Icon.Pause}" Width="24" Height="24"
+                                IsVisible="{Binding Player.IsPlaying}" />
+                    </Panel>
+                    <Arc Classes="spinner" IsVisible="{Binding Player.IsBuffering}" />
+                  </Panel>
+                </Button>
+                <Button Classes="icon" Command="{Binding Player.NextCommand}" ToolTip.Tip="{l:T player.next}"
+                        IsEnabled="{Binding Player.HasQueue}">
+                  <PathIcon Data="{StaticResource Icon.Next}" Width="24" Height="24" />
+                </Button>
+                <Button Classes="icon subtle" Classes.active="{Binding Player.IsRepeatOn}"
+                        Command="{Binding Player.CycleRepeatCommand}"
+                        ToolTip.Tip="{Binding Player.RepeatTip}">
+                  <Panel>
+                    <PathIcon Data="{StaticResource Icon.Repeat}" Width="18" Height="18"
+                              IsVisible="{Binding !Player.IsRepeatOne}" />
+                    <PathIcon Data="{StaticResource Icon.RepeatOne}" Width="18" Height="18"
+                              IsVisible="{Binding Player.IsRepeatOne}" />
+                  </Panel>
+                </Button>
+              </StackPanel>
+            </Panel>
+
+            <!-- In a narrow bar the times move under the line's two ends
+                 (timesUnder, Controls.axaml), so the line keeps their width. -->
+            <Grid x:Name="SeekRow" ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+              <TextBlock Classes="time elapsed" Text="{Binding Player.ElapsedDisplay}" TextAlignment="Right"
+                         AutomationProperties.Name="{l:T player.elapsed}" />
+
+              <!-- Background makes the whole panel hit-testable: the slider's own
+                   clickable strip is thinner than the drawn line and sits above
+                   it, so clicks on the line used to fall through.
+                   All three lines (track, buffered, played) are drawn here so they
+                   share one height, inset, and cap style; the slider's own track
+                   and fill are blanked via the resource overrides and it
+                   contributes only the thumb and pointer input. SeekFill's width
+                   follows the slider's value from code-behind — the template's
+                   fill never aligns with panel-centered siblings.
+                   Dimmed, not hidden, with nothing loaded: hiding would shift the
+                   bar. The played line is white at rest and takes the accent
+                   under the pointer (Controls.axaml). -->
+              <Panel Grid.Column="1" x:Name="SeekArea" Width="460" Height="14"
+                     Background="Transparent"
+                     Classes.idle="{Binding Player.NowPlaying, Converter={x:Static ObjectConverters.IsNull}}">
+                <Panel.Resources>
+                  <SolidColorBrush x:Key="SliderTrackFill" Color="Transparent" />
+                  <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="Transparent" />
+                  <SolidColorBrush x:Key="SliderTrackFillPressed" Color="Transparent" />
+                  <SolidColorBrush x:Key="SliderTrackFillDisabled" Color="Transparent" />
+                  <SolidColorBrush x:Key="SliderTrackValueFill" Color="Transparent" />
+                  <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="Transparent" />
+                  <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="Transparent" />
+                  <SolidColorBrush x:Key="SliderTrackValueFillDisabled" Color="Transparent" />
+                  <SolidColorBrush x:Key="SliderThumbBackground" Color="{StaticResource Token.Color.White}" />
+                  <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="{StaticResource Token.Color.White}" />
+                  <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="{StaticResource Token.Color.White}" />
+                </Panel.Resources>
+                <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                        Background="{StaticResource Token.Brush.Overlay.2B}" />
+                <!-- Drawing only: the seek slider is the control. -->
+                <ProgressBar Value="{Binding Player.BufferedFraction}" Maximum="1"
+                             AutomationProperties.AccessibilityView="Raw"
+                             Height="4" MinHeight="4" MinWidth="0" Padding="0"
+                             BorderThickness="0" CornerRadius="2"
+                             VerticalAlignment="Center"
+                             Foreground="{StaticResource Token.Brush.Overlay.40}" Background="Transparent" />
+                <Border x:Name="SeekFill" Height="4" Width="0" CornerRadius="2"
+                        VerticalAlignment="Center" HorizontalAlignment="Left" />
+                <Slider x:Name="PositionSlider" Classes="seek"
+                        AutomationProperties.Name="{l:T player.seek}"
+                        Minimum="0"
+                        Maximum="{Binding Player.DurationSeconds}"
+                        Value="{Binding Player.PositionSeconds}"
+                        IsEnabled="{Binding Player.NowPlaying, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </Panel>
+
+              <TextBlock Classes="time duration" Text="{Binding Player.DurationDisplay}" TextAlignment="Left"
+                         AutomationProperties.Name="{l:T player.duration}" />
+            </Grid>
+          </StackPanel>
+
+          <!-- Lyrics and queue, then volume, right-aligned. The queue button is
+               the queue panel's toggle; the panel's own close button is the
+               other way back. -->
+          <StackPanel x:Name="BarModes" Grid.Column="2" Orientation="Horizontal" Spacing="2"
+                      VerticalAlignment="Center" HorizontalAlignment="Right">
+            <Button Classes="icon subtle" Classes.active="{Binding NowPlaying.AreLyricsOnScreen}"
+                    Command="{Binding NowPlaying.OpenLyricsCommand}"
+                    ToolTip.Tip="{Binding NowPlaying.LyricsButtonTip}">
+              <PathIcon Data="{StaticResource Icon.Lyrics}" Width="18" Height="18" />
+            </Button>
+            <Button Classes="icon subtle" Classes.active="{Binding IsQueueOpen}"
+                    Command="{Binding ToggleQueueCommand}"
+                    ToolTip.Tip="{Binding IsQueueOpen, Converter={x:Static vm:Converters.QueuePillTip}}">
+              <PathIcon Data="{StaticResource Icon.Queue}" Width="20" Height="20" />
+            </Button>
+            <Border Width="1" Height="20" Margin="8,0" Background="{StaticResource Token.Brush.Line}"
+                    VerticalAlignment="Center" />
+            <Button x:Name="MuteButton" Classes="icon subtle" Command="{Binding Player.ToggleMuteCommand}"
+                    ToolTip.Tip="{Binding Player.MuteTip}">
+              <Panel>
+                <PathIcon Data="{StaticResource Icon.Volume}" Width="20" Height="20"
+                          IsVisible="{Binding !Player.IsMuted}" />
+                <PathIcon Data="{StaticResource Icon.VolumeMuted}" Width="20" Height="20"
+                          IsVisible="{Binding Player.IsMuted}" />
+              </Panel>
+            </Button>
+            <!-- Neutral at rest, accent under the pointer: a full red volume line
+                 on an idle app was half of what made it look busy. -->
+            <Slider x:Name="VolumeSlider" Classes="volume" Width="96" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.2"
+                    VerticalAlignment="Center" Margin="0,0,4,0"
+                    Value="{Binding Player.Volume}"
+                    AutomationProperties.Name="{l:T player.volume}">
+              <Slider.Resources>
+                <SolidColorBrush x:Key="SliderTrackValueFill" Color="#FFF4F4F5" />
+                <StaticResource x:Key="SliderTrackValueFillPointerOver" ResourceKey="Token.Brush.Accent" />
+                <StaticResource x:Key="SliderTrackValueFillPressed" ResourceKey="Token.Brush.Accent" />
+                <SolidColorBrush x:Key="SliderThumbBackground" Color="{StaticResource Token.Color.White}" />
+                <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="{StaticResource Token.Color.White}" />
+                <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="{StaticResource Token.Color.White}" />
+              </Slider.Resources>
+            </Slider>
+            <!-- A compact bar has no room for the slider: this button opens it,
+                 upright, under the mute button. -->
+            <Button x:Name="VolumeButton" Classes="icon subtle" IsVisible="False"
+                    ToolTip.Tip="{l:T player.volume}" AutomationProperties.Name="{l:T player.volume}">
+              <Panel>
+                <PathIcon Data="{StaticResource Icon.Volume}" Width="20" Height="20"
+                          IsVisible="{Binding !Player.IsMuted}" />
+                <PathIcon Data="{StaticResource Icon.VolumeMuted}" Width="20" Height="20"
+                          IsVisible="{Binding Player.IsMuted}" />
+              </Panel>
+              <Button.Flyout>
+                <Flyout Placement="Top" FlyoutPresenterClasses="barColumn">
+                  <StackPanel Spacing="4" HorizontalAlignment="Center">
+                    <Button Classes="icon subtle" HorizontalAlignment="Center"
+                            Command="{Binding Player.ToggleMuteCommand}"
+                            ToolTip.Tip="{Binding Player.MuteTip}"
+                            AutomationProperties.Name="{Binding Player.MuteTip}">
+                      <Panel>
+                        <PathIcon Data="{StaticResource Icon.Volume}" Width="20" Height="20"
+                                  IsVisible="{Binding !Player.IsMuted}" />
+                        <PathIcon Data="{StaticResource Icon.VolumeMuted}" Width="20" Height="20"
+                                  IsVisible="{Binding Player.IsMuted}" />
+                      </Panel>
+                    </Button>
+                    <!-- The bar's own volume slider turned upright: Fluent's vertical
+                         template keeps room for tick marks on one side, so its line
+                         sat off the column's middle and the thumb was cut off. The
+                         rotation replaces the volume class's lift (the transform
+                         control sets RenderTransform), and the track sits 4px below
+                         the slider's middle: the bottom margin, upright, moves it
+                         back to the column's middle. -->
+                    <LayoutTransformControl HorizontalAlignment="Center" Margin="0,4,0,8">
+                      <LayoutTransformControl.LayoutTransform>
+                        <RotateTransform Angle="-90" />
+                      </LayoutTransformControl.LayoutTransform>
+                      <Slider x:Name="VolumeFlyoutSlider" Classes="volume" Width="112" Margin="0,0,0,8" Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.2"
+                              Value="{Binding Player.Volume}"
+                              AutomationProperties.Name="{l:T player.volume}">
+                        <Slider.Resources>
+                          <SolidColorBrush x:Key="SliderTrackValueFill" Color="#FFF4F4F5" />
+                          <StaticResource x:Key="SliderTrackValueFillPointerOver" ResourceKey="Token.Brush.Accent" />
+                          <StaticResource x:Key="SliderTrackValueFillPressed" ResourceKey="Token.Brush.Accent" />
+                          <SolidColorBrush x:Key="SliderThumbBackground" Color="{StaticResource Token.Color.White}" />
+                          <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="{StaticResource Token.Color.White}" />
+                          <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="{StaticResource Token.Color.White}" />
+                        </Slider.Resources>
+                      </Slider>
+                    </LayoutTransformControl>
+                  </StackPanel>
+                </Flyout>
+              </Button.Flyout>
+            </Button>
+          </StackPanel>
+        </Grid>
+    </Border>
+
+    <!-- Status strip: standing state only. Each condition
+         has its own slot and its own fix, and the strip is gone when nothing is
+         wrong or in progress. Outcomes of actions are toasts (Views/ToastHost).
+         Gone is zero height, not hidden: the network wait's live region has to
+         be in the automation tree before its text changes, or nothing is announced. -->
+    <Border x:Name="StatusStrip" DockPanel.Dock="Bottom" Background="{StaticResource Token.Brush.Surface.Recessed}"
+            CornerRadius="{StaticResource Token.Radius.Control}" ClipToBounds="True"
+            Classes.empty="{Binding !HasStatus}" KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="4">
+      <!-- Margin and padding as setters, not attributes: a local value would
+           outrank the empty state's zeros. -->
+      <Border.Styles>
+        <Style Selector="Border#StatusStrip">
+          <Setter Property="Margin" Value="8,8,8,0" />
+          <Setter Property="Padding" Value="16,6" />
+        </Style>
+        <Style Selector="Border#StatusStrip.empty">
+          <Setter Property="Height" Value="0" />
+          <Setter Property="Margin" Value="0" />
+          <Setter Property="Padding" Value="0" />
+        </Style>
+      </Border.Styles>
+      <StackPanel Orientation="Horizontal" Spacing="16">
+        <TextBlock Text="{Binding SidecarProgress}" FontSize="{StaticResource Token.Font.Caption}"
+                   Foreground="{StaticResource Token.Brush.Text.Muted}"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                   IsVisible="{Binding SidecarProgress, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <StackPanel Orientation="Horizontal" Spacing="8"
+                    IsVisible="{Binding ShowSessionNotice}">
+          <TextBlock Text="{Binding Session.Notice}" FontSize="{StaticResource Token.Font.Caption}"
+                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <Button Content="{l:T common.signIn}" FontSize="{StaticResource Token.Font.Caption}" Padding="12,2" MinHeight="0"
+                  VerticalAlignment="Center"
+                  Command="{Binding Session.SignInCommand}"
+                  IsVisible="{Binding Session.NeedsSignIn}" />
+        </StackPanel>
+        <!-- The last run crashed: stays until reported or dismissed. -->
+        <StackPanel Orientation="Horizontal" Spacing="8"
+                    IsVisible="{Binding CrashNotice.IsVisible, FallbackValue=False}">
+          <TextBlock Text="{Binding CrashNotice.Text}" FontSize="{StaticResource Token.Font.Caption}"
+                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <Button Content="{l:T crash.report}" FontSize="{StaticResource Token.Font.Caption}" Padding="12,2" MinHeight="0"
+                  VerticalAlignment="Center" ToolTip.Tip="{l:T crash.reportTip}"
+                  Command="{Binding CrashNotice.ReportCommand}" />
+          <Button Content="{l:T common.dismiss}" FontSize="{StaticResource Token.Font.Caption}" Padding="12,2" MinHeight="0"
+                  VerticalAlignment="Center"
+                  Command="{Binding CrashNotice.DismissCommand}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" Spacing="8"
+                    IsVisible="{Binding SidecarsFailed}">
+          <!-- Tip on the TextBlock, not the panel: a Panel with no Background
+               doesn't hit-test, so a tip there would never appear. -->
+          <TextBlock Text="{l:T sidecar.failed}" FontSize="{StaticResource Token.Font.Caption}"
+                     Foreground="{StaticResource Token.Brush.Error}" VerticalAlignment="Center"
+                     ToolTip.Tip="{Binding SidecarError}" />
+          <Button Content="{l:T common.retry}" FontSize="{StaticResource Token.Font.Caption}" Padding="12,2" MinHeight="0"
+                  VerticalAlignment="Center"
+                  Command="{Binding RetrySidecarsCommand}" />
+        </StackPanel>
+        <!-- A polite live region: always present, empty (zero width) until a
+             wait starts. Avalonia announces a live region when the Name of an
+             element already in the tree changes, so it is never hidden. -->
+        <TextBlock Text="{Binding NetworkWaitText}" FontSize="{StaticResource Token.Font.Caption}"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                   AutomationProperties.Name="{Binding NetworkWaitText}"
+                   AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
+    </Border>
+
+    <!-- Sidebar: full, or collapsed to a rail of icons (styles in
+         Controls.axaml). The title bar's toggle and Ctrl+B switch it. -->
+    <Border x:Name="Sidebar" DockPanel.Dock="Left" Margin="8,0,0,0"
+            Classes.rail="{Binding !IsSidebarOpen}"
+            Background="{StaticResource Token.Brush.Surface.Panel}"
+            CornerRadius="{StaticResource Token.Radius.Panel}" Padding="12"
+            KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="0">
+      <DockPanel>
+        <!-- The account: a chip with the name and the session's state, whose
+             menu holds the account actions. Signed out, or with a session that
+             needs a fresh sign-in, a Sign in button stands above it: the status
+             strip hides its own notice while this one is showing
+             (MainViewModel.ShowSessionNotice), so it has to be here. -->
+        <StackPanel x:Name="SidebarAccount" DockPanel.Dock="Bottom" Spacing="8">
+          <Button Classes="accent signin" Content="{l:T common.signIn}" HorizontalAlignment="Stretch"
+                  Command="{Binding Session.SignInCommand}">
+            <Button.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.Or}">
+                <Binding Path="!Session.IsSignedIn" />
+                <Binding Path="Session.NeedsSignIn" />
+              </MultiBinding>
+            </Button.IsVisible>
+          </Button>
+          <Button x:Name="AccountChip" Classes="account"
+                  AutomationProperties.Name="{Binding Session.ChipTitle}"
+                  ToolTip.Tip="{Binding Session.StatusDetail}">
+            <Button.Flyout>
+              <MenuFlyout Placement="TopEdgeAlignedLeft" FlyoutPresenterClasses="account">
+                <MenuItem Header="{l:T settings.account.signInAgain}"
+                          Command="{Binding Session.SignInCommand}"
+                          IsVisible="{Binding Session.IsSignedIn}" />
+                <MenuItem Header="{l:T common.signOut}"
+                          Command="{Binding Session.SignOutCommand}"
+                          IsVisible="{Binding Session.IsSignedIn}" />
+                <MenuItem Header="{l:T common.signIn}"
+                          Command="{Binding Session.SignInCommand}"
+                          IsVisible="{Binding !Session.IsSignedIn}" />
+                <Separator />
+                <!-- Profiles: switching restarts the app into the other profile. -->
+                <MenuItem Header="{Binding Profiles.ChipLine}" IsEnabled="False"
+                          IsVisible="{Binding Profiles.ShowsProfile, FallbackValue=False}" />
+                <MenuItem Header="{l:T profiles.switchMenu}" ItemsSource="{Binding Profiles.Others}"
+                          IsVisible="{Binding Profiles.HasOthers, FallbackValue=False}">
+                  <MenuItem.ItemContainerTheme>
+                    <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                                  x:DataType="vm:ProfileRowViewModel">
+                      <Setter Property="Header" Value="{Binding Name}" />
+                      <Setter Property="Command" Value="{Binding SwitchCommand}" />
+                      <Setter Property="AutomationProperties.Name" Value="{Binding SwitchName}" />
+                    </ControlTheme>
+                  </MenuItem.ItemContainerTheme>
+                </MenuItem>
+                <MenuItem Header="{l:T profiles.manage}" Command="{Binding Profiles.ManageCommand, FallbackValue={x:Null}}" />
+                <Separator />
+                <MenuItem Header="{l:T nav.settings}" Command="{Binding GoSettingsCommand}" />
+              </MenuFlyout>
+            </Button.Flyout>
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+              <!-- The account's photo over its initials: the initials show while
+                   it loads, and stay if it doesn't. -->
+              <Border Width="32" Height="32" CornerRadius="{StaticResource Token.Radius.Pill}" Background="#FF3F3F46"
+                      ClipToBounds="True">
+                <Panel>
+                  <TextBlock Text="{Binding Session.AccountInitials}" FontSize="12" FontWeight="Bold"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  <PathIcon Data="{StaticResource Icon.Person}" Width="18" Height="18"
+                            Foreground="{StaticResource Token.Brush.Text.Muted}"
+                            IsVisible="{Binding !Session.AccountInitials.Length}" />
+                  <controls:RemoteImage Url="{Binding Session.AccountPhotoUrl}" Stretch="UniformToFill" DecodeWidth="64"
+                                        IsVisible="{Binding Session.AccountPhotoUrl, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </Panel>
+              </Border>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                <TextBlock Text="{Binding Session.ChipTitle}" FontSize="13.5" FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Session.ChipStatus}" FontSize="{StaticResource Token.Font.Caption}"
+                           Foreground="{StaticResource Token.Brush.Text.Muted}" TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding !!Session.ChipStatus.Length}" />
+                <TextBlock Text="{Binding Profiles.ChipLine}" FontSize="{StaticResource Token.Font.Caption}"
+                           Foreground="{StaticResource Token.Brush.Text.Muted}" TextTrimming="CharacterEllipsis"
+                           IsVisible="{Binding Profiles.ShowsProfile, FallbackValue=False}" />
+              </StackPanel>
+              <PathIcon Grid.Column="2" Classes="chevron" Data="{StaticResource Icon.ChevronUp}" Width="16" Height="16"
+                        Foreground="{StaticResource Token.Brush.Text.Faint}" />
+            </Grid>
+          </Button>
+        </StackPanel>
+
+        <!-- The window's minimum height fits the whole list (MainWindow.FitSidebar);
+             a window manager that ignores it gets a list that scrolls, never
+             one drawn under the account chip. -->
+        <ScrollViewer x:Name="SidebarNavScroll" Margin="0,0,0,8"
+                      HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel x:Name="SidebarNav" Spacing="2">
+            <Button Classes="nav" Command="{Binding GoHomeCommand}" ToolTip.Tip="{l:T nav.home}"
+                    Classes.active="{Binding Navigation.Section, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:NavSection.Home}}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{StaticResource Icon.Home}" Width="20" Height="20" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T nav.home}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="nav" Command="{Binding GoSearchCommand}" ToolTip.Tip="{l:T nav.search}"
+                    Classes.active="{Binding Navigation.Section, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:NavSection.Search}}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{StaticResource Icon.Search}" Width="20" Height="20" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T nav.search}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="nav" Command="{Binding GoLibraryCommand}" ToolTip.Tip="{l:T nav.library}"
+                    Classes.active="{Binding Navigation.Section, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:NavSection.Library}}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{StaticResource Icon.Library}" Width="20" Height="20" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T nav.library}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="nav" Command="{Binding GoDownloadsCommand}" ToolTip.Tip="{l:T nav.downloads}"
+                    Classes.active="{Binding Navigation.Section, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:NavSection.Downloads}}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{StaticResource Icon.Download}" Width="20" Height="20" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T nav.downloads}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="nav" Command="{Binding GoSettingsCommand}" ToolTip.Tip="{l:T nav.settings}"
+                    Classes.active="{Binding Navigation.Section, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:NavSection.Settings}}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{StaticResource Icon.Settings}" Width="20" Height="20" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T nav.settings}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
+
+    <!-- Queue panel (collapsible from its own close button or the player bar). -->
+    <Border DockPanel.Dock="Right" Width="300" Margin="0,0,8,0"
+            Background="{StaticResource Token.Brush.Surface.Panel}"
+            CornerRadius="{StaticResource Token.Radius.Panel}" Padding="12,12,12,4"
+            KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="2"
+            IsVisible="{Binding IsQueueOpen}">
+      <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="8,0,0,4">
+          <TextBlock Text="{l:T queue.title}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
+          <Button Grid.Column="1" Classes="icon subtle small" Command="{Binding ToggleQueueCommand}"
+                  ToolTip.Tip="{Binding IsQueueOpen, Converter={x:Static vm:Converters.QueuePillTip}}">
+            <PathIcon Data="{StaticResource Icon.Close}" Width="16" Height="16" />
+          </Button>
+        </Grid>
+        <Panel>
+        <StackPanel Classes="empty" Margin="0,0,0,60"
+                    IsVisible="{Binding !QueuePanel.Items.Count}">
+          <TextBlock Classes="title" Text="{l:T queue.emptyTitle}" />
+          <TextBlock Classes="hint" Text="{l:T queue.emptyHint}" />
+        </StackPanel>
+        <!-- Rows are stable: the VM moves and updates them in place, so
+             scroll and selection survive the song advancing. Drag a row, or
+             Alt+↑/↓ on the selected one, to reorder. -->
+        <ListBox x:Name="QueueList" Classes="queue"
+                 AutomationProperties.Name="{l:T queue.title}"
+                 AutomationProperties.HelpText="{l:T queue.listHelp}"
+                 ItemsSource="{Binding QueuePanel.Items}" Background="Transparent"
+                 IsVisible="{Binding !!QueuePanel.Items.Count}"
+                 controls:DragReorder.Command="{Binding QueuePanel.ReorderCommand}"
+                 controls:ItemActivation.Command="{Binding QueuePanel.JumpCommand}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:QueueItemViewModel">
+              <StackPanel Background="Transparent"
+                          controls:TrackMenu.Track="{Binding Track}"
+                          controls:TrackMenu.Host="{Binding $parent[Window].((vm:MainViewModel)DataContext).QueuePanel}">
+                <!-- Section caption on the first row of each section: Played,
+                     Now playing (or Where you left off, for a restored queue
+                     that isn't playing yet), Up next (n). -->
+                <TextBlock Classes="queuesection" Text="{Binding Section}"
+                           IsVisible="{Binding Section, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              <!-- The row's selection and hover are painted on this border, not
+                   the whole item, so the caption above stays outside them. -->
+              <Border Classes="queuerow">
+              <Grid ColumnDefinitions="Auto,*,Auto" Classes.history="{Binding IsHistory}"
+                    Classes.needsconnection="{Binding NeedsConnection}">
+                <!-- Cover. A note on a quiet tile shows until the art loads, and
+                     stays for a track without any, so the column never has a
+                     hole. The playing marker sits on the playing row's
+                     cover, over a scrim.
+                     IsCurrent is index-based, which is right here: a queue can
+                     hold the same track twice and only one row is playing. -->
+                <Border Grid.Column="0" Width="40" Height="40" CornerRadius="{StaticResource Token.Radius.Small}" ClipToBounds="True"
+                        Margin="0,0,12,0" VerticalAlignment="Center" Background="{StaticResource Token.Brush.Overlay.14}">
+                  <Panel>
+                    <PathIcon Data="{StaticResource Icon.MusicNote}" Width="16" Height="16" Opacity="0.35" />
+                    <controls:RemoteImage Url="{Binding Track, Converter={x:Static conv:ArtworkConverter.Instance}}" Stretch="UniformToFill" DecodeWidth="96" />
+                    <Panel Background="#99000000" IsVisible="{Binding IsCurrent}">
+                      <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16"
+                                Foreground="{StaticResource Token.Brush.Accent}" />
+                    </Panel>
+                  </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                             FontSize="13.5" FontWeight="Medium"
+                             Classes.nowplaying="{Binding IsCurrent}" />
+                  <DockPanel>
+                    <PathIcon DockPanel.Dock="Left" Classes="downloadmark">
+                      <PathIcon.IsVisible>
+                        <MultiBinding Converter="{x:Static conv:IsDownloadedConverter.Instance}">
+                          <Binding Path="Track.VideoId" />
+                          <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Actions.DownloadedIds" />
+                        </MultiBinding>
+                      </PathIcon.IsVisible>
+                    </PathIcon>
+                    <!-- Visual only: the row's spoken name says it. -->
+                    <PathIcon DockPanel.Dock="Left" Data="{StaticResource Icon.CloudOff}"
+                              Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center"
+                              IsVisible="{Binding NeedsConnection}"
+                              ToolTip.Tip="{l:T queue.needsConnectionTip}" />
+                    <TextBlock Text="{Binding Artist}" FontSize="{StaticResource Token.Font.Caption}"
+                               Foreground="{StaticResource Token.Brush.Text.Muted}"
+                               TextTrimming="CharacterEllipsis" />
+                  </DockPanel>
+                </StackPanel>
+                <!-- Unlike the track lists, this column stays Auto rather than a
+                     fixed slot, so the width actually returns to the title. Reordering is by
+                     drag and Alt+↑/↓, so only play and remove are here; the rest is in
+                     the context menu. -->
+                <StackPanel Grid.Column="2" Classes="rowactions"
+                            Orientation="Horizontal" Spacing="0"
+                            VerticalAlignment="Center">
+                  <Button Classes="icon subtle small" ToolTip.Tip="{l:T queue.playNowTip}"
+                          IsVisible="{Binding !IsCurrent}"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).QueuePanel.JumpCommand}"
+                          CommandParameter="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.Play}" Width="14" Height="14" />
+                  </Button>
+                  <!-- The playing track can't be removed; no button rather
+                       than one that does nothing. -->
+                  <Button Classes="icon subtle small" ToolTip.Tip="{l:T queue.removeTip}"
+                          IsVisible="{Binding !IsCurrent}"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).QueuePanel.RemoveCommand}"
+                          CommandParameter="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.Close}" Width="14" Height="14" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+              </Border>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        </Panel>
+      </DockPanel>
+    </Border>
+
+    <!-- Content region, a panel like the other two; Now Playing overlays it
+         (sidebar and queue stay put — the docked panels are the app's frame,
+         the overlay replaces its page). ClipToBounds keeps scrolled content
+         inside the rounded corners. -->
+    <Border Margin="8,0" Background="{StaticResource Token.Brush.Surface.Panel}"
+            CornerRadius="{StaticResource Token.Radius.Panel}" ClipToBounds="True">
+    <Panel KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
+      <!-- Hidden (not detached, so scroll and selection survive) while Now
+           Playing is open: that overlay is translucent, and a page showing
+           through it would fight the art. -->
+      <ContentControl Margin="24,20,12,0" Content="{Binding Navigation.Current}"
+                      IsVisible="{Binding !NowPlaying.IsOpen}" />
+      <views:NowPlayingView DataContext="{Binding NowPlaying}"
+                            IsVisible="{Binding IsOpen}" />
+
+      <!-- Last of all: outcomes show over pages and the Now Playing overlay alike. -->
+      <views:ToastHost DataContext="{Binding Toasts}"
+                       ReduceMotion="{Binding $parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion}" />
+    </Panel>
+    </Border>
+  </DockPanel>
+  </Panel>
+</Window>

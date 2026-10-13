@@ -1,0 +1,8 @@
+{"playlist": [
+  {"name": "No Links", "duration": 200, "artists": [{"name": "Someone"}], "playlinks": null, "_playlinks": null},
+  {"name": "Spotify Only", "duration": 0, "artists": [{"name": "Someone"}], "playlinks": [{"affiliate": "spotify", "id": "abc"}]},
+  {"name": "Second Artist Named", "duration": "3:20", "artists": [{"name": null}, {"name": "Fallback Artist"}], "_playlinks": [{"affiliate": "youtube", "id": "vid123"}]},
+  {"name": "", "artists": [{"name": "Untitled"}]},
+  {"name": "No Artists", "artists": []},
+  "not a track"
+]}

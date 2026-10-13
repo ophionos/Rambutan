@@ -1,0 +1,164 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:views="using:Rambutan.App.Views"
+             xmlns:core="using:Rambutan.Core.Models"
+             xmlns:l="using:Rambutan.App.Localization"
+             x:Class="Rambutan.App.Views.HomePage"
+             x:Name="Root"
+             x:DataType="vm:HomePageViewModel">
+
+  <Grid RowDefinitions="Auto,Auto,*">
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="4,0,16,8">
+      <TextBlock Text="{l:T home.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold" VerticalAlignment="Center" />
+      <Button Classes="icon subtle" ToolTip.Tip="{l:T common.refresh}" Command="{Binding RefreshCommand}">
+        <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
+      </Button>
+      <Button Content="{l:T home.moods}" Command="{Binding OpenMoodsCommand}" VerticalAlignment="Center" />
+      <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
+      <ContentControl Content="{Binding LoadError}"
+                      ContentTemplate="{StaticResource ErrorState.Compact}"
+                      VerticalAlignment="Center" Margin="6,0,0,0"
+                      IsVisible="{Binding !!Items.Count}" />
+    </StackPanel>
+
+    <!-- YouTube Music's mood chips. A chip filters Home to it; the
+         selected one, filled, takes Home back. The shelves on show stay until
+         the filtered ones come, with the progress bar above. -->
+    <ItemsControl x:Name="ChipRow" Grid.Row="1" ItemsSource="{Binding Chips}" Margin="4,0,16,14"
+                  AutomationProperties.Name="{l:T home.chipsName}"
+                  controls:RovingFocus.IsEnabled="True"
+                  IsVisible="{Binding !!Chips.Count}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel ItemSpacing="8" LineSpacing="8" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="core:HomeChip">
+          <Button Classes="chip" Classes.selected="{Binding IsSelected}" Content="{Binding Title}"
+                  AutomationProperties.Name="{Binding Converter={x:Static vm:Converters.HomeChipName}}"
+                  Command="{Binding #Root.((vm:HomePageViewModel)DataContext).SelectChipCommand}"
+                  CommandParameter="{Binding}" />
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <!-- First-load skeleton: two shelf shapes. Refreshes keep real content
+         (shelves clear only after the fetch), so this never covers it. -->
+    <StackPanel Grid.Row="2" Margin="4,0,16,0" Spacing="8">
+      <StackPanel.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="IsLoading" />
+          <Binding Path="!Items.Count" />
+        </MultiBinding>
+      </StackPanel.IsVisible>
+      <Border Classes="skeleton" Width="130" Height="16" HorizontalAlignment="Left" />
+      <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,0,8">
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+      </StackPanel>
+      <Border Classes="skeleton" Width="170" Height="16" HorizontalAlignment="Left" />
+      <StackPanel Orientation="Horizontal" Spacing="4">
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+      </StackPanel>
+    </StackPanel>
+
+
+    <ScrollViewer x:Name="Scroller" Classes="pagescroll" Grid.Row="2" controls:ScrollMemory.IsEnabled="True">
+      <StackPanel>
+        <!-- YTM's shelves, with the Last.fm stations among them while that setting
+             is on. A station shelf always shows a state: a skeleton while
+             it loads, the cards, a line saying the list is empty or that Last.fm
+             didn't share it, or a failure with Try again. -->
+        <ItemsControl ItemsSource="{Binding Items}">
+          <ItemsControl.DataTemplates>
+            <DataTemplate x:DataType="core:Shelf">
+              <views:ShelfView Margin="4,0,4,8"
+                               OpenCommand="{Binding #Root.((vm:HomePageViewModel)DataContext).OpenEntryCommand}"
+                               PlayCommand="{Binding #Root.((vm:HomePageViewModel)DataContext).PlayEntryCommand}" />
+            </DataTemplate>
+            <DataTemplate x:DataType="vm:StationShelfViewModel">
+              <StackPanel x:Name="Station" Margin="4,0,4,8" Spacing="8">
+                <StackPanel Orientation="Horizontal" Spacing="10"
+                            IsVisible="{Binding Shelf, Converter={x:Static ObjectConverters.IsNull}}">
+                  <TextBlock Text="{Binding Title}" FontSize="{StaticResource Token.Font.Section}" FontWeight="Bold"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center"
+                               AutomationProperties.Name="{l:T home.station.loading}" IsVisible="{Binding IsLoading}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                  <StackPanel.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="IsLoading" />
+                      <Binding Path="Shelf" Converter="{x:Static ObjectConverters.IsNull}" />
+                    </MultiBinding>
+                  </StackPanel.IsVisible>
+                  <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+                  <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+                  <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+                  <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+                  <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+                </StackPanel>
+                <views:ShelfView DataContext="{Binding Shelf}"
+                                 IsVisible="{Binding #Station.((vm:StationShelfViewModel)DataContext).Shelf, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                 OpenCommand="{Binding #Station.((vm:StationShelfViewModel)DataContext).PlayFromCommand}"
+                                 PlayCommand="{Binding #Station.((vm:StationShelfViewModel)DataContext).PlayFromCommand}"
+                                 SeeAllCommand="{Binding #Root.((vm:HomePageViewModel)DataContext).OpenStationCommand}"
+                                 SeeAllCommandParameter="{Binding #Station.DataContext}" />
+                <TextBlock Classes="settinghelp" Text="{l:T home.station.empty}" IsVisible="{Binding IsEmpty}" />
+                <TextBlock Classes="settinghelp" Text="{Binding Unavailable}" TextWrapping="Wrap" MaxWidth="640"
+                           HorizontalAlignment="Left"
+                           IsVisible="{Binding Unavailable, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <ContentControl Content="{Binding LoadError}"
+                                ContentTemplate="{StaticResource ErrorState.Compact}"
+                                HorizontalAlignment="Left"
+                                IsVisible="{Binding LoadError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <!-- The load failed over a list already on show: say how old it is. -->
+                <TextBlock Classes="settinghelp" Text="{Binding SavedNotice}"
+                           AutomationProperties.LiveSetting="Polite"
+                           IsVisible="{Binding SavedNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.DataTemplates>
+        </ItemsControl>
+
+        <!-- More shelves arrive as the list nears its end (code-behind). While one
+             page is on its way, a shelf-shaped skeleton holds its place; a failed
+             page says so here, where the listener is looking, with Try again. -->
+        <StackPanel Margin="4,0,4,8" Spacing="8" IsVisible="{Binding IsLoadingMore}">
+          <Border Classes="skeleton" Width="150" Height="16" HorizontalAlignment="Left" />
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+          </StackPanel>
+        </StackPanel>
+        <ContentControl Content="{Binding MoreError}"
+                        ContentTemplate="{StaticResource ErrorState.Compact}"
+                        HorizontalAlignment="Left" Margin="4,0,4,8"
+                        IsVisible="{Binding MoreError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Load failed with nothing to show: the failure takes the page. Saved
+         Last.fm lists are something to show, so with them the failure stays
+         compact, beside the title. Declared last so it sits above the
+         (empty, but hit-testable) list in the same cell, which would otherwise
+         swallow clicks on Try again and Details. -->
+    <ContentControl Margin="0,0,12,0" Grid.Row="2" Content="{Binding LoadError}"
+                    ContentTemplate="{StaticResource ErrorState.Full}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsVisible="{Binding !Items.Count}" />
+  </Grid>
+</UserControl>

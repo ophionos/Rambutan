@@ -1,0 +1,17 @@
+{
+ "playerOverlays": {
+  "playerOverlayRenderer": {
+   "actions": [
+    {
+     "likeButtonRenderer": {
+      "target": {
+       "videoId": "khnokW3Mw24"
+      },
+      "likeStatus": "LIKE",
+      "likesAllowed": true
+     }
+    }
+   ]
+  }
+ }
+}

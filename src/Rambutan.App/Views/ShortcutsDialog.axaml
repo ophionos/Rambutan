@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:Rambutan.App.Localization"
+        x:Class="Rambutan.App.Views.ShortcutsDialog"
+        Title="{l:T shortcuts.title}"
+        Width="440" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF16161C">
+
+  <StackPanel Margin="20" Spacing="14">
+    <TextBlock Text="{l:T shortcuts.title}" FontSize="16" FontWeight="SemiBold" />
+
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+          Margin="0,2,0,0">
+      <Grid.Styles>
+        <Style Selector="TextBlock">
+          <Setter Property="Margin" Value="0,4" />
+        </Style>
+        <!-- Auto and wrapping rather than fixed: a translation is often longer
+             than the English (the pseudo-locale sweep). -->
+        <Style Selector="TextBlock.key">
+          <Setter Property="Margin" Value="0,4,16,4" />
+          <Setter Property="MaxWidth" Value="200" />
+          <Setter Property="TextWrapping" Value="Wrap" />
+          <Setter Property="FontFamily" Value="Consolas,monospace" />
+          <Setter Property="Opacity" Value="0.9" />
+        </Style>
+        <Style Selector="TextBlock.what">
+          <Setter Property="Opacity" Value="0.7" />
+          <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+      </Grid.Styles>
+
+      <TextBlock Grid.Row="0" Classes="key" Text="{l:T shortcuts.key.space}" />
+      <TextBlock Grid.Row="0" Grid.Column="1" Classes="what" Text="{l:T shortcuts.playPause}" />
+      <TextBlock Grid.Row="1" Classes="key" Text="{l:T shortcuts.key.ctrlLeftRight}" />
+      <TextBlock Grid.Row="1" Grid.Column="1" Classes="what" Text="{l:T shortcuts.previousNext}" />
+      <TextBlock Grid.Row="2" Classes="key" Text="{l:T shortcuts.key.ctrlShiftLeftRight}" />
+      <TextBlock Grid.Row="2" Grid.Column="1" Classes="what" Text="{l:T shortcuts.seek}" />
+      <TextBlock Grid.Row="3" Classes="key" Text="{l:T shortcuts.key.ctrlUpDown}" />
+      <TextBlock Grid.Row="3" Grid.Column="1" Classes="what" Text="{l:T shortcuts.volume}" />
+      <TextBlock Grid.Row="4" Classes="key" Text="{l:T shortcuts.key.altLeftRight}" />
+      <TextBlock Grid.Row="4" Grid.Column="1" Classes="what" Text="{l:T shortcuts.backForward}" />
+      <TextBlock Grid.Row="5" Classes="key" Text="{l:T shortcuts.key.ctrlF}" />
+      <TextBlock Grid.Row="5" Grid.Column="1" Classes="what" Text="{l:T shortcuts.search}" />
+      <TextBlock Grid.Row="6" Classes="key" Text="{l:T shortcuts.key.ctrlComma}" />
+      <TextBlock Grid.Row="6" Grid.Column="1" Classes="what" Text="{l:T shortcuts.settings}" />
+      <TextBlock Grid.Row="7" Classes="key" Text="{l:T shortcuts.key.ctrlB}" />
+      <TextBlock Grid.Row="7" Grid.Column="1" Classes="what" Text="{l:T shortcuts.sidebar}" />
+      <TextBlock Grid.Row="8" Classes="key" Text="{l:T shortcuts.key.ctrlPEsc}" />
+      <TextBlock Grid.Row="8" Grid.Column="1" Classes="what" Text="{l:T shortcuts.nowPlaying}" />
+      <TextBlock Grid.Row="9" Classes="key" Text="{l:T shortcuts.key.altUpDown}" />
+      <TextBlock Grid.Row="9" Grid.Column="1" Classes="what" Text="{l:T shortcuts.moveQueueTrack}" />
+      <TextBlock Grid.Row="10" Classes="key" Text="{l:T shortcuts.key.f1}" />
+      <TextBlock Grid.Row="10" Grid.Column="1" Classes="what" Text="{l:T shortcuts.thisSheet}" />
+      <TextBlock Grid.Row="11" Classes="key" Text="{l:T shortcuts.key.media}" />
+      <TextBlock Grid.Row="11" Grid.Column="1" Classes="what" Text="{l:T shortcuts.mediaKeys}" />
+    </Grid>
+
+    <Button Content="{l:T common.close}" HorizontalAlignment="Right" IsCancel="True" Click="OnClose" />
+  </StackPanel>
+</Window>

@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:Rambutan.App.Localization"
+        x:Class="Rambutan.App.Views.TextPromptDialog"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF16161C">
+
+  <Grid RowDefinitions="*,Auto" Margin="20">
+    <TextBox x:Name="InputBox" Grid.Row="0" VerticalAlignment="Center"
+             KeyDown="OnKeyDown" />
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10"
+                HorizontalAlignment="Right" Margin="0,14,0,0">
+      <Button Content="{l:T common.cancel}" IsCancel="True" Click="OnCancel" />
+      <Button Content="{l:T common.ok}" Classes="accent" Click="OnAccept" />
+    </StackPanel>
+  </Grid>
+</Window>

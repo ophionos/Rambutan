@@ -1,0 +1,46 @@
+# YTM (and Last.fm's undocumented station endpoint) ship breaking response
+# changes without notice. Weekly, run every anonymous parser against live
+# responses; drift opens (or extends) an issue.
+# Authed endpoints are excluded — no secrets live in this repo.
+name: Fixture live-diff
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  live-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run parsers against live anonymous endpoints
+        run: dotnet run --project tools/Rambutan.FixtureRecorder -- live-diff | tee live-diff.log
+
+      - name: Open or extend a drift issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create live-diff --color D93F0B \
+            --description "Parser drift found by the weekly live-diff run" --force || true
+
+          body="$(printf 'Weekly live-diff failed.\n\n```\n%s\n```\n\nRun: %s/%s/actions/runs/%s\n' \
+            "$(cat live-diff.log)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+
+          open_issue=$(gh issue list --label live-diff --state open --json number --jq '.[0].number // empty')
+          if [ -z "$open_issue" ]; then
+            gh issue create --title "live-diff: parser drift against live YTM or Last.fm" \
+              --label live-diff --body "$body"
+          else
+            gh issue comment "$open_issue" --body "$body"
+          fi

@@ -1,0 +1,39 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:Rambutan.App.Localization"
+        xmlns:core="using:Rambutan.Core.Models"
+        x:Class="Rambutan.App.Views.PlaylistPickDialog"
+        Title="{l:T common.addToPlaylist}"
+        Width="420" Height="480"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF16161C">
+
+  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="20">
+    <TextBlock Grid.Row="0" Text="{l:T dialog.pickPlaylist.heading}" FontSize="15" FontWeight="SemiBold"
+               Margin="0,0,0,10" />
+
+    <ListBox x:Name="List" Grid.Row="1" Background="Transparent"
+             DoubleTapped="OnListDoubleTapped">
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="core:PlaylistEntry">
+          <StackPanel Spacing="1" Margin="0,2">
+            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding Subtitle}" FontSize="11" Opacity="0.65"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
+      <TextBox x:Name="NewNameBox" PlaceholderText="{l:T dialog.pickPlaylist.newName}" />
+      <Button Grid.Column="1" Content="{l:T dialog.pickPlaylist.createAndAdd}" Margin="8,0,0,0" Click="OnCreate" />
+    </Grid>
+
+    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="10"
+                HorizontalAlignment="Right" Margin="0,14,0,0">
+      <Button Content="{l:T common.cancel}" IsCancel="True" Click="OnCancel" />
+      <Button Content="{l:T common.add}" Classes="accent" Click="OnAdd" />
+    </StackPanel>
+  </Grid>
+</Window>

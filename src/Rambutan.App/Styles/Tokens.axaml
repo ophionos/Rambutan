@@ -1,0 +1,145 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- The app's tokens and its pins on FluentTheme's brush keys. One file, so
+         App.axaml and the view tests (ShellResources) load the same values. -->
+    <!-- Radius scale: small art and rows 6, controls 8, cards and large art
+         10, shell panels 12, and pills fully round. Anything else is a
+         one-off that should justify itself. -->
+    <CornerRadius x:Key="Token.Radius.Small">6</CornerRadius>
+    <CornerRadius x:Key="Token.Radius.Control">8</CornerRadius>
+    <CornerRadius x:Key="Token.Radius.Card">10</CornerRadius>
+    <CornerRadius x:Key="Token.Radius.Panel">12</CornerRadius>
+    <CornerRadius x:Key="Token.Radius.Pill">999</CornerRadius>
+    <!-- Fluent's flyouts, menus, drop-downs and tooltips: a card's radius. -->
+    <CornerRadius x:Key="OverlayCornerRadius">10</CornerRadius>
+    <!-- Type scale. Meta is the second line of a row or card; Body the
+         first; Group a settings group; Section a shelf; Page a root page
+         title; Hero an album, playlist or artist name. -->
+    <x:Double x:Key="Token.Font.Caption">12</x:Double>
+    <x:Double x:Key="Token.Font.Meta">12.5</x:Double>
+    <x:Double x:Key="Token.Font.Body">14</x:Double>
+    <x:Double x:Key="Token.Font.Group">15</x:Double>
+    <x:Double x:Key="Token.Font.Section">20</x:Double>
+    <x:Double x:Key="Token.Font.Page">30</x:Double>
+    <x:Double x:Key="Token.Font.Hero">44</x:Double>
+    <Thickness x:Key="Token.Spacing.Panel">16</Thickness>
+    <Color x:Key="Token.Color.Accent">#FFFF4E45</Color>
+    <SolidColorBrush x:Key="Token.Brush.Accent" Color="{StaticResource Token.Color.Accent}" />
+
+    <!-- FluentTheme derives every accented control (slider fills, progress,
+         selection, focus rings) from this ramp; without it they fall back to
+         the Fluent default violet, off-brand next to the accent token. The
+         shades mirror the Windows accent palette's spacing around the base.
+         This replaces FluentAvaloniaTheme's CustomAccentColor, which computed
+         the same ramp but cost the FluentAvaloniaUI dependency. -->
+    <Color x:Key="SystemAccentColor">#FFFF4E45</Color>
+    <Color x:Key="SystemAccentColorLight1">#FFFF6E66</Color>
+    <Color x:Key="SystemAccentColorLight2">#FFFF8D86</Color>
+    <Color x:Key="SystemAccentColorLight3">#FFFFADA7</Color>
+    <Color x:Key="SystemAccentColorDark1">#FFD9423B</Color>
+    <Color x:Key="SystemAccentColorDark2">#FFB33731</Color>
+    <Color x:Key="SystemAccentColorDark3">#FF8C2B26</Color>
+    <!-- White overlays: hover and pressed washes, borders, dividers, quiet
+         icons. The suffix is the alpha byte. The ramp has eight steps,
+         roughly 4% apart at the low end, where washes and lines live:
+           0A  4%   pressed wash, card surface
+           14  8%   hover wash, active fill, lines
+           1F  12%  selected fill, stronger hover
+           2B  17%  selected hover, pressed, quiet borders
+           38  22%  outlines, checked fill
+           40  25%  checked hover, quiet icons
+           59  35%  outline hover
+           73  45%  strong outline hover
+         A new overlay takes the nearest step; add a step here only when
+         two states would otherwise look the same. -->
+    <Color x:Key="Token.Color.White">#FFFFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.White" Color="{StaticResource Token.Color.White}" />
+    <Color x:Key="Token.Color.Overlay.00">#00FFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.Overlay.00" Color="{StaticResource Token.Color.Overlay.00}" />
+    <Color x:Key="Token.Color.Overlay.0A">#0AFFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.Overlay.0A" Color="{StaticResource Token.Color.Overlay.0A}" />
+    <Color x:Key="Token.Color.Overlay.14">#14FFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.Overlay.14" Color="{StaticResource Token.Color.Overlay.14}" />
+    <Color x:Key="Token.Color.Overlay.1F">#1FFFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.Overlay.1F" Color="{StaticResource Token.Color.Overlay.1F}" />
+    <Color x:Key="Token.Color.Overlay.2B">#2BFFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.Overlay.2B" Color="{StaticResource Token.Color.Overlay.2B}" />
+    <Color x:Key="Token.Color.Overlay.38">#38FFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.Overlay.38" Color="{StaticResource Token.Color.Overlay.38}" />
+    <Color x:Key="Token.Color.Overlay.40">#40FFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.Overlay.40" Color="{StaticResource Token.Color.Overlay.40}" />
+    <Color x:Key="Token.Color.Overlay.59">#59FFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.Overlay.59" Color="{StaticResource Token.Color.Overlay.59}" />
+    <Color x:Key="Token.Color.Overlay.73">#73FFFFFF</Color>
+    <SolidColorBrush x:Key="Token.Brush.Overlay.73" Color="{StaticResource Token.Color.Overlay.73}" />
+
+    <!-- Shell surface ramp. The window is a near-black ground; the sidebar,
+         page and queue are rounded panels on it with a gap between them,
+         and the title bar and player bar sit on the ground itself. The
+         panels stay translucent so the page-background layer
+         shows through them, and through the gaps, when it is on.
+           Ground  #FF0A0A0C (the window)
+           Panel   #A01A1A20 over the ground ≈ #FF141418
+           Card    a white wash on a panel: settings groups
+           Popup   #FF202027, opaque: it floats over content, where a
+                   translucent fill would let the rows below show through
+         Recessed and Raised remain for the status strip. -->
+    <Color x:Key="Token.Color.Ground">#FF0A0A0C</Color>
+    <SolidColorBrush x:Key="Token.Brush.Ground" Color="{StaticResource Token.Color.Ground}" />
+    <SolidColorBrush x:Key="Token.Brush.Surface.Recessed" Color="#8814141C" />
+    <SolidColorBrush x:Key="Token.Brush.Surface.Panel" Color="#A01A1A20" />
+    <SolidColorBrush x:Key="Token.Brush.Surface.Raised" Color="#881C1C23" />
+    <SolidColorBrush x:Key="Token.Brush.Surface.Card" Color="{StaticResource Token.Color.Overlay.0A}" />
+    <SolidColorBrush x:Key="Token.Brush.Surface.Popup" Color="#FF202027" />
+    <SolidColorBrush x:Key="Token.Brush.Line" Color="{StaticResource Token.Color.Overlay.14}" />
+    <!-- Text: primary, and the muted tone for metadata. A brush rather
+         than an Opacity, so a muted line inside a dimmed row doesn't
+         multiply down to unreadable. -->
+    <SolidColorBrush x:Key="Token.Brush.Text" Color="#FFF4F4F5" />
+    <SolidColorBrush x:Key="Token.Brush.Text.Muted" Color="#FFA1A1AA" />
+    <SolidColorBrush x:Key="Token.Brush.Text.Faint" Color="#FF71717A" />
+
+    <!-- Error red: failure icons and inline error text. -->
+    <Color x:Key="Token.Color.Error">#FFFF6B61</Color>
+    <SolidColorBrush x:Key="Token.Brush.Error" Color="{StaticResource Token.Color.Error}" />
+
+    <!-- Accent buttons: the theme's dark-mode mapping substitutes a
+         lightened accent (pastel) for backgrounds — same quirk the seek
+         thumb works around. Pin the real brand red + readable white text. -->
+    <SolidColorBrush x:Key="AccentButtonBackground" Color="{StaticResource Token.Color.Accent}" />
+    <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#FFFF6157" />
+    <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#FFE5423A" />
+    <SolidColorBrush x:Key="AccentButtonForeground" Color="{StaticResource Token.Color.White}" />
+    <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="{StaticResource Token.Color.White}" />
+    <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="{StaticResource Token.Color.White}" />
+    <!-- Disabled, it stays the accent pill, faded, as a plain button stays an
+         outline: Fluent's grey fill read as another kind of button. -->
+    <SolidColorBrush x:Key="AccentButtonBackgroundDisabled" Color="#59FF4E45" />
+    <SolidColorBrush x:Key="AccentButtonForegroundDisabled" Color="#8CFFFFFF" />
+    <SolidColorBrush x:Key="AccentButtonBorderBrushDisabled" Color="Transparent" />
+
+    <!-- Plain buttons: an outlined pill with no fill at rest (the shape is in
+         Controls.axaml). The rest fill is transparent white, not
+         Transparent's #00FFFFFF of another hue, so the hover fade only
+         moves alpha. -->
+    <SolidColorBrush x:Key="ButtonBackground" Color="{StaticResource Token.Color.Overlay.00}" />
+    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{StaticResource Token.Color.Overlay.14}" />
+    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{StaticResource Token.Color.Overlay.0A}" />
+    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{StaticResource Token.Color.Overlay.00}" />
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="{StaticResource Token.Color.Overlay.38}" />
+    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{StaticResource Token.Color.Overlay.59}" />
+    <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{StaticResource Token.Color.Overlay.38}" />
+    <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="{StaticResource Token.Color.Overlay.1F}" />
+    <Thickness x:Key="ButtonBorderThemeThickness">1</Thickness>
+    <!-- A toggle (the error state's Details) is the same outlined pill until
+         it's on; its on fill is set where it's used. -->
+    <SolidColorBrush x:Key="ToggleButtonBackground" Color="{StaticResource Token.Color.Overlay.00}" />
+    <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="{StaticResource Token.Color.Overlay.14}" />
+    <SolidColorBrush x:Key="ToggleButtonBackgroundPressed" Color="{StaticResource Token.Color.Overlay.0A}" />
+    <SolidColorBrush x:Key="ToggleButtonBackgroundDisabled" Color="{StaticResource Token.Color.Overlay.00}" />
+    <SolidColorBrush x:Key="ToggleButtonBorderBrush" Color="{StaticResource Token.Color.Overlay.38}" />
+    <SolidColorBrush x:Key="ToggleButtonBorderBrushPointerOver" Color="{StaticResource Token.Color.Overlay.59}" />
+    <SolidColorBrush x:Key="ToggleButtonBorderBrushPressed" Color="{StaticResource Token.Color.Overlay.38}" />
+    <SolidColorBrush x:Key="ToggleButtonBorderBrushDisabled" Color="{StaticResource Token.Color.Overlay.1F}" />
+    <Thickness x:Key="ToggleButtonBorderThemeThickness">1</Thickness>
+</ResourceDictionary>

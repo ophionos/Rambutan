@@ -1,0 +1,102 @@
+{
+  "responseContext": {
+    "serviceTrackingParams": [
+      {
+        "service": "GFEEDBACK",
+        "params": [{ "key": "logged_in", "value": "1" }]
+      }
+    ]
+  },
+  "continuationContents": {
+    "gridContinuation": {
+      "items": [
+        {
+          "musicTwoRowItemRenderer": {
+            "thumbnailRenderer": {
+              "musicThumbnailRenderer": {
+                "thumbnail": {
+                  "thumbnails": [
+                    { "url": "https://i.ytimg.com/vi/redactedvid2/hqdefault.jpg", "width": 544, "height": 544 }
+                  ]
+                }
+              }
+            },
+            "title": {
+              "runs": [
+                {
+                  "text": "Road Trip",
+                  "navigationEndpoint": {
+                    "browseEndpoint": {
+                      "browseId": "VLPLqQ12wwEE34rr56TT78yyUU90iiOO12ppAA3",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": { "pageType": "MUSIC_PAGE_TYPE_PLAYLIST" }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "subtitle": {
+              "runs": [
+                { "text": "Redacted User" },
+                { "text": " • " },
+                { "text": "63 tracks" }
+              ]
+            },
+            "navigationEndpoint": {
+              "browseEndpoint": {
+                "browseId": "VLPLqQ12wwEE34rr56TT78yyUU90iiOO12ppAA3",
+                "browseEndpointContextSupportedConfigs": {
+                  "browseEndpointContextMusicConfig": { "pageType": "MUSIC_PAGE_TYPE_PLAYLIST" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "musicTwoRowItemRenderer": {
+            "thumbnailRenderer": {
+              "musicThumbnailRenderer": {
+                "thumbnail": {
+                  "thumbnails": [
+                    { "url": "https://yt3.googleusercontent.com/playlist-thumb-redacted2=s576", "width": 576, "height": 576 }
+                  ]
+                }
+              }
+            },
+            "title": {
+              "runs": [
+                {
+                  "text": "Rainy Day Jazz",
+                  "navigationEndpoint": {
+                    "browseEndpoint": {
+                      "browseId": "VLPLmM45nnBB67vv89CC01xxZZ23ll45kkJJ67h",
+                      "browseEndpointContextSupportedConfigs": {
+                        "browseEndpointContextMusicConfig": { "pageType": "MUSIC_PAGE_TYPE_PLAYLIST" }
+                      }
+                    }
+                  }
+                }
+              ]
+            },
+            "subtitle": {
+              "runs": [
+                { "text": "Redacted User" },
+                { "text": " • " },
+                { "text": "28 tracks" }
+              ]
+            },
+            "navigationEndpoint": {
+              "browseEndpoint": {
+                "browseId": "VLPLmM45nnBB67vv89CC01xxZZ23ll45kkJJ67h",
+                "browseEndpointContextSupportedConfigs": {
+                  "browseEndpointContextMusicConfig": { "pageType": "MUSIC_PAGE_TYPE_PLAYLIST" }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

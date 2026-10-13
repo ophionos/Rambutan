@@ -1,0 +1,70 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:views="using:Rambutan.App.Views"
+             x:Class="Rambutan.App.Views.MoodCategoryPage"
+             x:Name="Root"
+             x:DataType="vm:MoodCategoryPageViewModel">
+
+  <!-- One mood or genre: its shelves, as on Home. A shelf YouTube Music
+       links a page for has "See all", which opens that page here too. -->
+  <Grid RowDefinitions="Auto,*">
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="4,0,16,12">
+      <TextBlock Text="{Binding Title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
+    </StackPanel>
+
+    <!-- First-load skeleton: two shelf shapes. -->
+    <StackPanel Grid.Row="1" Margin="4,0,16,0" Spacing="8">
+      <StackPanel.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="IsLoading" />
+          <Binding Path="!Shelves.Count" />
+        </MultiBinding>
+      </StackPanel.IsVisible>
+      <Border Classes="skeleton" Width="130" Height="16" HorizontalAlignment="Left" />
+      <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,0,0,20">
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+      </StackPanel>
+      <Border Classes="skeleton" Width="170" Height="16" HorizontalAlignment="Left" />
+      <StackPanel Orientation="Horizontal" Spacing="4">
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+        <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+      </StackPanel>
+    </StackPanel>
+
+    <ScrollViewer Grid.Row="1" Classes="pagescroll" controls:ScrollMemory.IsEnabled="True">
+      <ItemsControl ItemsSource="{Binding Shelves}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:MoodShelf">
+            <Panel x:Name="Row" Margin="4,0,4,8">
+              <views:ShelfView DataContext="{Binding Shelf}"
+                               OpenCommand="{Binding #Root.((vm:MoodCategoryPageViewModel)DataContext).OpenEntryCommand}"
+                               PlayCommand="{Binding #Root.((vm:MoodCategoryPageViewModel)DataContext).PlayEntryCommand}"
+                               SeeAllCommand="{Binding #Row.((vm:MoodShelf)DataContext).SeeAll}"
+                               SeeAllCommandParameter="{Binding #Row.((vm:MoodShelf)DataContext).Shelf}" />
+            </Panel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <TextBlock Grid.Row="1" Classes="settinghelp" Margin="4,0,16,0" Text="{l:T moods.category.empty}" IsVisible="{Binding IsEmpty}" />
+
+    <!-- Load failed with nothing to show: the failure takes the page. Declared
+         last, above the empty list, so its buttons get the clicks. -->
+    <ContentControl Margin="0,0,12,0" Grid.Row="1" Content="{Binding LoadError}"
+                    ContentTemplate="{StaticResource ErrorState.Full}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+  </Grid>
+</UserControl>

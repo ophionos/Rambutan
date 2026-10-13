@@ -1,0 +1,298 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:Rambutan.App.Localization"
+        xmlns:vm="using:Rambutan.App.ViewModels"
+        xmlns:controls="using:Rambutan.App.Controls"
+        x:Class="Rambutan.App.Views.OverlayStyleEditorDialog"
+        x:DataType="vm:OverlayStyleEditorViewModel"
+        Title="{l:T settings.overlay.editor.title}"
+        Width="1040" Height="700" MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF16161C">
+
+  <Window.KeyBindings>
+    <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
+    <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveCommand}" />
+  </Window.KeyBindings>
+
+  <Window.Styles>
+    <!-- The colour picker's theme, loaded with this window only. -->
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
+    <Style Selector="Button.swatch">
+      <Setter Property="Width" Value="28" />
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Padding" Value="2" />
+      <Setter Property="Margin" Value="0,0,8,0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Line}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- The flyout focuses the spectrum without a navigation method, so the
+         theme's :focus-visible ring never shows; show it on any focus. -->
+    <Style Selector="ColorSpectrum:focus /template/ Ellipse#FocusEllipse">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="TextBlock.group">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+      <Setter Property="Margin" Value="0,14,0,4" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="MinWidth" Value="48" />
+      <Setter Property="TextAlignment" Value="Right" />
+    </Style>
+  </Window.Styles>
+
+  <!-- The OBS overlay's style editor: the fields on the left, a native
+       preview of the browser source on the right. Every edit reaches open
+       overlays at once; Save keeps it. -->
+  <Grid RowDefinitions="Auto,*,Auto" Margin="20">
+    <StackPanel Grid.Row="0" Spacing="4">
+      <TextBlock Text="{l:T settings.overlay.editor.title}" FontSize="18" FontWeight="SemiBold" />
+      <TextBlock Text="{l:T settings.overlay.editor.hint}" TextWrapping="Wrap" FontSize="12"
+                 Foreground="{StaticResource Token.Brush.Text.Muted}" />
+    </StackPanel>
+
+    <Grid Grid.Row="1" ColumnDefinitions="340,24,*" Margin="0,12,0,0">
+      <!-- The fields, in the order the file lists them. -->
+      <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="0,0,14,0">
+          <TextBlock Classes="group" Text="{l:T settings.overlay.editor.group.shown}" Margin="0,0,0,4" />
+          <CheckBox x:Name="FirstField" Content="{l:T settings.overlay.editor.show.artwork}" IsChecked="{Binding ShowArtwork}" />
+          <CheckBox Content="{l:T settings.overlay.editor.show.album}" IsChecked="{Binding ShowAlbum}" />
+          <CheckBox Content="{l:T settings.overlay.editor.show.progress}" IsChecked="{Binding ShowProgress}" />
+          <CheckBox Content="{l:T settings.overlay.editor.show.times}" IsChecked="{Binding ShowTimes}"
+                    IsEnabled="{Binding ShowProgress}" />
+          <CheckBox Content="{l:T settings.overlay.editor.show.visualizer}" IsChecked="{Binding ShowVisualizer}" />
+
+          <TextBlock Classes="group" Text="{l:T settings.overlay.editor.group.idle}" />
+          <ComboBox SelectedIndex="{Binding IdleIndex}" HorizontalAlignment="Stretch"
+                    AutomationProperties.Name="{l:T settings.overlay.editor.group.idle}">
+            <ComboBoxItem Content="{l:T settings.overlay.editor.idle.message}" />
+            <ComboBoxItem Content="{l:T settings.overlay.editor.idle.hide}" />
+          </ComboBox>
+
+          <TextBlock Classes="group" Text="{l:T settings.overlay.editor.group.layout}" />
+          <TextBlock Text="{l:T settings.overlay.editor.align}" FontSize="13" Margin="0,0,0,4" />
+          <ComboBox SelectedIndex="{Binding AlignIndex}" HorizontalAlignment="Stretch"
+                    AutomationProperties.Name="{l:T settings.overlay.editor.align}">
+            <ComboBoxItem Content="{l:T settings.overlay.editor.align.left}" />
+            <ComboBoxItem Content="{l:T settings.overlay.editor.align.right}" />
+          </ComboBox>
+          <TextBlock Text="{l:T settings.overlay.editor.scale}" FontSize="13" Margin="0,10,0,0" />
+          <Grid ColumnDefinitions="*,Auto">
+            <Slider Minimum="{Binding MinScale}" Maximum="{Binding MaxScale}" Value="{Binding Scale}"
+                    SmallChange="0.05" LargeChange="0.25" TickFrequency="0.05" IsSnapToTickEnabled="True"
+                    AutomationProperties.Name="{l:T settings.overlay.editor.scale}" />
+            <TextBlock Grid.Column="1" Classes="value" Text="{Binding ScaleText}" />
+          </Grid>
+          <TextBlock Text="{l:T settings.overlay.editor.cornerRadius}" FontSize="13" />
+          <Grid ColumnDefinitions="*,Auto">
+            <Slider Minimum="0" Maximum="{Binding MaxCornerRadius}" Value="{Binding CornerRadius}"
+                    SmallChange="1" LargeChange="4" TickFrequency="1" IsSnapToTickEnabled="True"
+                    AutomationProperties.Name="{l:T settings.overlay.editor.cornerRadius}" />
+            <TextBlock Grid.Column="1" Classes="value" Text="{Binding CornerRadiusText}" />
+          </Grid>
+
+          <TextBlock Classes="group" Text="{l:T settings.overlay.editor.group.colors}" />
+          <ItemsControl ItemsSource="{Binding Colors}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:OverlayStyleEditorViewModel+ColorField">
+                <StackPanel Margin="0,0,0,8" Spacing="4">
+                  <TextBlock Text="{Binding Label}" FontSize="13" TextWrapping="Wrap" />
+                  <Grid ColumnDefinitions="Auto,*">
+                    <!-- The swatch opens a picker: ColorView's parts without its tab
+                         strip or hex box (Avalonia writes the alpha first; the style's
+                         hex box above puts it last). The sliders share the spectrum's
+                         HSV, so dragging to black or clear keeps the hue. -->
+                    <Button Classes="swatch" AutomationProperties.Name="{Binding PickerName}"
+                            ToolTip.Tip="{l:T settings.overlay.editor.color.pickTip}">
+                      <Border CornerRadius="4" Background="{Binding Swatch}" />
+                      <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedLeft">
+                          <Grid ColumnDefinitions="Auto,Auto,Auto" ColumnSpacing="12" Margin="4"
+                                KeyboardNavigation.TabNavigation="Cycle">
+                            <!-- The spectrum comes first in tab order, so a picker opened
+                                 from the keyboard starts there and the arrows move it. -->
+                            <ColorSlider Orientation="Vertical" Width="20" Height="240" TabIndex="1"
+                                         ColorModel="Hsva" ColorComponent="Component3"
+                                         IsAlphaVisible="False" IsPerceptive="True"
+                                         HsvColor="{Binding #Spectrum.HsvColor, Mode=TwoWay}"
+                                         AutomationProperties.Name="{l:T settings.overlay.editor.color.brightness}" />
+                            <ColorSpectrum x:Name="Spectrum" Grid.Column="1" Width="240" Height="240" Focusable="True" TabIndex="0"
+                                           Components="HueSaturation" Shape="Box" CornerRadius="6"
+                                           Color="{Binding Color, Mode=TwoWay}"
+                                           AutomationProperties.Name="{l:T settings.overlay.editor.color.spectrum}" />
+                            <ColorSlider Grid.Column="2" Orientation="Vertical" Width="20" Height="240" TabIndex="2"
+                                         ColorModel="Hsva" ColorComponent="Alpha"
+                                         IsAlphaVisible="True" IsPerceptive="True"
+                                         HsvColor="{Binding #Spectrum.HsvColor, Mode=TwoWay}"
+                                         AutomationProperties.Name="{l:T settings.overlay.editor.color.opacity}" />
+                          </Grid>
+                        </Flyout>
+                      </Button.Flyout>
+                    </Button>
+                    <TextBox Grid.Column="1" Text="{Binding Hex}" FontFamily="Consolas,Menlo,monospace"
+                             MaxLength="9" AutomationProperties.Name="{Binding AccessibleName}"
+                             AutomationProperties.HelpText="{l:T settings.overlay.editor.color.help}" />
+                  </Grid>
+                  <TextBlock Text="{Binding Error}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
+                             Foreground="{StaticResource Token.Brush.Error}"
+                             IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="{l:T settings.overlay.editor.color.help}" FontSize="12" TextWrapping="Wrap"
+                     Foreground="{StaticResource Token.Brush.Text.Muted}" />
+
+          <TextBlock Classes="group" Text="{l:T settings.overlay.editor.group.visualizer}" />
+          <TextBlock Text="{l:T settings.overlay.editor.bars}" FontSize="13" />
+          <Grid ColumnDefinitions="*,Auto">
+            <Slider Minimum="{Binding MinBars}" Maximum="{Binding MaxBars}" Value="{Binding Bars}"
+                    SmallChange="1" LargeChange="4" TickFrequency="1" IsSnapToTickEnabled="True"
+                    IsEnabled="{Binding ShowVisualizer}"
+                    AutomationProperties.Name="{l:T settings.overlay.editor.bars}" />
+            <TextBlock Grid.Column="1" Classes="value" Text="{Binding BarsText}" />
+          </Grid>
+          <CheckBox Content="{l:T settings.overlay.editor.peaks}" IsChecked="{Binding Peaks}"
+                    IsEnabled="{Binding ShowVisualizer}" />
+        </StackPanel>
+      </ScrollViewer>
+
+      <!-- The preview: the 600 × 200 browser source, laid out as the overlay page
+           lays it out, over a checkerboard where OBS would show the scene. -->
+      <StackPanel Grid.Column="2" Spacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{l:T settings.overlay.editor.preview}" FontSize="13" FontWeight="SemiBold"
+                     VerticalAlignment="Center" />
+          <ToggleSwitch Grid.Column="1" IsChecked="{Binding PreviewIdle}"
+                        OnContent="{l:T settings.overlay.editor.preview.idle}"
+                        OffContent="{l:T settings.overlay.editor.preview.idle}"
+                        AutomationProperties.Name="{l:T settings.overlay.editor.preview.idle}" />
+        </Grid>
+        <Viewbox Stretch="Uniform" StretchDirection="Both" MaxHeight="300">
+          <Border x:Name="Scene" Width="600" Height="200" ClipToBounds="True"
+                  BorderBrush="{StaticResource Token.Brush.Line}" BorderThickness="0"
+                  AutomationProperties.Name="{l:T settings.overlay.editor.preview}">
+            <Border.Background>
+              <DrawingBrush TileMode="Tile" DestinationRect="0,0,20,20">
+                <DrawingBrush.Drawing>
+                  <DrawingGroup>
+                    <GeometryDrawing Brush="#FF4A4A52" Geometry="M0,0 H20 V20 H0 Z" />
+                    <GeometryDrawing Brush="#FF3A3A42" Geometry="M0,0 H10 V10 H0 Z M10,10 H20 V20 H10 Z" />
+                  </DrawingGroup>
+                </DrawingBrush.Drawing>
+              </DrawingBrush>
+            </Border.Background>
+            <Panel>
+              <LayoutTransformControl HorizontalAlignment="Left" VerticalAlignment="Top"
+                                      LayoutTransform="{Binding PreviewTransform}">
+                <Border Width="{Binding InnerWidth}" Padding="8">
+                  <Panel>
+                    <!-- A track. -->
+                    <Border Width="{Binding CardWidth}" HorizontalAlignment="{Binding CardAlignment}"
+                            Padding="16" CornerRadius="{Binding CardCornerRadius}" Background="{Binding BackgroundBrush}"
+                            IsVisible="{Binding ShowsTrack}">
+                      <StackPanel Spacing="10">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                          <Border Grid.Column="{Binding CoverColumn}" Width="72" Height="72" Margin="{Binding CoverMargin}"
+                                  CornerRadius="{Binding CoverCornerRadius}" ClipToBounds="True"
+                                  Background="{Binding TintBrush}" IsVisible="{Binding ShowsCover}">
+                            <Panel>
+                              <PathIcon Data="{StaticResource Icon.MusicNote}" Width="32" Height="32"
+                                        Foreground="{Binding SecondaryBrush}" IsVisible="{Binding !HasCover}" />
+                              <controls:RemoteImage Url="{Binding CoverUrl}" DecodeWidth="160" IsVisible="{Binding HasCover}" />
+                            </Panel>
+                          </Border>
+                          <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding PreviewTitle}" Foreground="{Binding TextBrush}" FontSize="18.4"
+                                       FontWeight="Bold" TextTrimming="CharacterEllipsis" TextAlignment="{Binding TextAlign}" />
+                            <TextBlock Text="{Binding PreviewArtists}" Foreground="{Binding SecondaryBrush}" FontSize="16"
+                                       TextTrimming="CharacterEllipsis" TextAlignment="{Binding TextAlign}" />
+                            <TextBlock Text="{Binding PreviewAlbum}" Foreground="{Binding SecondaryBrush}" FontSize="14.4"
+                                       TextTrimming="CharacterEllipsis" TextAlignment="{Binding TextAlign}"
+                                       IsVisible="{Binding ShowsAlbum}" />
+                          </StackPanel>
+                        </Grid>
+                        <Panel Height="32" IsVisible="{Binding ShowsBars}">
+                          <controls:VisualizerControl IsActive="{Binding LiveBars}" IsVisible="{Binding LiveBars}"
+                                                      OverlayBars="{Binding PreviewBars}" ShowPeaks="{Binding PreviewPeaks}"
+                                                      BarColor="{Binding AccentColorValue}" PeakColor="{Binding SecondaryColorValue}" />
+                          <controls:OverlayBarsSample IsVisible="{Binding StillBars}"
+                                                      Bars="{Binding PreviewBars}" ShowPeaks="{Binding PreviewPeaks}"
+                                                      BarColor="{Binding AccentColorValue}" PeakColor="{Binding SecondaryColorValue}" />
+                        </Panel>
+                        <StackPanel Spacing="6" IsVisible="{Binding ShowsProgress}">
+                          <Border Height="4" CornerRadius="2" Background="{Binding TintBrush}" ClipToBounds="True">
+                            <Grid ColumnDefinitions="2*,3*">
+                              <Border CornerRadius="2" Background="{Binding AccentBrush}" />
+                            </Grid>
+                          </Border>
+                          <Grid ColumnDefinitions="*,*" IsVisible="{Binding ShowsTimes}">
+                            <TextBlock Text="{Binding PreviewElapsed}" Foreground="{Binding SecondaryBrush}" FontSize="12.8" />
+                            <TextBlock Grid.Column="1" Text="{Binding PreviewTotal}" Foreground="{Binding SecondaryBrush}"
+                                       FontSize="12.8" HorizontalAlignment="Right" />
+                          </Grid>
+                        </StackPanel>
+                      </StackPanel>
+                    </Border>
+                    <!-- Nothing plays, and the style shows a quiet card. -->
+                    <Border HorizontalAlignment="{Binding CardAlignment}" Padding="16"
+                            CornerRadius="{Binding CardCornerRadius}" Background="{Binding BackgroundBrush}"
+                            IsVisible="{Binding ShowsIdleCard}">
+                      <TextBlock Text="{l:T settings.overlay.editor.preview.nothing}" Foreground="{Binding SecondaryBrush}"
+                                 FontSize="16" />
+                    </Border>
+                  </Panel>
+                </Border>
+              </LayoutTransformControl>
+              <!-- Nothing plays, and the style hides the overlay: the source is empty. -->
+              <TextBlock Text="{l:T settings.overlay.editor.preview.hidden}" IsVisible="{Binding ShowsHiddenNote}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14"
+                         Foreground="{StaticResource Token.Brush.Text.Muted}" />
+            </Panel>
+          </Border>
+        </Viewbox>
+        <TextBlock Text="{Binding PreviewSource}" FontSize="12" TextWrapping="Wrap" IsVisible="{Binding ShowsTrack}"
+                   Foreground="{StaticResource Token.Brush.Text.Muted}" />
+        <TextBlock Text="{Binding MotionNote}" FontSize="12" TextWrapping="Wrap"
+                   Foreground="{StaticResource Token.Brush.Text.Muted}"
+                   IsVisible="{Binding MotionNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </StackPanel>
+    </Grid>
+
+    <Grid Grid.Row="2" RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto" Margin="0,16,0,0">
+      <StackPanel Grid.ColumnSpan="3" Spacing="4">
+        <TextBlock Text="{Binding StatusText}" FontSize="12" TextWrapping="Wrap"
+                   Foreground="{StaticResource Token.Brush.Text.Muted}" />
+        <TextBlock Text="{Binding SavedStyleWarning}" FontSize="12" TextWrapping="Wrap"
+                   Foreground="{StaticResource Token.Brush.Error}"
+                   IsVisible="{Binding SavedStyleWarning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <TextBlock Text="{Binding Error}" FontSize="12" TextWrapping="Wrap"
+                   Foreground="{StaticResource Token.Brush.Error}"
+                   IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </StackPanel>
+      <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+        <Button Content="{l:T settings.overlay.editor.undo}" Command="{Binding UndoCommand}"
+                IsEnabled="{Binding CanUndo}" ToolTip.Tip="{l:T settings.overlay.editor.undoTip}" />
+        <Button Content="{l:T settings.overlay.editor.revert}" Command="{Binding RevertToSavedCommand}"
+                IsEnabled="{Binding CanRevert}" />
+        <Button Content="{l:T settings.overlay.editor.useDefault}" Command="{Binding UseDefaultCommand}"
+                IsEnabled="{Binding CanUseDefault}" />
+      </StackPanel>
+      <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+        <Button Content="{l:T common.close}" IsCancel="True" Click="OnClose" />
+        <Button Content="{l:T common.save}" Classes="accent" Command="{Binding SaveCommand}" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

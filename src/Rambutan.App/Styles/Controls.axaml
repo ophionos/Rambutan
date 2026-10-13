@@ -1,0 +1,781 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Shared surface styles: catalog cards, sidebar nav, hoverable track rows.
+       All hover/pressed feedback animates over ~120 ms — long enough to read as
+       deliberate, short enough to never lag the pointer. -->
+
+  <!-- Stock FluentTheme leaves button content stretched, so a plain Button's
+       label sits against its leading edge. Centre it as the baseline; the class
+       styles below opt back out for the buttons that are layout containers
+       rather than labelled controls. -->
+  <!-- A labelled button is an outlined pill (the stock gray block read as a
+       web form); Classes="accent" fills it with the brand red. The fill and
+       outline colours are the Fluent brush keys, pinned in App.axaml. Class
+       styles below with their own shape (cards, nav, links) set their own
+       radius, so the pill here only reaches plain labelled buttons. -->
+  <Style Selector="Button">
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="Padding" Value="16,7" />
+  </Style>
+  <!-- A text label is semibold. Only the AccessText the presenter makes for a
+       string Content matches (its logical parent is the Button): setting the
+       weight on Button itself would be inherited by every card, row and chip
+       built on one. -->
+  <Style Selector="Button > AccessText">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <!-- An icon beside the label (Try again, Play): the label is as heavy as a
+       text-only button's. Only accent and resume buttons, which are always
+       pills; a plain one says so on its TextBlock. -->
+  <Style Selector="Button.accent > StackPanel > TextBlock, Button.resume > StackPanel > TextBlock">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- The hand over everything that acts on a click: buttons (and everything
+       built on them: cards, nav, lyric lines, check boxes), list rows, combo
+       boxes, menu items, sliders and the seek strip. :is() so subclasses such as
+       ToggleButton and RepeatButton match too. Text boxes keep their I-beam, and
+       a disabled control goes back to the arrow, since a click does nothing. -->
+  <Style Selector=":is(Button), ComboBox, ComboBoxItem, :is(ListBoxItem), MenuItem, Slider, Panel#SeekArea:not(.idle)">
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector=":is(Button):disabled, ComboBox:disabled, ComboBoxItem:disabled, :is(ListBoxItem):disabled, MenuItem:disabled, Slider:disabled">
+    <Setter Property="Cursor" Value="Arrow" />
+  </Style>
+
+  <!-- A slider is one control to a screen reader: its value, range and the
+       arrow keys come from the slider itself. The track's page buttons and the
+       thumb are its drawing, and would otherwise be read as unnamed buttons. -->
+  <Style Selector="Slider /template/ RepeatButton, Slider /template/ Thumb">
+    <Setter Property="AutomationProperties.AccessibilityView" Value="Raw" />
+  </Style>
+
+  <!-- The page host leaves 12 on the right, not 24, so a page's own scroller
+       (.pagescroll) puts its bar as far from the panel edge as the queue's
+       (whose panel padding is 12). The scroller pads its content back by 12,
+       and the rest of each page has a 12 right margin of its own, so content
+       and headers keep one edge, clear of the bar. A bar moved past the host
+       is clipped, so the scroller can't reach out instead. -->
+  <Style Selector="ScrollViewer.pagescroll, ListBox.pagescroll">
+    <Setter Property="Padding" Value="0,0,12,0" />
+  </Style>
+
+  <!-- A toggle with a label (the error state's Details) is the same pill as a
+       labelled Button: that selector matches Button only, not its subclasses. -->
+  <Style Selector="ToggleButton">
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="Padding" Value="16,7" />
+  </Style>
+  <Style Selector="ToggleButton > AccessText">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Catalog card (Home/Library/Artist grids): no tile at rest, so the art
+       carries the grid; a soft fill appears under the pointer. The padding stays
+       so that fill has room around the art. -->
+  <Style Selector="Button.card">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Panel}" />
+    <Setter Property="Padding" Value="8" />
+    <!-- The card's content is a full-width stack, not a label: stretch, or the
+         centred baseline above shrink-wraps it away from the tile edges. -->
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="Button.card /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.card:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+  </Style>
+
+  <Style Selector="Button.card:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.0A}" />
+  </Style>
+
+  <!-- Sidebar navigation: flat rail entries — transparent at rest so the rail
+       reads as one surface, soft fill under the pointer. -->
+  <Style Selector="Button.nav">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Control}" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Body}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   Button.nav.active /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text}" />
+  </Style>
+
+  <Style Selector="Button.nav /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+  </Style>
+
+  <Style Selector="Button.nav:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.2B}" />
+  </Style>
+
+  <!-- The current section: a resting fill a step under the hover
+       fill, and the accent on the icon. Bound to Navigation.Section, so it
+       follows keyboard shortcuts and Back as well as clicks. -->
+  <Style Selector="Button.nav.active /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+  </Style>
+
+  <Style Selector="Button.nav.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+  </Style>
+
+  <Style Selector="Button.nav.active PathIcon">
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Accent}" />
+  </Style>
+
+  <Style Selector="Button.nav.active TextBlock">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- The sidebar's account chip: avatar, name and state, flat at rest like the
+       nav entries above it, with the same soft fill under the pointer. -->
+  <Style Selector="Button.account">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Card}" />
+    <Setter Property="Padding" Value="8" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Button.account:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+  </Style>
+  <Style Selector="Button.account:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.2B}" />
+  </Style>
+
+  <!-- Play/pause in the player bar: the one filled control in the transport, a
+       light disc with a dark glyph, so the eye finds it without the accent. -->
+  <Style Selector="Button.playcircle">
+    <Setter Property="Width" Value="42" />
+    <Setter Property="Height" Value="42" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="Background" Value="#FFF4F4F5" />
+    <Setter Property="Foreground" Value="#FF0A0A0C" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="RenderTransform" Value="none" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Button.playcircle /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#FFF4F4F5" />
+    <Setter Property="Foreground" Value="#FF0A0A0C" />
+  </Style>
+  <Style Selector="Button.playcircle:pointerover">
+    <Setter Property="RenderTransform" Value="scale(1.06)" />
+  </Style>
+  <Style Selector="Button.playcircle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.White}" />
+    <Setter Property="Foreground" Value="#FF0A0A0C" />
+  </Style>
+  <Style Selector="Button.playcircle:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#FFD4D4D8" />
+  </Style>
+  <Style Selector="Button.playcircle:disabled">
+    <Setter Property="Opacity" Value="0.3" />
+  </Style>
+  <Style Selector="Window.reducedmotion Button.playcircle">
+    <Setter Property="Transitions" Value="{x:Null}" />
+  </Style>
+  <!-- The glyph's box is centred, but a triangle's weight isn't: nudge it right. -->
+  <Style Selector="Button.playcircle PathIcon">
+    <Setter Property="Margin" Value="1,0,0,0" />
+  </Style>
+
+  <!-- Buffering, in place of the play/pause glyph: a three-quarter ring in the
+       glyph's colour, turning. Under reduced motion it stays still and still
+       reads as "loading" by shape, like the skeletons. -->
+  <Style Selector="Arc.spinner">
+    <Setter Property="Width" Value="20" />
+    <Setter Property="Height" Value="20" />
+    <Setter Property="StartAngle" Value="0" />
+    <Setter Property="SweepAngle" Value="270" />
+    <Setter Property="Stroke" Value="#FF0A0A0C" />
+    <Setter Property="StrokeThickness" Value="2.5" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="RenderTransformOrigin" Value="50%,50%" />
+    <Setter Property="RenderTransform">
+      <RotateTransform />
+    </Setter>
+  </Style>
+  <Style Selector="Window:not(.reducedmotion) Arc.spinner">
+    <Style.Animations>
+      <Animation Duration="0:0:0.9" IterationCount="Infinite">
+        <KeyFrame Cue="0%">
+          <Setter Property="RotateTransform.Angle" Value="0" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="RotateTransform.Angle" Value="360" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
+  <!-- The played part of the seek line: white at rest, the accent under the
+       pointer, when it is the thing being handled. -->
+  <Style Selector="Panel#SeekArea Border#SeekFill">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Text}" />
+  </Style>
+  <Style Selector="Panel#SeekArea:pointerover Border#SeekFill">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Accent}" />
+  </Style>
+
+  <!-- Inline link (player bar and Now Playing identity): text at
+       rest, underlined under the pointer, no chrome. An .inert link has nowhere
+       to go and behaves as plain text: no hover, no hand, no tab stop. -->
+  <Style Selector="Button.link">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+  </Style>
+
+  <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   Button.link:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="White" />
+  </Style>
+
+  <Style Selector="Button.link:pointerover TextBlock">
+    <Setter Property="TextDecorations" Value="Underline" />
+  </Style>
+
+  <Style Selector="Button.link.inert">
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Cursor" Value="Arrow" />
+  </Style>
+
+  <!-- List selection: stock FluentTheme fills the whole row with the accent,
+       which turns the search filter tabs into solid red blocks. Selection here
+       should read as emphasis, not as a pressed button — a quiet chip with the
+       accent as a bar on the leading edge. The bar is drawn as a one-sided
+       border on the content presenter rather than a named template part, so it
+       doesn't depend on the Fluent template's internals. -->
+  <Style Selector="ListBoxItem">
+    <Setter Property="CornerRadius" Value="4" />
+  </Style>
+
+  <Style Selector="ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="BorderThickness" Value="3,0,0,0" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.2B}" />
+  </Style>
+
+  <!-- The sidebar: full width with labels, or a rail of icons
+       when collapsed, so navigation and the account stay one click away. The
+       title bar's sidebar button and Ctrl+B switch between them. In the rail the
+       labels hide and each nav button's tooltip names it instead; the account
+       chip keeps only its avatar, whose menu holds Sign in. -->
+  <Style Selector="Border#Sidebar">
+    <Setter Property="Width" Value="220" />
+  </Style>
+  <Style Selector="Border#Sidebar.rail">
+    <Setter Property="Width" Value="68" />
+  </Style>
+  <Style Selector="Border#Sidebar Button.nav">
+    <Setter Property="ToolTip.ServiceEnabled" Value="False" />
+  </Style>
+  <Style Selector="Border#Sidebar.rail Button.nav">
+    <Setter Property="ToolTip.ServiceEnabled" Value="True" />
+  </Style>
+  <Style Selector="Border#Sidebar.rail Button.nav TextBlock,
+                   Border#Sidebar.rail Button.account StackPanel,
+                   Border#Sidebar.rail Button.account PathIcon.chevron,
+                   Border#Sidebar.rail Button.signin">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Border#Sidebar.rail Button.account Grid">
+    <Setter Property="ColumnSpacing" Value="0" />
+  </Style>
+  <Style Selector="Border#Sidebar.rail Button.account">
+    <Setter Property="Padding" Value="6" />
+  </Style>
+
+  <!-- Hoverable track row for ItemsControl-based lists (artist top songs),
+       matching the highlight ListBox rows get for free elsewhere. -->
+  <Style Selector="Border.trackrow">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Control}" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Border.trackrow:pointerover">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+  </Style>
+
+  <!-- Row actions. One language for every track row: bare icon
+       buttons, absent at rest, revealed by hover or selection. Search rows used
+       to carry bordered "Play"/"Queue" buttons while album, playlist and artist
+       rows carried bare icons — same actions, two weights.
+
+       IsVisible rather than Opacity, for two reasons: an Opacity-0 button still
+       hit-tests, so a row would have invisible click targets; and it still takes
+       a tab stop, where five-to-seven per row is most of C3's hundred-plus stops
+       before you reach anything else on the page. Hidden rows cost none.
+
+       Revealed by :selected as well as :pointerover so the keyboard route works
+       at all — arrow onto a row and the actions appear, then Tab reaches them.
+       Hover alone would make them unreachable without a mouse.
+
+       The space is reserved by a fixed-width container in each template, not by
+       the Auto columns these replaced: Auto measures a hidden child to zero, so
+       every row's title would grow and snap back as the pointer crossed it. -->
+  <Style Selector="ListBoxItem StackPanel.rowactions">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="ListBoxItem:pointerover StackPanel.rowactions">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <Style Selector="ListBoxItem:selected StackPanel.rowactions">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+
+  <!-- Artist page rows are an ItemsControl inside the page's own ScrollViewer
+       (a ListBox would nest a virtualizing scroll region in the page
+       scroller), so they have no selection to reveal on. Focus stands in for
+       it: each row is a focus stop, and its actions show on hover or while
+       focus is anywhere in the row, so Tab onto the list, then → reaches them
+      . A row with focus takes the selected fill, as a clicked ListBox
+       row does. -->
+  <Style Selector="Border.trackrow StackPanel.rowactions">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Border.trackrow:pointerover StackPanel.rowactions">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <Style Selector="Border.trackrow:focus-within StackPanel.rowactions">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <Style Selector="Border.trackrow:focus-within">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+  </Style>
+
+  <!-- The playing track in a list. Deliberately a text colour
+       plus a leading glyph rather than another left bar: ListBoxItem:selected
+       already owns the accent bar, and the review's point was that the two were
+       indistinguishable. Selection is where you are; this is what you hear. -->
+  <Style Selector="TextBlock.nowplaying">
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <!-- Queue sections: a small caption on the first row of
+       Played / Now playing / Up next. Played rows are quieter than what's ahead. -->
+  <Style Selector="TextBlock.queuesection">
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Opacity" Value="0.55" />
+    <Setter Property="Margin" Value="12,17,12,6" />
+  </Style>
+  <Style Selector="ListBox.queue Grid.history">
+    <Setter Property="Opacity" Value="0.55" />
+  </Style>
+  <!-- Offline, a row that won't play: quieter than a played row, and
+       marked with a crossed-out cloud so it doesn't read as "played". -->
+  <Style Selector="ListBox.queue Grid.needsconnection">
+    <Setter Property="Opacity" Value="0.4" />
+  </Style>
+
+  <!-- A queue item is its caption plus its row, and only the row is the thing
+       selected: the Windows check found "Up next (N)" drawn inside the first
+       row's highlight and accent bar. So in the queue the item's presenter paints
+       nothing and takes no padding, and Border.queuerow carries the padding, the
+       hover and the selection chip from the general ListBoxItem rules above.
+       Hover and press are Fluent dark's list colours (#19 / #33 white): its
+       brush keys aren't reachable from app styles. The
+       item keeps its full bounds, so drag's drop line still marks the gap
+       between items (above a caption, not between it and its row). -->
+  <Style Selector="ListBox.queue ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem:selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ListBox.queue Border.queuerow">
+    <Setter Property="Padding" Value="{DynamicResource ListBoxItemPadding}" />
+    <Setter Property="CornerRadius" Value="4" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem:pointerover Border.queuerow">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem:pressed Border.queuerow">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.38}" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem:selected Border.queuerow">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+    <Setter Property="BorderThickness" Value="3,0,0,0" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem:selected:pointerover Border.queuerow">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.2B}" />
+  </Style>
+
+  <!-- Drag-reorder (Controls/DragReorder): the row being dragged
+       fades, and an accent line marks the gap it will drop into. -->
+  <Style Selector="ListBoxItem.dragging">
+    <Setter Property="Opacity" Value="0.4" />
+  </Style>
+  <!-- In the queue only the row fades; its section caption isn't moving. -->
+  <Style Selector="ListBox.queue ListBoxItem.dragging">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="ListBox.queue ListBoxItem.dragging Border.queuerow">
+    <Setter Property="Opacity" Value="0.4" />
+  </Style>
+  <Style Selector="Border.dropindicator">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Accent}" />
+  </Style>
+
+  <!-- The seek line with nothing loaded: present, so the bar
+       doesn't shift when a track starts, but too faint to read as a control. -->
+  <Style Selector="Panel#SeekArea.idle">
+    <Setter Property="Opacity" Value="0.3" />
+  </Style>
+
+  <!-- The seek line's two ends, either side of the centred transport.
+       Fixed width, wide enough for "h:mm:ss", so the buttons between them never
+       move as the digits tick. Idle they fade with the seek line. -->
+  <Style Selector="TextBlock.time">
+    <Setter Property="Width" Value="52" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Opacity" Value="0.65" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="4,0" />
+  </Style>
+  <Style Selector="Panel.idle TextBlock.time">
+    <Setter Property="Opacity" Value="0.25" />
+  </Style>
+  <!-- The seek row's times: either side of the line, or, in a narrow player bar,
+       under its ends. Columns are set here, not on the elements, so the narrow
+       style (after these) can move them. -->
+  <Style Selector="TextBlock.time.elapsed">
+    <Setter Property="Grid.Column" Value="0" />
+  </Style>
+  <Style Selector="TextBlock.time.duration">
+    <Setter Property="Grid.Column" Value="2" />
+  </Style>
+  <Style Selector="Grid.timesUnder > TextBlock.time">
+    <Setter Property="Grid.Row" Value="1" />
+    <Setter Property="Grid.Column" Value="1" />
+    <Setter Property="Width" Value="NaN" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Margin" Value="0,2,0,0" />
+  </Style>
+  <Style Selector="Grid.timesUnder > TextBlock.time.elapsed">
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Grid.timesUnder > TextBlock.time.duration">
+    <Setter Property="HorizontalAlignment" Value="Right" />
+  </Style>
+
+  <!-- The compact player bar's flyouts: a column as wide as the button they open
+       from, on the raised surface Search's drop-down uses. -->
+  <Style Selector="FlyoutPresenter.barColumn">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Surface.Popup}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Line}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Card}" />
+    <Setter Property="Padding" Value="0,4" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+
+  <!-- Loading skeleton: dim shape pulsing while the first load is in flight.
+       Pages show these only when loading AND the target list is still empty,
+       so a refresh keeps real content on screen instead of flashing bones. -->
+  <Style Selector="Border.skeleton">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+    <Setter Property="CornerRadius" Value="8" />
+  </Style>
+  <!-- The pulse is motion, so reduced motion (MainWindow's .reducedmotion class)
+       leaves the bones still: they still say "loading" by shape. -->
+  <Style Selector="Window:not(.reducedmotion) Border.skeleton">
+    <Style.Animations>
+      <Animation Duration="0:0:1.1" IterationCount="Infinite"
+                 PlaybackDirection="Alternate" Easing="SineEaseInOut">
+        <KeyFrame Cue="0%">
+          <Setter Property="Opacity" Value="1.0" />
+        </KeyFrame>
+        <KeyFrame Cue="100%">
+          <Setter Property="Opacity" Value="0.35" />
+        </KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
+  <!-- Empty-state block: centered icon + title + hint, all quiet. -->
+  <Style Selector="StackPanel.empty">
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Spacing" Value="6" />
+  </Style>
+
+  <Style Selector="StackPanel.empty > PathIcon">
+    <Setter Property="Width" Value="40" />
+    <Setter Property="Height" Value="40" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Overlay.2B}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0,0,0,6" />
+  </Style>
+
+  <Style Selector="StackPanel.empty > TextBlock.title">
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Opacity" Value="0.8" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="StackPanel.empty > TextBlock.hint">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Opacity" Value="0.55" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="MaxWidth" Value="260" />
+  </Style>
+
+  <!-- Outcome toast (Views/ToastHost). Opaque rather than on the translucent
+       surface ramp: it floats over arbitrary page content and has to stay legible
+       on any of it. An error takes an error-red outline as well as its icon, so it
+       reads as one without relying on the icon alone. -->
+  <Style Selector="Border.toast">
+    <Setter Property="Background" Value="#F2222229" />
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Overlay.1F}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="16,10,12,10" />
+    <Setter Property="MinWidth" Value="260" />
+    <Setter Property="BoxShadow" Value="0 6 24 0 #66000000" />
+    <Setter Property="TextElement.FontSize" Value="13" />
+  </Style>
+
+  <Style Selector="Border.toast.error">
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Error}" />
+  </Style>
+
+  <!-- The toast's one action (Undo, Retry): accent text, no chrome until hovered. -->
+  <Style Selector="Button.toastaction">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="10,4" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.toastaction /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Accent}" />
+  </Style>
+
+  <Style Selector="Button.toastaction:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+  </Style>
+
+  <!-- The window's own caption. Avalonia 12 draws the title in a decorations
+       layer over the client area (WindowDrawnDecorations, PART_TitleTextPanel),
+       where it lands on top of the title bar's name and Back/Forward. The panel's
+       visibility is template-bound, so the style hides its text instead. The
+       window keeps its Title for the taskbar and screen readers. -->
+  <Style Selector="Panel#PART_TitleTextPanel > TextBlock">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+
+  <!-- Settings: sections are cards of rows, a hairline between rows, the
+       label and its help on the left and the control on the right. A .sub row
+       belongs to the row above it (crossfade's duration, Discord's details) and
+       is indented to say so. -->
+  <Style Selector="StackPanel.settings">
+    <Setter Property="Spacing" Value="28" />
+  </Style>
+  <Style Selector="TextBlock.settingsheader">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Group}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Margin" Value="4,0,0,0" />
+  </Style>
+  <Style Selector="Border.settingsgroup">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Surface.Card}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Panel}" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <Style Selector="Border.settingrow">
+    <Setter Property="Padding" Value="16,0" />
+    <Setter Property="MinHeight" Value="60" />
+    <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Line}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+  </Style>
+  <Style Selector="Border.settingrow:nth-child(1)">
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Border.settingrow.sub">
+    <Setter Property="Padding" Value="40,0,16,0" />
+  </Style>
+  <Style Selector="Border.settingrow:disabled">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+  <Style Selector="Border.settingrow > Grid > :is(Control)">
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.settingrow > Grid > StackPanel:nth-child(1), Border.settingrow > Grid > TextBlock:nth-child(1)">
+    <Setter Property="Margin" Value="0,14,24,14" />
+  </Style>
+  <Style Selector="TextBlock.settinglabel">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Body}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style Selector="TextBlock.settinghelp, SelectableTextBlock.settinghelp">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Meta}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Margin" Value="0,3,0,0" />
+  </Style>
+  <Style Selector="TextBlock.settingvalue">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Meta}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Switches: the knob only. The stock On/Off text is English whatever the
+       language, and each switch already sits beside its label. The stock
+       minimum width reserves room for that text. -->
+  <Style Selector="ToggleSwitch">
+    <Setter Property="OnContent" Value="{x:Null}" />
+    <Setter Property="OffContent" Value="{x:Null}" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+  </Style>
+
+  <!-- Combo boxes and one-line text boxes are pills, as the buttons beside
+       them are; the padding is the buttons' too. A text box that takes several
+       lines (cookies, lyrics) keeps the control radius: a pill would cut into
+       its text. -->
+  <Style Selector="ComboBox">
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="Padding" Value="16,5,10,6" />
+  </Style>
+  <Style Selector="TextBox">
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Control}" />
+  </Style>
+  <Style Selector="TextBox[AcceptsReturn=False]:not(.searchfield)">
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="Padding" Value="16,6,16,7" />
+  </Style>
+
+  <!-- The account menu is as wide as the chip it opens from (Button.account). -->
+  <Style Selector="MenuFlyoutPresenter.account">
+    <Setter Property="MinWidth" Value="196" />
+  </Style>
+
+  <!-- Segmented control (audio quality): a pill track with the chosen option
+       filled white, every option in view. -->
+  <Style Selector="ListBox.segmented">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="Padding" Value="3" />
+    <Setter Property="HorizontalAlignment" Value="Right" />
+    <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+  </Style>
+  <Style Selector="ListBox.segmented ListBoxItem">
+    <Setter Property="Padding" Value="14,5" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+  <Style Selector="ListBox.segmented ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="ListBox.segmented ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text}" />
+  </Style>
+  <Style Selector="ListBox.segmented ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBox.segmented ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Text}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Ground}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+</Styles>

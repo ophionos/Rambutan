@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:Rambutan.App.Localization"
+        xmlns:vm="using:Rambutan.App.ViewModels"
+        x:Class="Rambutan.App.Views.LyricsEditorDialog"
+        x:DataType="vm:LyricsEditorViewModel"
+        Title="{Binding Heading}"
+        Width="640" Height="600" MinWidth="460" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF16161C">
+
+  <Design.DataContext>
+    <vm:LyricsEditorViewModel />
+  </Design.DataContext>
+
+  <!-- The custom lyrics editor: the text, what it will play as, then
+       save or remove. Remove asks first, in place, since it deletes the user's
+       own work. -->
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="20">
+    <TextBlock Grid.Row="0" Text="{Binding Heading}" FontSize="18" FontWeight="SemiBold"
+               TextTrimming="CharacterEllipsis" />
+    <TextBlock Grid.Row="1" Text="{l:T lyrics.editor.hint}" TextWrapping="Wrap"
+               FontSize="12" Foreground="{StaticResource Token.Brush.Text.Muted}" Margin="0,6,0,12" />
+
+    <TextBox x:Name="LyricsText" Grid.Row="2" Text="{Binding Text}"
+             AcceptsReturn="True" TextWrapping="NoWrap"
+             ScrollViewer.HorizontalScrollBarVisibility="Auto"
+             VerticalContentAlignment="Top"
+             AutomationProperties.Name="{l:T lyrics.editor.textName}" />
+
+    <TextBlock Grid.Row="3" Text="{Binding FormatLabel}" FontSize="12" Margin="0,8,0,0"
+               Foreground="{StaticResource Token.Brush.Text.Muted}" />
+    <TextBlock Grid.Row="4" Text="{Binding Error}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap"
+               Foreground="{StaticResource Token.Brush.Error}"
+               IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+    <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto" Margin="0,16,0,0">
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+        <Button Content="{l:T lyrics.editor.openFile}" Click="OnOpenFile" />
+        <Button Content="{l:T lyrics.editor.remove}" Command="{Binding RemoveCommand}"
+                IsVisible="{Binding IsRemoveShown}" />
+      </StackPanel>
+
+      <!-- Asking before removing: replaces Cancel/Save until answered. -->
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10"
+                  IsVisible="{Binding IsConfirmingRemove}">
+        <TextBlock Text="{l:T lyrics.editor.removeConfirm}" VerticalAlignment="Center" />
+        <Button Content="{l:T lyrics.editor.removeKeep}" Command="{Binding KeepLyricsCommand}" />
+        <Button Classes="accent" Content="{l:T lyrics.editor.remove}" Command="{Binding RemoveCommand}" />
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10"
+                  IsVisible="{Binding !IsConfirmingRemove}">
+        <Button Content="{l:T common.cancel}" IsCancel="True" Click="OnCancel" />
+        <Button Content="{l:T common.save}" Classes="accent" Command="{Binding SaveCommand}" />
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>

@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             x:Class="Rambutan.App.Views.ToastHost"
+             x:DataType="vm:ToastHostViewModel"
+             HorizontalAlignment="Center" VerticalAlignment="Bottom"
+             Margin="16,0,16,20">
+
+  <!-- Outcome toasts: bottom-centre over the content region, newest
+       at the bottom, each with at most one action. The host itself takes no input
+       outside the toasts, so the page under it stays clickable. A new toast rises
+       into place (code-behind), or just appears under reduced motion.
+       Screen readers hear a toast politely, an error at once. -->
+  <ItemsControl ItemsSource="{Binding Toasts}">
+    <ItemsControl.ItemsPanel>
+      <ItemsPanelTemplate>
+        <StackPanel Spacing="8" />
+      </ItemsPanelTemplate>
+    </ItemsControl.ItemsPanel>
+    <ItemsControl.ItemTemplate>
+      <DataTemplate x:DataType="vm:Toast">
+        <Border Classes="toast" Classes.error="{Binding IsError}"
+                HorizontalAlignment="Center"
+                AutomationProperties.Name="{Binding AutomationName}"
+                AutomationProperties.LiveSetting="{Binding IsError, Converter={x:Static vm:Converters.LiveSettingFor}}"
+                AttachedToVisualTree="OnToastAttached"
+                PointerEntered="OnToastPointerEntered"
+                PointerExited="OnToastPointerExited"
+                GotFocus="OnToastGotFocus"
+                LostFocus="OnToastLostFocus">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+            <PathIcon Grid.Column="0" Data="{StaticResource Icon.Warning}"
+                      Width="16" Height="16" Margin="0,0,10,0" VerticalAlignment="Center"
+                      Foreground="{StaticResource Token.Brush.Error}"
+                      IsVisible="{Binding IsError}" />
+            <SelectableTextBlock Grid.Column="1" Text="{Binding Message}"
+                                 TextWrapping="Wrap" MaxWidth="460"
+                                 VerticalAlignment="Center" />
+            <Button Grid.Column="2" Classes="toastaction"
+                    Content="{Binding ActionLabel}"
+                    Command="{Binding ActCommand}"
+                    IsVisible="{Binding HasAction}"
+                    Margin="14,0,0,0" />
+            <Button Grid.Column="3" Classes="icon subtle small"
+                    Command="{Binding CloseCommand}"
+                    ToolTip.Tip="{l:T common.dismiss}"
+                    AutomationProperties.Name="{l:T common.dismiss}"
+                    Margin="8,-4,-6,-4">
+              <PathIcon Data="{StaticResource Icon.Close}" Width="12" Height="12" />
+            </Button>
+          </Grid>
+        </Border>
+      </DataTemplate>
+    </ItemsControl.ItemTemplate>
+  </ItemsControl>
+</UserControl>

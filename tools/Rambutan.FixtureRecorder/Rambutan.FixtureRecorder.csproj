@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Must match Rambutan.Integrations (live-diff's Last.fm check), which takes the Windows TFM on Windows hosts. -->
+    <TargetFramework Condition="$([MSBuild]::IsOSPlatform('Windows'))">net10.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Rambutan.FixtureRecorder</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Rambutan.InnerTube\Rambutan.InnerTube.csproj" />
+    <ProjectReference Include="..\..\src\Rambutan.Integrations\Rambutan.Integrations.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:Rambutan.App.Localization"
+        x:Class="Rambutan.App.Views.ConfirmDialog"
+        Title="{l:T dialog.confirm.title}"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF16161C">
+
+  <Grid RowDefinitions="*,Auto" Margin="20">
+    <TextBlock x:Name="Message" Grid.Row="0" TextWrapping="Wrap"
+               VerticalAlignment="Center" MinHeight="40" />
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="10"
+                HorizontalAlignment="Right" Margin="0,14,0,0">
+      <Button Content="{l:T common.cancel}" IsCancel="True" Click="OnCancel" />
+      <Button x:Name="AcceptButton" Content="{l:T common.ok}" Classes="accent" IsDefault="True" Click="OnAccept" />
+    </StackPanel>
+  </Grid>
+</Window>

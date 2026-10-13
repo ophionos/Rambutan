@@ -1,0 +1,13 @@
+{
+  "id": 3396227,
+  "name": "Paper Lanterns",
+  "trackName": "Paper Lanterns",
+  "artistName": "The Quiet Harbour",
+  "albumName": "Tidelines",
+  "duration": 212.0,
+  "instrumental": false,
+  "plainLyrics": "Paper lanterns on the water\nDon't let the light go out\n\n夜の灯り\nFloat until the light is gone",
+  "syncedLyrics": "[00:17.12]Paper lanterns on the water\n[00:21.80]Don't let the light go out\n[00:31.03]夜の灯り\n[00:35.60]Float until the light is gone",
+  "lyricsfile": "version: '1.0'\n\nmetadata:\n  title: 'Paper Lanterns'\n  artist: 'The Quiet Harbour'\n  album: 'Tidelines'\n  duration_ms: 212000\n\nlines:\n  - text: 'Paper lanterns on the water'\n    start_ms: 17120\n    end_ms: 21800\n    words:\n      - text: 'Paper '\n        start_ms: 17120\n        end_ms: 17600\n      - text: 'lanterns '\n        start_ms: 17600\n        end_ms: 18450\n      - text: 'on '\n        start_ms: 18450\n        end_ms: 18700\n      - text: 'the '\n        start_ms: 18700\n        end_ms: 18900\n      - text: 'water'\n        start_ms: 18900\n        end_ms: 21000\n  - text: 'Don''t let the light go out'\n    start_ms: 21800\n    end_ms: 26450\n    words:\n      - text: 'Don''t '\n        start_ms: 21800\n      - text: 'let '\n        start_ms: 22300\n        end_ms: 22600\n      - text: 'the '\n        start_ms: 22600\n        end_ms: 22800\n      - text: 'light '\n        start_ms: 22800\n        end_ms: 23500\n      - text: 'go '\n        start_ms: 23500\n        end_ms: 23900\n      - text: 'out'\n        start_ms: 23900\n  - text: '夜の灯り'\n    start_ms: 31030\n    end_ms: 35600\n    words:\n      - text: '夜'\n        start_ms: 31030\n        end_ms: 31600\n      - text: 'の'\n        start_ms: 31600\n        end_ms: 31900\n      - text: '灯'\n        start_ms: 31900\n        end_ms: 32700\n      - text: 'り'\n        start_ms: 32700\n        end_ms: 34000\n  - text: 'Float until the light is gone'\n    start_ms: 35600\n    end_ms: 41200\n    words:\n      - text: 'Float '\n        start_ms: 35600\n        end_ms: 36400\n      - text: 'until '\n        start_ms: 36400\n        end_ms: 37300\n      - text: 'the '\n        start_ms: 37300\n        end_ms: 37600\n      - text: 'light '\n        start_ms: 37600\n        end_ms: 38500\n      - text: 'is '\n        start_ms: 38500\n        end_ms: 38800\n      - text: 'gone'\n        start_ms: 38800\n        end_ms: 41200\n\nplain: |\n  Paper lanterns on the water\n  Don't let the light go out\n\n  夜の灯り\n  Float until the light is gone\n",
+  "hasWordSync": true
+}

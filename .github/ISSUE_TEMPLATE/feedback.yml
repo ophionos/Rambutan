@@ -1,0 +1,21 @@
+name: Feedback or idea
+description: Something you'd like Rambutan to do, or do differently.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: Describe what you want to do, not only the feature. "I want to find songs I liked last year" helps more than "add a date filter".
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What do you do today instead?
+      description: Optional. How you work around it now, in Rambutan or elsewhere.
+  - type: input
+    id: version
+    attributes:
+      label: Rambutan version
+      description: Optional. Shown in Settings → Updates.

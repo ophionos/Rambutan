@@ -1,0 +1,653 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             x:Class="Rambutan.App.Views.SettingsPage"
+             x:DataType="vm:SettingsPageViewModel">
+
+  <!-- Each section is a card of rows: what the setting is (and what it does)
+       on the left, its control on the right. Styles in Controls.axaml
+       ("Settings"). Switches carry their label as their accessible name,
+       since the label beside them is a separate element. -->
+  <ScrollViewer Classes="pagescroll">
+    <StackPanel Classes="settings" Margin="4,0,4,24" MaxWidth="720" HorizontalAlignment="Left">
+      <TextBlock Text="{l:T settings.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold"
+                 Margin="0,0,0,4" />
+
+      <!-- The sign-in, what state it's in, and when it was last checked. -->
+      <StackPanel Spacing="8">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.account.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{Binding Session.AccountLabel}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Session.StatusDetail}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                  <Button Content="{l:T common.signIn}" Classes="accent"
+                          Command="{Binding Session.SignInCommand}"
+                          IsVisible="{Binding !Session.IsSignedIn}" />
+                  <Button Content="{l:T settings.account.signInAgain}"
+                          ToolTip.Tip="{l:T settings.account.signInAgainTip}"
+                          Command="{Binding Session.SignInCommand}"
+                          IsVisible="{Binding Session.IsSignedIn}" />
+                  <Button Content="{l:T common.signOut}"
+                          Command="{Binding Session.SignOutCommand}"
+                          IsVisible="{Binding Session.IsSignedIn}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.playback.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.playback.normalize}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.playback.normalizeHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding NormalizeVolume}"
+                              AutomationProperties.Name="{l:T settings.playback.normalize}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.playback.autoplay}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.playback.autoplayHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Autoplay}"
+                              AutomationProperties.Name="{l:T settings.playback.autoplay}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="settinglabel" Text="{l:T settings.playback.crossfade}" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding CrossfadeEnabled}"
+                              AutomationProperties.Name="{l:T settings.playback.crossfade}" />
+              </Grid>
+            </Border>
+            <!-- Crossfade's own settings: indented under it, and dimmed while it is off. -->
+            <Border Classes="settingrow sub" IsEnabled="{Binding CrossfadeEnabled}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock x:Name="CrossfadeLabel" Classes="settinglabel" Text="{l:T settings.playback.crossfadeDuration}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
+                  <Slider Width="180" Minimum="1" Maximum="12"
+                          AutomationProperties.LabeledBy="{Binding #CrossfadeLabel}"
+                          TickFrequency="1" IsSnapToTickEnabled="True"
+                          Value="{Binding CrossfadeSeconds}" />
+                  <TextBlock Classes="settingvalue" MinWidth="34"
+                             Text="{l:T settings.playback.crossfadeSeconds, Arg={Binding CrossfadeSeconds}}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow sub" IsEnabled="{Binding CrossfadeEnabled}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.playback.fadeOnSkip}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.playback.fadeOnSkipHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding CrossfadeOnSkip}"
+                              AutomationProperties.Name="{l:T settings.playback.fadeOnSkip}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock x:Name="QualityLabel" Classes="settinglabel" Text="{l:T settings.playback.quality}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.playback.qualityHelp}" />
+                </StackPanel>
+                <!-- Two choices, both visible at once: a segmented control rather
+                     than a drop-down that hides the other. -->
+                <ListBox Grid.Column="1" Classes="segmented"
+                         ItemsSource="{Binding AudioQualityChoices}" SelectedIndex="{Binding AudioQualityIndex}"
+                         AutomationProperties.LabeledBy="{Binding #QualityLabel}">
+                  <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                  </ListBox.ItemsPanel>
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AudioQualityChoice">
+                      <Panel>
+                        <TextBlock Text="{l:T settings.playback.qualityHigh}" IsVisible="{Binding IsHigh}" />
+                        <TextBlock Text="{l:T settings.playback.qualityDataSaver}" IsVisible="{Binding IsDataSaver}" />
+                      </Panel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow" IsVisible="{Binding Output, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock x:Name="OutputLabel" Classes="settinglabel" Text="{l:T settings.playback.output}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.playback.outputHelp}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" VerticalAlignment="Center" MinWidth="170" MaxWidth="280"
+                          ItemsSource="{Binding Output.Choices}" SelectedItem="{Binding Output.Selected}"
+                          AutomationProperties.LabeledBy="{Binding #OutputLabel}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:OutputDeviceOption">
+                      <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow" IsVisible="{Binding Equalizer, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.equalizer.title}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.equalizer.help}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Equalizer.Enabled}"
+                              AutomationProperties.Name="{l:T settings.equalizer.title}" />
+              </Grid>
+            </Border>
+            <!-- The bands in the label column, Reset in the control column, like the
+                 rows around it; dimmed while the equalizer is off. -->
+            <Border Classes="settingrow sub" IsEnabled="{Binding Equalizer.Enabled}"
+                    IsVisible="{Binding Equalizer, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <ItemsControl ItemsSource="{Binding Equalizer.Bands}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <UniformGrid Rows="1" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:EqualizerBandViewModel">
+                        <StackPanel Spacing="4" HorizontalAlignment="Center">
+                          <TextBlock Classes="settingvalue" HorizontalAlignment="Center" TextWrapping="NoWrap"
+                                     Text="{Binding ShortGainText}" ToolTip.Tip="{Binding GainText}" />
+                          <Slider Orientation="Vertical" Height="120" HorizontalAlignment="Center"
+                                  Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                  TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="3"
+                                  Value="{Binding Gain}"
+                                  AutomationProperties.Name="{Binding AccessibleName}" />
+                          <TextBlock Classes="settinghelp" HorizontalAlignment="Center" TextWrapping="NoWrap"
+                                     Text="{Binding ShortLabel}" ToolTip.Tip="{Binding Label}" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+                <Button Grid.Column="1" Content="{l:T settings.equalizer.reset}"
+                        ToolTip.Tip="{l:T settings.equalizer.resetTip}"
+                        Command="{Binding Equalizer.ResetCommand}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock x:Name="CacheLabel" Classes="settinglabel" Text="{l:T settings.playback.cache}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.playback.cacheHelp}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
+                  <Slider Width="180" Minimum="0" Maximum="2048"
+                          AutomationProperties.LabeledBy="{Binding #CacheLabel}"
+                          TickFrequency="128" IsSnapToTickEnabled="True"
+                          Value="{Binding AudioCacheSizeMb}" />
+                  <TextBlock Classes="settingvalue" MinWidth="64"
+                             Text="{Binding AudioCacheSizeText}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <StackPanel Spacing="8" DataContext="{Binding Downloads}" x:DataType="vm:DownloadsSettingsViewModel"
+                  IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.downloads.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.downloads.folder}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.downloads.folderHelp}" />
+                  <SelectableTextBlock Classes="settinghelp" Text="{Binding Folder}" Margin="0,6,0,0"
+                                       TextWrapping="Wrap" AutomationProperties.Name="{l:T settings.downloads.folder}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding FolderError}" Foreground="{StaticResource Token.Brush.Error}"
+                             IsVisible="{Binding FolderError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Button Content="{l:T settings.downloads.useDefault}" Command="{Binding UseDefaultFolderCommand}"
+                          IsVisible="{Binding !IsDefaultFolder}" />
+                  <Button Content="{l:T settings.downloads.change}" Command="{Binding ChangeFolderCommand}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.downloads.usage}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.downloads.usageHelp}" />
+                </StackPanel>
+                <TextBlock Grid.Column="1" Classes="settingvalue" Text="{Binding Usage}" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow" IsVisible="{Binding CanExport}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.downloads.export}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.downloads.exportHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding ExportEnabled}"
+                              AutomationProperties.Name="{l:T settings.downloads.export}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Border.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                  <Binding Path="CanExport" />
+                  <Binding Path="ExportEnabled" />
+                </MultiBinding>
+              </Border.IsVisible>
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.downloads.exportFormat}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.downloads.exportFormatHelp}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" SelectedIndex="{Binding ExportFormatIndex}" VerticalAlignment="Center"
+                          AutomationProperties.Name="{l:T settings.downloads.exportFormat}">
+                  <ComboBoxItem Content="{l:T settings.downloads.exportFormat.original}" />
+                  <ComboBoxItem Content="{l:T settings.downloads.exportFormat.mp3}" />
+                </ComboBox>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.appearance.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.appearance.ambient}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.appearance.ambientHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding AmbientBackground}"
+                              AutomationProperties.Name="{l:T settings.appearance.ambient}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.appearance.artworkMeter}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.appearance.artworkMeterHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding ArtworkMeter}"
+                              AutomationProperties.Name="{l:T settings.appearance.artworkMeter}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock x:Name="MotionLabel" Classes="settinglabel" Text="{l:T settings.appearance.motion}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding SystemMotionNote}"
+                             IsVisible="{Binding SystemMotionNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding MotionChoices}" SelectedIndex="{Binding MotionIndex}" MinWidth="170"
+                          AutomationProperties.LabeledBy="{Binding #MotionLabel}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:MotionChoice">
+                      <Panel>
+                        <TextBlock Text="{l:T settings.appearance.motionSystem}" IsVisible="{Binding IsSystem}" />
+                        <TextBlock Text="{l:T settings.appearance.motionReduce}" IsVisible="{Binding IsReduced}" />
+                        <TextBlock Text="{l:T settings.appearance.motionFull}" IsVisible="{Binding IsFull}" />
+                      </Panel>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.language.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock x:Name="LanguageLabel" Classes="settinglabel" Text="{l:T settings.language.label}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.language.help}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Languages}" SelectedItem="{Binding SelectedLanguage}" MinWidth="170"
+                          AutomationProperties.LabeledBy="{Binding #LanguageLabel}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LanguageChoice">
+                      <Panel>
+                        <TextBlock Text="{l:T settings.language.system}" IsVisible="{Binding IsSystem}" />
+                        <TextBlock Text="{Binding NativeName}" IsVisible="{Binding !IsSystem}" />
+                      </Panel>
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.behavior.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.behavior.closeToTray}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.behavior.noTray}" IsVisible="{Binding NoTray}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding CloseToTray}"
+                              AutomationProperties.Name="{l:T settings.behavior.closeToTray}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <!-- Lyrics: showing lyrics is Now Playing's toggle; this is
+           whether the pane may ask LRCLIB, which sends the track off the machine. -->
+      <StackPanel Spacing="8">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.lyrics.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.lyrics.online}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.lyrics.onlineHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding LookUpLyricsOnline}"
+                              AutomationProperties.Name="{l:T settings.lyrics.online}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.discord.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.discord.enabled}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding DiscordStatus}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding DiscordEnabled}"
+                              IsEnabled="{Binding DiscordAvailable}"
+                              AutomationProperties.Name="{l:T settings.discord.enabled}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow sub" IsVisible="{Binding DiscordAvailable}" IsEnabled="{Binding DiscordEnabled}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="settinglabel" Text="{l:T settings.discord.showTrack}" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding DiscordShowTrack}"
+                              AutomationProperties.Name="{l:T settings.discord.showTrack}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow sub" IsVisible="{Binding DiscordAvailable}" IsEnabled="{Binding DiscordEnabled}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="settinglabel" Text="{l:T settings.discord.showArtwork}" />
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding DiscordShowArtwork}"
+                              AutomationProperties.Name="{l:T settings.discord.showArtwork}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow sub" IsVisible="{Binding DiscordAvailable}" IsEnabled="{Binding DiscordEnabled}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.discord.showElapsed}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding DiscordSharingNote}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding DiscordShowElapsed}"
+                              AutomationProperties.Name="{l:T settings.discord.showElapsed}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.lastfm.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                  <TextBlock Classes="settinglabel" Text="{Binding LastFmStatus}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.lastfm.approveHint}"
+                             IsVisible="{Binding LastFmAwaiting}" />
+                  <SelectableTextBlock Classes="settinghelp" Text="{Binding LastFmAuthorizeUrl}"
+                                       IsVisible="{Binding LastFmAuthorizeUrl, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding LastFmNotice}"
+                             Foreground="{StaticResource Token.Brush.Text}"
+                             IsVisible="{Binding LastFmNotice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                  <Button Content="{l:T settings.lastfm.connect}" Classes="accent"
+                          Command="{Binding ConnectLastFmCommand}"
+                          IsVisible="{Binding LastFmShowConnect}"
+                          IsEnabled="{Binding LastFmCanConnect}" />
+                  <Button Content="{l:T settings.lastfm.finish}" Classes="accent"
+                          Command="{Binding FinishLastFmCommand}"
+                          IsVisible="{Binding LastFmAwaiting}"
+                          IsEnabled="{Binding !LastFmBusy}" />
+                  <Button Content="{l:T common.cancel}"
+                          Command="{Binding CancelLastFmCommand}"
+                          IsVisible="{Binding LastFmAwaiting}" />
+                  <Button Content="{l:T settings.lastfm.disconnect}"
+                          Command="{Binding DisconnectLastFmCommand}"
+                          IsVisible="{Binding LastFmShowDisconnect}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow" IsVisible="{Binding LastFmRecording}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.lastfm.scrobble}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding LastFmPending}"
+                             IsVisible="{Binding LastFmPending, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding LastFmScrobbling}"
+                              AutomationProperties.Name="{l:T settings.lastfm.scrobble}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.ColumnSpan="2">
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.lastfm.disclosure}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <!-- After the scrobbling disclosure, which is about scrobbling only. -->
+            <Border Classes="settingrow" IsVisible="{Binding LastFmAvailable}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.lastfm.stations}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding LastFmStationsNote}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding LastFmStationsOnHome}"
+                              IsEnabled="{Binding LastFmConnected}"
+                              AutomationProperties.Name="{l:T settings.lastfm.stations}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <!-- Phone remote: off by default. The help says exactly what turning it
+           on exposes; the code and link show only while it listens. -->
+      <StackPanel Spacing="8" DataContext="{Binding Remote}" x:DataType="vm:RemoteSettingsViewModel"
+                  IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.remote.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.remote.enabled}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Status}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Warning}" Foreground="{StaticResource Token.Brush.Error}"
+                             IsVisible="{Binding Warning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Enabled}"
+                              AutomationProperties.Name="{l:T settings.remote.enabled}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow sub" IsVisible="{Binding Link, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+                <controls:QrCodeView Code="{Binding Code}" Width="168" Height="168" VerticalAlignment="Top"
+                                     AutomationProperties.Name="{Binding CodeName}" />
+                <StackPanel Grid.Column="1" Spacing="6">
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.remote.scan}" TextWrapping="Wrap" />
+                  <SelectableTextBlock Classes="settinglabel" Text="{Binding Address}" TextWrapping="Wrap"
+                                       IsVisible="{Binding !HasAddressChoices}"
+                                       AutomationProperties.Name="{l:T settings.remote.address}" />
+                  <!-- Several networks: the user picks the address the phone can reach. -->
+                  <StackPanel Spacing="4" IsVisible="{Binding HasAddressChoices}">
+                    <ComboBox ItemsSource="{Binding AddressChoices}" SelectedItem="{Binding SelectedAddress}"
+                              MinWidth="260" AutomationProperties.Name="{l:T settings.remote.address}" />
+                    <TextBlock Classes="settinghelp" Text="{l:T settings.remote.addressHelp}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <TextBlock Classes="settinghelp" Text="{Binding Clients}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <Button Content="{l:T settings.remote.copy}" Command="{Binding CopyLinkCommand}" />
+                    <Button Content="{l:T settings.remote.reset}" Command="{Binding ResetPairingCommand}" />
+                  </StackPanel>
+                  <TextBlock Classes="settinghelp" Text="{Binding Notice}" Foreground="{StaticResource Token.Brush.Text}"
+                             IsVisible="{Binding Notice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.ColumnSpan="2">
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.remote.disclosure}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <!-- OBS overlay: off by default, served to this computer only. The URL
+           is shown without its key (the screen may be on stream); Copy carries it. -->
+      <StackPanel Spacing="8" DataContext="{Binding Overlay}" x:DataType="vm:OverlaySettingsViewModel"
+                  IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.overlay.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.overlay.enabled}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Status}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Warning}" Foreground="{StaticResource Token.Brush.Error}"
+                             IsVisible="{Binding Warning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Enabled}"
+                              AutomationProperties.Name="{l:T settings.overlay.enabled}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow sub" IsVisible="{Binding IsListening}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.overlay.howTo}" TextWrapping="Wrap" />
+                  <SelectableTextBlock Classes="settinglabel" Text="{Binding Address}" TextWrapping="Wrap"
+                                       AutomationProperties.Name="{l:T settings.overlay.address}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Clients}" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
+                    <Button Content="{l:T settings.overlay.copy}" Command="{Binding CopyUrlCommand}" />
+                    <Button Content="{l:T settings.overlay.reset}" Command="{Binding ResetLinkCommand}" />
+                  </StackPanel>
+                </StackPanel>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.overlay.style.header}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding StyleStatus}" TextWrapping="Wrap" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.overlay.style.help}" TextWrapping="Wrap" />
+                  <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                    <Button Content="{l:T settings.overlay.style.edit}" Command="{Binding EditStyleCommand}" />
+                    <Button Content="{l:T settings.overlay.style.import}" Command="{Binding ImportStyleCommand}" />
+                    <Button Content="{l:T settings.overlay.style.export}" Command="{Binding ExportStyleCommand}" />
+                    <Button Content="{l:T settings.overlay.style.reset}" Command="{Binding ResetStyleCommand}"
+                            IsVisible="{Binding IsCustomStyle}" />
+                  </StackPanel>
+                </StackPanel>
+              </Grid>
+            </Border>
+            <!-- What the last action did; an error stays until dismissed or the next action. -->
+            <Border Classes="settingrow" IsVisible="{Binding Notice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinghelp" Text="{Binding Notice}" TextWrapping="Wrap"
+                             Foreground="{StaticResource Token.Brush.Text}" IsVisible="{Binding !NoticeIsError}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Notice}" TextWrapping="Wrap"
+                             Foreground="{StaticResource Token.Brush.Error}" IsVisible="{Binding NoticeIsError}" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="icon subtle small" Command="{Binding DismissNoticeCommand}"
+                        ToolTip.Tip="{l:T common.dismiss}" AutomationProperties.Name="{l:T common.dismiss}">
+                  <PathIcon Data="{StaticResource Icon.Close}" Width="12" Height="12" />
+                </Button>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.ColumnSpan="2">
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.overlay.disclosure}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.updates.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{Binding VersionDisplay}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding UpdateStatus}"
+                             IsVisible="{Binding UpdateStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                  <Button Content="{l:T settings.updates.check}" Command="{Binding CheckForUpdatesCommand}" />
+                  <Button Content="{l:T settings.updates.restart}" Classes="accent"
+                          Command="{Binding RestartNowCommand}"
+                          IsVisible="{Binding UpdateReady}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

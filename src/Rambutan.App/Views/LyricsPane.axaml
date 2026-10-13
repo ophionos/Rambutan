@@ -1,0 +1,248 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="520"
+             x:Class="Rambutan.App.Views.LyricsPane"
+             x:DataType="vm:LyricsViewModel">
+
+  <Design.DataContext>
+    <vm:LyricsViewModel />
+  </Design.DataContext>
+
+  <UserControl.Styles>
+    <!-- Everything in the pane is centred: it is the overlay's column. -->
+    <!-- A synced line: a flat button, so a click seeks and the keyboard
+         reaches it. The playing line is full strength in the accent, its
+         neighbours half-dimmed and the rest further back. -->
+    <Style Selector="Button.lyricline">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="12,7" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="26" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Opacity" Value="0.34" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.25" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.lyricline /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.lyricline:pointerover">
+      <Setter Property="Opacity" Value="0.8" />
+    </Style>
+    <Style Selector="Button.lyricline:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+    </Style>
+    <Style Selector="Button.lyricline:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+    </Style>
+    <Style Selector="Button.lyricline.near">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+    <Style Selector="Button.lyricline.active">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.lyricline.gap">
+      <Setter Property="FontSize" Value="20" />
+    </Style>
+    <!-- Reduced motion: the highlight moves at once. -->
+    <Style Selector="Window.reducedmotion Button.lyricline">
+      <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+
+    <!-- The footer's Edit link and timing nudges: small, so the lyrics stay the subject. -->
+    <Style Selector="Button.footer">
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="Button.nudge">
+      <Setter Property="Width" Value="28" />
+      <Setter Property="Height" Value="24" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Button.nudge PathIcon">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+    </Style>
+
+    <!-- "Back to the current line": floats over the lines while the listener
+         has scrolled away, opaque so it reads over any of them. -->
+    <Style Selector="Button.resume">
+      <Setter Property="Background" Value="#F2222229" />
+      <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Overlay.1F}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="999" />
+      <Setter Property="Padding" Value="14,6" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Bottom" />
+      <Setter Property="Margin" Value="0,0,0,12" />
+    </Style>
+  </UserControl.Styles>
+
+  <Panel>
+    <StackPanel Spacing="18" VerticalAlignment="Center" Margin="12,0"
+                IsVisible="{Binding IsLoading}">
+      <Border Classes="skeleton" Height="22" Width="280" HorizontalAlignment="Center" />
+      <Border Classes="skeleton" Height="22" Width="340" HorizontalAlignment="Center" />
+      <Border Classes="skeleton" Height="22" Width="220" HorizontalAlignment="Center" />
+      <Border Classes="skeleton" Height="22" Width="310" HorizontalAlignment="Center" />
+      <Border Classes="skeleton" Height="22" Width="250" HorizontalAlignment="Center" />
+    </StackPanel>
+
+    <!-- Lyrics: synced lines, or the plain text with a note that it won't follow playback. -->
+    <Grid RowDefinitions="Auto,*,Auto" IsVisible="{Binding HasLyrics}">
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,0,0,10"
+                  HorizontalAlignment="Center"
+                  Opacity="0.6" IsVisible="{Binding IsUnsynced}">
+        <PathIcon Data="{StaticResource Icon.Lyrics}" Width="14" Height="14" VerticalAlignment="Center" />
+        <TextBlock Text="{l:T lyrics.unsynced}" FontSize="12" VerticalAlignment="Center" />
+      </StackPanel>
+
+      <Panel Grid.Row="1">
+        <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled"
+                      AutomationProperties.Name="{l:T lyrics.listName}">
+          <!-- Lines fade out at the edges rather than being cut off mid-glyph. -->
+          <ScrollViewer.OpacityMask>
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+              <GradientStop Offset="0" Color="#00000000" />
+              <GradientStop Offset="0.06" Color="#FF000000" />
+              <GradientStop Offset="0.88" Color="#FF000000" />
+              <GradientStop Offset="1" Color="#00000000" />
+            </LinearGradientBrush>
+          </ScrollViewer.OpacityMask>
+          <Panel>
+            <ItemsControl x:Name="LinesList" ItemsSource="{Binding Lines}"
+                          IsVisible="{Binding IsSynced}"
+                          controls:RovingFocus.IsEnabled="True">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:LyricLineViewModel">
+                  <Button Classes="lyricline"
+                          Classes.active="{Binding IsActive}"
+                          Classes.near="{Binding IsNear}"
+                          Classes.gap="{Binding IsGap}"
+                          AutomationProperties.Name="{Binding AccessibleName}"
+                          AutomationProperties.HelpText="{Binding SeekHint}"
+                          Command="{Binding $parent[ItemsControl].((vm:LyricsViewModel)DataContext).SeekToLineCommand}"
+                          CommandParameter="{Binding}">
+                    <!-- The line's text, swept word by word while it plays when
+                         it has word timings. -->
+                    <controls:KaraokeControl Text="{Binding Text}" Words="{Binding Words}"
+                                             IsActive="{Binding IsActive}"
+                                             Clock="{Binding $parent[ItemsControl].((vm:LyricsViewModel)DataContext).Clock}"
+                                             SungBrush="{StaticResource Token.Brush.Accent}"
+                                             TextAlignment="Center" />
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <SelectableTextBlock Text="{Binding PlainText}" IsVisible="{Binding IsUnsynced}"
+                                 FontSize="18" LineHeight="30" TextWrapping="Wrap" TextAlignment="Center" Padding="0,20,0,40"
+                                 Margin="12,0" Opacity="0.85" />
+          </Panel>
+        </ScrollViewer>
+
+        <Button x:Name="ResumeButton" Classes="resume" IsVisible="False">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource Icon.ArrowDown}" Width="12" Height="12" VerticalAlignment="Center" />
+            <TextBlock Text="{l:T lyrics.backToCurrent}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </Panel>
+
+      <!-- Footer: where the lyrics came from and Edit; for the user's own
+           synced lyrics, the timing nudges too. The arrows
+           point along the timeline: left shows the lyrics earlier. -->
+      <StackPanel Grid.Row="2" HorizontalAlignment="Center" Spacing="2" Margin="0,8,0,0">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+          <TextBlock Text="{Binding SourceLabel}" FontSize="11" Opacity="0.4" VerticalAlignment="Center" />
+          <Button Classes="link footer" Content="{l:T lyrics.edit}" Command="{Binding EditLyricsCommand}"
+                  IsVisible="{Binding CanEditLyrics}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2"
+                    IsVisible="{Binding IsOffsetShown}">
+          <Button Classes="icon subtle nudge" Command="{Binding ShowMuchEarlierCommand}"
+                  ToolTip.Tip="{l:T lyrics.offset.earlierBy, Arg={Binding LargeStep}, ArgName=amount}"
+                  AutomationProperties.Name="{l:T lyrics.offset.earlierBy, Arg={Binding LargeStep}, ArgName=amount}">
+            <StackPanel Orientation="Horizontal" Spacing="-6">
+              <PathIcon Data="{StaticResource Icon.ChevronLeft}" />
+              <PathIcon Data="{StaticResource Icon.ChevronLeft}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="icon subtle nudge" Command="{Binding ShowEarlierCommand}"
+                  ToolTip.Tip="{l:T lyrics.offset.earlierBy, Arg={Binding SmallStep}, ArgName=amount}"
+                  AutomationProperties.Name="{l:T lyrics.offset.earlierBy, Arg={Binding SmallStep}, ArgName=amount}">
+            <PathIcon Data="{StaticResource Icon.ChevronLeft}" />
+          </Button>
+          <TextBlock Text="{Binding OffsetLabel}" FontSize="11" Opacity="0.6" MinWidth="104"
+                     TextAlignment="Center" VerticalAlignment="Center" />
+          <Button Classes="icon subtle nudge" Command="{Binding ShowLaterCommand}"
+                  ToolTip.Tip="{l:T lyrics.offset.laterBy, Arg={Binding SmallStep}, ArgName=amount}"
+                  AutomationProperties.Name="{l:T lyrics.offset.laterBy, Arg={Binding SmallStep}, ArgName=amount}">
+            <PathIcon Data="{StaticResource Icon.ChevronRight}" />
+          </Button>
+          <Button Classes="icon subtle nudge" Command="{Binding ShowMuchLaterCommand}"
+                  ToolTip.Tip="{l:T lyrics.offset.laterBy, Arg={Binding LargeStep}, ArgName=amount}"
+                  AutomationProperties.Name="{l:T lyrics.offset.laterBy, Arg={Binding LargeStep}, ArgName=amount}">
+            <StackPanel Orientation="Horizontal" Spacing="-6">
+              <PathIcon Data="{StaticResource Icon.ChevronRight}" />
+              <PathIcon Data="{StaticResource Icon.ChevronRight}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="icon subtle nudge" Command="{Binding ResetOffsetCommand}"
+                  IsVisible="{Binding IsOffsetSet}"
+                  ToolTip.Tip="{l:T lyrics.offset.reset}"
+                  AutomationProperties.Name="{l:T lyrics.offset.reset}">
+            <PathIcon Data="{StaticResource Icon.Refresh}" />
+          </Button>
+        </StackPanel>
+        <TextBlock Text="{Binding CustomError}" FontSize="11" HorizontalAlignment="Center"
+                   Foreground="{StaticResource Token.Brush.Error}"
+                   IsVisible="{Binding CustomError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </StackPanel>
+    </Grid>
+
+    <StackPanel Classes="empty" IsVisible="{Binding IsInstrumental}">
+      <PathIcon Data="{StaticResource Icon.MusicNote}" />
+      <TextBlock Classes="title" Text="{l:T lyrics.instrumentalTitle}" />
+      <TextBlock Classes="hint" Text="{l:T lyrics.instrumentalHint}" />
+    </StackPanel>
+
+    <StackPanel Classes="empty" IsVisible="{Binding IsNone}">
+      <PathIcon Data="{StaticResource Icon.Lyrics}" />
+      <TextBlock Classes="title" Text="{l:T lyrics.noneTitle}" />
+      <TextBlock Classes="hint" Text="{l:T lyrics.noneHint}" />
+      <Button HorizontalAlignment="Center" Margin="0,8,0,0"
+              Content="{l:T lyrics.add}" Command="{Binding EditLyricsCommand}"
+              IsVisible="{Binding CanEditLyrics}" />
+    </StackPanel>
+
+    <!-- Not looked up: nothing of the user's own, and online lookup is off.
+         Says what switching it on sends, and offers to. -->
+    <StackPanel Classes="empty" IsVisible="{Binding IsNotLookedUp}">
+      <PathIcon Data="{StaticResource Icon.Lyrics}" />
+      <TextBlock Classes="title" Text="{l:T lyrics.notLookedUp.title}" />
+      <TextBlock Classes="hint" Text="{l:T lyrics.notLookedUp.hint}" />
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Margin="0,8,0,0">
+        <Button Classes="accent" Content="{l:T lyrics.notLookedUp.turnOn}"
+                Command="{Binding TurnOnLookUpCommand}" />
+        <Button Content="{l:T lyrics.add}" Command="{Binding EditLyricsCommand}"
+                IsVisible="{Binding CanEditLyrics}" />
+      </StackPanel>
+    </StackPanel>
+
+    <!-- Unavailable: the shared error-state block, with Try again. -->
+    <ContentControl Content="{Binding LoadError}"
+                    ContentTemplate="{StaticResource ErrorState.Full}"
+                    IsVisible="{Binding IsUnavailable}" />
+  </Panel>
+</UserControl>

@@ -1,0 +1,69 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:l="using:Rambutan.App.Localization"
+                    xmlns:vm="using:Rambutan.App.ViewModels">
+
+  <!-- Page states shared by every page.
+       Used through a ContentControl whose Content is the page's LoadError, so a
+       null error renders nothing and the page needs no extra visibility logic:
+
+         <ContentControl Content="{Binding LoadError}"
+                         ContentTemplate="{StaticResource ErrorState.Full}" />
+
+       Full: the page has nothing to show, so the failure takes its place,
+       centred like the empty states. Compact: the page still has content (a
+       refresh or "load more" failed), so the failure sits beside it in one line
+       and the content stays. -->
+
+  <DataTemplate x:Key="ErrorState.Full" x:DataType="vm:LoadError">
+    <StackPanel Classes="empty" MaxWidth="440">
+      <PathIcon Data="{StaticResource Icon.Warning}"
+                Foreground="{StaticResource Token.Brush.Error}" Opacity="0.85" />
+      <TextBlock Classes="title" Text="{Binding Title}" TextWrapping="Wrap"
+                 TextAlignment="Center" />
+      <TextBlock Classes="hint" Text="{Binding Hint}" MaxWidth="360" />
+      <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center"
+                  Margin="0,10,0,0">
+        <Button Classes="accent" Command="{Binding Retry}"
+                IsVisible="{Binding Retry, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource Icon.Refresh}" Width="14" Height="14"
+                      VerticalAlignment="Center" />
+            <TextBlock Text="{l:T common.tryAgain}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Command="{Binding GoToDownloads}" Content="{l:T error.goToDownloads}"
+                IsVisible="{Binding GoToDownloads, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <!-- Checked is a quiet fill, not the theme's accent: Try again is the one
+             primary action here. -->
+        <ToggleButton x:Name="DetailsToggle" Content="{l:T error.details}">
+          <ToggleButton.Resources>
+            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="{StaticResource Token.Color.Overlay.38}" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="{StaticResource Token.Color.Overlay.40}" />
+            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="{StaticResource Token.Color.Overlay.2B}" />
+            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="{StaticResource Token.Color.White}" />
+            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="{StaticResource Token.Color.White}" />
+          </ToggleButton.Resources>
+        </ToggleButton>
+      </StackPanel>
+      <!-- Selectable, so the raw message can be copied into a bug report. -->
+      <SelectableTextBlock Text="{Binding Detail}" FontSize="11" Opacity="0.55"
+                           TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,0"
+                           IsVisible="{Binding #DetailsToggle.IsChecked}" />
+    </StackPanel>
+  </DataTemplate>
+
+  <DataTemplate x:Key="ErrorState.Compact" x:DataType="vm:LoadError">
+    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                Background="Transparent" ToolTip.Tip="{Binding Detail}">
+      <PathIcon Data="{StaticResource Icon.Warning}" Width="16" Height="16"
+                Foreground="{StaticResource Token.Brush.Error}" VerticalAlignment="Center" />
+      <TextBlock Text="{Binding Title}" FontSize="12" VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" />
+      <Button Content="{l:T common.tryAgain}" FontSize="12" Padding="8,2" MinHeight="0"
+              VerticalAlignment="Center" Command="{Binding Retry}"
+              IsVisible="{Binding Retry, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    </StackPanel>
+  </DataTemplate>
+
+</ResourceDictionary>

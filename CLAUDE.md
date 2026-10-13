@@ -1,0 +1,262 @@
+# CLAUDE.md
+
+Guidance for Claude Code (claude.ai/code) working in this repository.
+
+## Project
+
+Rambutan is a native desktop client for YouTube Music — .NET 10 + Avalonia 12,
+**no webview anywhere in the process** — for Windows and Linux. It owes no other
+client (including Kodama, the maintainer's earlier WebView2 client, whose source
+is not reachable from here) compatibility or migration.
+
+## Where work is tracked
+
+**GitHub is the single source of truth for work and direction.** Repository
+documentation (this file, the README, comments) describes only what the code is
+and the rules for changing it: no plans, roadmaps, phases, status, release
+history or decision history. Don't create a PRD or plan document, and don't add
+status tables or trackers to Markdown files. What is built is in the code; what
+is not is an issue.
+
+- **Issues:** requirements not yet built, bugs, follow-ups, UX findings, checks and
+  decisions. A design note for a feature goes in its issue. Open a new issue for
+  anything found and not fixed in the change at hand; close issues with the PR
+  that fixes them (`Fixes #n`).
+- **Milestones** are phases; a phase's exit criteria are in its milestone
+  description. An issue with no milestone is not scheduled.
+- **Labels:** `P0` = its milestone can't close without it; `P1` = required for
+  1.0; `P2` = may never ship. `maintainer-check` = only the maintainer can do it
+  (live services, real hardware, by-ear checks). `decision` = a maintainer decision.
+
+**Decisions belong to the maintainer.** Don't resolve an open `decision` issue by
+implementing it. If a task depends on one, say so and ask. When a decision is
+made, comment it on the issue (what was decided, by whom, when) before the issue
+closes, and move any lasting rule into this file, without an issue number.
+
+## Commands
+
+```bash
+dotnet build Rambutan.slnx -warnaserror   # what CI runs; note .slnx, not .sln
+dotnet test --solution Rambutan.slnx
+dotnet run --project src/Rambutan.App
+dotnet publish src/Rambutan.App -c Release -r linux-x64   # AOT smoke (CI runs win-x64 + linux-x64)
+
+# InnerTube fixtures: record / diff against live YTM (live-diff also checks Last.fm stations)
+dotnet run --project tools/Rambutan.FixtureRecorder -- --help
+
+# Web apps (web/remote, web/overlay; each its own npm project, output → src/Rambutan.LocalApi/wwwroot/)
+npm install && npm run build
+```
+
+**Diagnostics env vars:** `RAMBUTAN_STARTUP_TRACE` (startup timing),
+`RAMBUTAN_STARTUP_EXIT` (exit after startup, for measuring), `RAMBUTAN_VIZ_TRACE`
+and `RAMBUTAN_KARAOKE_TRACE` (visualizer and karaoke frame times),
+`RAMBUTAN_LOCALE` (override the UI language), `RAMBUTAN_DATA_DIR` (keep settings,
+cookies, caches and logs in another folder; each folder is its own instance, so
+copies in different worktrees run side by side; sidecars stay shared). That
+folder is the root of its profiles (below); `--profile <name or id>` picks one.
+Every data folder but the installed app's has its own pair of preferred LocalApi
+ports (`AppDataLocation.PreferredPorts`). `RAMBUTAN_TOOLS_DIR` moves the sidecars
+too, so a branch with another ffmpeg pin can't replace the installed app's.
+
+**Demo mode:** `RAMBUTAN_DEMO=1` (or `anonymous`) runs the app on the recorded
+fixtures with generated audio and placeholder art, no network needed;
+`RAMBUTAN_DEMO_LATENCY` and `RAMBUTAN_DEMO_FAIL` produce loading and failure states
+on demand. Details in `Services/Demo/DemoOptions.cs`. A demo never installs or
+updates yt-dlp; it still prepares ffmpeg, in the shared tools folder unless
+`RAMBUTAN_TOOLS_DIR` says otherwise. In cloud sessions, use the
+**`demo` skill** (`tools/ui-driver/ui.py` on Xvfb) to launch, click, type and
+screenshot. That's how UI changes get looked at here (definition of done, item 3).
+
+**Cloud sessions:** `.claude/hooks/session-start.sh` installs `dotnet-sdk-10.0`
+from Ubuntu's archive and restores packages. `dotnet-install.sh` does not work
+there, because the network policy blocks Microsoft's download hosts. If `dotnet`
+still isn't available, say you couldn't verify; don't imply you did. The Linux container can build and
+test everything, and can show the UI in demo mode on Xvfb (the `demo` skill). It
+can't reach YouTube Music, play audible sound, or exercise Windows-only code (SMTC),
+so say which checks were impossible.
+
+## Definition of done
+
+1. `dotnet build Rambutan.slnx -warnaserror` passes. **Zero warnings is the
+   baseline**; a new warning is a regression.
+2. `dotnet test --solution Rambutan.slnx` passes. Logic changes come with tests; Core logic and parsers
+   always get tests.
+3. UI changes are looked at (screenshots via `dotnet run`), not inferred from XAML.
+   If you couldn't look, say so.
+4. Issues the change fixes are closed by it (`Fixes #n`), and anything it leaves
+   open is an issue. README and this file are updated in the same change when it
+   makes them wrong.
+5. Commit style follows the history: an imperative, plain-English subject with no
+   `feat:`-style prefix, and a body explaining *why*, ending with what was verified
+   (e.g. "build -warnaserror clean; 143 tests pass"). Work goes on a branch and
+   merges through a PR to `main`.
+
+## Architecture
+
+Eight projects under `src/`. **Feature libraries reference `Rambutan.Core` only;
+`Rambutan.App` composes everything.** Never add a reference between feature
+libraries; a type two of them share belongs in Core.
+
+| Project | Role |
+|---|---|
+| `Rambutan.Core` | Playback coordinator + state machine, queue, ports (`ICatalog`, `IStreamSource`, `IAudioPlayer`), `AppLog`. **Pure C#, zero I/O, no package refs** without discussion. |
+| `Rambutan.InnerTube` | YTM API client implementing `ICatalog`. Parsers tested against recorded fixtures. |
+| `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, download store (kept apart from the cache: no cap, no eviction), export through the ffmpeg executable. The **only** project that touches stream extraction. |
+| `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). |
+| `Rambutan.Lyrics` | Lyrics model + timing rules, LRC parser/writer, Lyricsfile (YAML subset) parser for LRCLIB's word-synced records, LRCLIB provider + chain, per-track cache, custom-lyrics store, `LyricsService`. |
+| `Rambutan.Integrations` | SMTC (Windows), MPRIS and the tray-host check (Linux, over D-Bus), single-instance, Velopack updates, Discord Rich Presence (hand-rolled IPC), Last.fm scrobbling and stations. |
+| `Rambutan.LocalApi` | Kestrel host started on demand: `/remote` (the phone remote, on the LAN only while its setting is on; token pairing, state over SSE) and `/overlay` (the OBS overlay, in its own host on loopback only, port 41742 for the installed app's data folder, with its own read-only key; style file `overlay-style.json`, versioned). |
+| `Rambutan.App` | Avalonia UI (CommunityToolkit.Mvvm), custom controls, **plus app services**: settings store, cookie vault, artwork cache, logging, sidecar bootstrap, tray. |
+
+**Ports and adapters:** Core owns orchestration and
+defines the interfaces it needs; feature libraries implement them thinly
+("translate, don't decide"); App binds them. Logic that can be tested without I/O
+belongs in Core. Libraries log through `Core.Diagnostics.AppLog` (App installs the
+file sink), never to files directly.
+
+**Where things actually live** (not always where you'd guess):
+- Settings: `App/Services/AppSettingsStore.cs`, a single versioned `AppSettings`
+  class persisted as JSON. Add fields with sensible defaults; a rename or change of
+  meaning needs a migration. The model lives in App; a feature library that needs
+  a setting gets the value passed in by App, not the model.
+- Credentials: `App/Services/CookieVault.cs`, `LastFmSessionVault.cs` and
+  `RemoteTokenVault.cs` (the phone remote's pairing), all through `StoredCredential`: DPAPI on Windows; on Linux the Secret Service
+  (`Integrations/Linux/SecretServiceStore`, D-Bus via Tmds.DBus.Protocol, no
+  native libsecret), items keyed by the data folder. **With no keyring running,
+  Linux falls back to an unencrypted 0600 file**, and the sign-in screen says so.
+- Profiles: `App/Services/Profiles.cs`. A profile is a data folder:
+  `default` is the root data folder itself, others are `profiles/<id>` (the
+  folder comes from the id, never from the file), listed in the versioned
+  `profiles.json` in the root. Downloads are per profile. Switching restarts the
+  app (`App.AfterExit`); deleting removes the folder and the keyring items
+  keyed by it, never while that profile runs.
+- Styling: stock `FluentTheme`; our tokens (colours, radii, type sizes) in
+  `App/Styles/Tokens.axaml`, control styles in `App/Styles/Controls.axaml` and
+  `Browse.axaml`, icons as geometry in `App/Styles/Icons.axaml` (not a font; glyph
+  fonts differ per platform). No third-party theme packages. The UI font is
+  Figtree, bundled under `Assets/Fonts` (OFL); it is Latin-only, so Inter comes
+  first in the fallback chain (`Program.cs`). Album art is blurred **once** into a
+  page-background layer with translucent panels above it (Avalonia has no
+  backdrop blur).
+- Visualizer: `FftAnalyzer` emits raw bands; smoothing and peaks live in
+  `Controls/VisualizerControl`, which draws on the composition thread. Keep it
+  that way: the OBS overlay smooths the raw bands itself. The overlay style
+  editor's native preview reuses the control with `OverlayBars`, which groups
+  bands as the overlay page does.
+- Native Wayland: `App/Services/WaylandFramePacing` (frame pacing) and
+  `App/Services/WaylandToplevel` (app id `rambutan`, raising a window)
+  reach into Avalonia.Wayland's internals by name; `WaylandFramePacingTests` and
+  `WaylandToplevelTests` pin those names, so an Avalonia update that renames them
+  fails there. The dock icon comes from the hidden `rambutan.desktop` and hicolor
+  PNGs that `Integrations/Linux/LinuxAppEntry` writes; the AppImage owns the
+  entry, other runs on the installed data folder only fill a missing one.
+- Lyrics degrade in explicit states: word-synced → line-synced → plain → "no
+  lyrics found". Imported custom lyrics always win over providers.
+- Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.
+- Offline pages: `Core/Downloads/OfflineCatalog` wraps the `ICatalog` that App
+  registers. When an album or playlist page, or the Library's Albums or Playlists
+  tab, can't load, it serves the copy that "Download all" kept
+  (`downloads-collections.json`, `Streams/KeptCollectionStore`), marked
+  `KeptAt` / `IsOfflineCopy` so the page says so.
+- Which id plays: a row's `TrackInfo.SongId` (YTM's credits link) names the
+  album audio track. Album pages play the `SongId` when a row has one and fall
+  back to the `VideoId` if it doesn't resolve; every other surface plays the
+  video it lists. Lyrics, downloads and the now-playing marker follow the id that
+  plays. `Core/Models/AlbumAudio` swaps the ids and `PlaybackCoordinator`
+  falls back to the listed video.
+- Last.fm stations on Home, and artists' stations from their pages:
+  `Integrations/LastFm/LastFmStationClient` reads the web player's
+  undocumented station endpoint (`user/<name>/…`, `music/<artist>/+similar`;
+  its tag stations sit behind a JavaScript challenge, so there are none);
+  `Core/Stations/TrackMatcher`
+  matches each track to a YTM song (tested against recorded tracks in
+  `tests/Rambutan.Core.Tests/Fixtures/Stations`); `App/Services/HomeStations`
+  wires it up. The matching searches go through a signed-out `InnerTubeClient`
+  of their own, never the account's, so they stay out of its search history.
+  Bump `TrackMatcher.RulesVersion` when a rule change could change a pick; it
+  invalidates the saved matches (`App/Services/StationStores`).
+- `rambutan://` links: the grammar is `Core/Links/DeepLinkParser`, acting on a
+  link is `ViewModels/DeepLinkHandler`, and the Windows registration (HKCU,
+  from Velopack's install, update and uninstall hooks only) is
+  `Integrations/DeepLinkRegistration`; on Linux the AppImage registers itself at
+  startup with a hidden desktop file (`Integrations/Linux/LinuxDeepLinkRegistration`).
+  A web page can fire a link, so a link
+  only reads and navigates: it never deletes, signs out, changes a setting,
+  writes the search history or replaces the queue.
+- Logo: `Assets/rambutan.ico` is generated by `tools/logo/logo.py` (Pillow), which
+  also writes SVG copies. Change the script, not the icon.
+
+`web/remote` and `web/overlay` are Svelte 5 + Vite projects whose builds embed
+into LocalApi. Web exists only because their clients are phones and OBS. CI
+doesn't run npm, so the built output under `LocalApi/wwwroot` is committed: a
+change under `web/` comes with its `npm run build` output (`git add -A` on the
+folder, so replaced hashed files go too). Browser baselines: the remote keeps
+Vite's default (Chrome 111, Safari 16.4); the overlay targets Chrome 103
+for OBS 30's browser source.
+
+**Tests:** xunit v3, one project per library,
+plus `tests/Rambutan.App.Tests` for view-model logic and custom controls (controls run
+under `Avalonia.Headless`; see `HeadlessSession.cs`). xunit v3 runs on
+Microsoft.Testing.Platform; `global.json` opts `dotnet test` into that mode,
+because the .NET 10 SDK refuses the old VSTest mode for these projects.
+InnerTube fixtures are real recorded responses under `tests/Rambutan.InnerTube.Tests/Fixtures`
+(`*.synthetic.json` are hand-authored where the surface needs auth; replace them with recorded, scrubbed captures when possible). Scrub
+personal data before committing any fixture.
+
+**Comments** say only what the code can't: why (YouTube Music's behaviour, a
+race, a platform quirk, a maintainer's decision, a format's rules) and the
+contract (null when, throws when, which thread). Don't restate a member's name
+or the line below it, and don't cite issue numbers or planning ids.
+
+## Hard constraints
+
+When two of these conflict, the one higher in the list wins.
+
+- **Native or nothing.** If an element can't be built well in Avalonia, redesign
+  the element; don't embed web content.
+- **In-process by default.** HTTP only where the client is another device (phone
+  remote, OBS overlay). The audio engine reads googlevideo URLs directly, with no
+  localhost proxy. LocalApi binds localhost by default and the LAN only while the
+  remote is on; pairing is always tokenized.
+- **Own the breakage.** InnerTube churn is caught by recorded-fixture tests and
+  the weekly live-diff; yt-dlp (auto-updated) is the *only* component that
+  touches stream extraction.
+- **NativeAOT.** Release publishes with `PublishAot`; every
+  library builds with `IsAotCompatible` analyzers (Directory.Build.props), and CI
+  runs an AOT publish on both platforms. So: source-generated `System.Text.Json`
+  only, no reflection-based serializers or runtime codegen, and **vet every new
+  NuGet package for trim/AOT safety before adding it**. Say how you vetted it
+  (AOT publish with no new warnings, at minimum).
+- **No webview, ever.** No WebView2/CEF/Photino.
+- **Own formats, versioned from day one:** anything a user invests effort in
+  (settings, overlay configs, custom lyrics, caches with a schema) is versioned
+  JSON from the first commit that writes it. i18n stays flat key→string JSON, not
+  `.resx`, and every user-visible string must go through it.
+- **Version:** single source of truth is `<Version>` in `Directory.Build.props`;
+  the release workflow refuses a `v*` tag that doesn't match it. Never hardcode a
+  version string.
+- **Honest degradation:** every feature state has a visual. No blank panes,
+  silent no-ops, or spinners that outlive their request. Errors are non-modal,
+  dismissible, and expire when no longer true.
+- **Outbound integrations** (Discord, Last.fm, anything that sends data off the
+  machine) are off by default, and their settings say exactly what is sent. Lyrics
+  lookups count: showing the lyrics pane and looking lyrics up online are two
+  settings, and lookups are off by default. When Last.fm ends the connection
+  itself, plays are still recorded locally and sent on reconnect; only the
+  user's own Disconnect discards them.
+- **Word-level lyrics** come only from the user's own enhanced LRC and from
+  LRCLIB's word-synced records. Everything else is line-level, and the app says so.
+- **Export is opt-in:** writing downloads out as ordinary files sits behind a
+  setting that is off by default.
+- **Linux is supported** beside Windows, not "experimental". Where no keyring is
+  running, the Linux sign-in screen and the release notes say that cookies are
+  stored unencrypted.
+- **No telemetry** without an opt-in. Crash data never leaves the machine on its
+  own: the app keeps a local crash file, and the user chooses to report it as a
+  GitHub issue. The file is `crash.json` in the profile's folder
+  (`App/Services/CrashFile`, scrubbed by `Core/Diagnostics/CrashReport`); the
+  status strip offers it on the next start.
+- **Accessibility:** everything must be keyboard-navigable, every control must
+  have a screen-reader name, and reduced motion is honoured (no karaoke sweep,
+  visualizer or decorative animation; line sync stays).

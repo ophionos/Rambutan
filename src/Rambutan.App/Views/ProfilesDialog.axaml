@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:Rambutan.App.Localization"
+        xmlns:vm="using:Rambutan.App.ViewModels"
+        x:Class="Rambutan.App.Views.ProfilesDialog"
+        x:DataType="vm:ProfilesViewModel"
+        Title="{l:T profiles.title}"
+        Width="520" SizeToContent="Height" MaxHeight="640"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#FF16161C">
+
+  <!-- Profiles: every profile is its own data folder. Switching restarts
+       the app into the chosen one, and the dialog says so before anything is clicked. -->
+  <Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" Margin="20">
+    <TextBlock Grid.Row="0" Text="{l:T profiles.title}" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6" />
+    <TextBlock Grid.Row="1" Text="{l:T profiles.explain}" TextWrapping="Wrap"
+               Foreground="{StaticResource Token.Brush.Text.Muted}" Margin="0,0,0,12" />
+    <TextBlock Grid.Row="2" Text="{Binding LockedReason}" TextWrapping="Wrap" IsVisible="{Binding IsLocked}"
+               Foreground="{StaticResource Token.Brush.Error}" Margin="0,0,0,12" />
+
+    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+      <ItemsControl ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ProfileRowViewModel">
+            <Border Background="{StaticResource Token.Brush.Surface.Raised}" Margin="0,0,0,6"
+                    CornerRadius="{StaticResource Token.Radius.Panel}" Padding="12,8">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel VerticalAlignment="Center" Spacing="1">
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Caption}" IsVisible="{Binding HasCaption}"
+                             FontSize="{StaticResource Token.Font.Caption}"
+                             Foreground="{StaticResource Token.Brush.Text.Muted}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                  <Button Content="{l:T profiles.switch}" Command="{Binding SwitchCommand}"
+                          IsVisible="{Binding !IsCurrent}" IsEnabled="{Binding CanSwitch}"
+                          AutomationProperties.Name="{Binding SwitchName}" />
+                  <Button Content="{l:T common.rename}" Command="{Binding RenameCommand}"
+                          IsEnabled="{Binding CanRename}"
+                          AutomationProperties.Name="{Binding RenameName}" />
+                  <Button Content="{l:T common.delete}" Command="{Binding DeleteCommand}"
+                          IsVisible="{Binding CanDelete}"
+                          AutomationProperties.Name="{Binding DeleteName}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <TextBlock Grid.Row="4" Text="{Binding Problem}" IsVisible="{Binding HasProblem}" TextWrapping="Wrap"
+               Foreground="{StaticResource Token.Brush.Error}" Margin="0,8,0,0"
+               AutomationProperties.LiveSetting="Assertive" />
+
+    <Grid Grid.Row="5" ColumnDefinitions="*,Auto" Margin="0,14,0,0">
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button Content="{l:T profiles.new}" Command="{Binding CreateCommand}" IsEnabled="{Binding CanManage}" />
+        <TextBlock Text="{l:T profiles.deleting}" IsVisible="{Binding Busy}" VerticalAlignment="Center"
+                   Foreground="{StaticResource Token.Brush.Text.Muted}" />
+      </StackPanel>
+      <Button Grid.Column="1" Content="{l:T common.close}" IsCancel="True" Click="OnClose" />
+    </Grid>
+  </Grid>
+</Window>

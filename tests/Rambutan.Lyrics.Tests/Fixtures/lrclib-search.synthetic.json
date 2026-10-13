@@ -1,0 +1,42 @@
+[
+  {
+    "id": 101,
+    "trackName": "Paper Lanterns (Radio Edit)",
+    "artistName": "The Quiet Harbour",
+    "albumName": "Paper Lanterns - Single",
+    "duration": 184.0,
+    "instrumental": false,
+    "plainLyrics": "Radio edit words",
+    "syncedLyrics": "[00:05.00] Radio edit words"
+  },
+  {
+    "id": 102,
+    "trackName": "Paper Lanterns",
+    "artistName": "The Quiet Harbour",
+    "albumName": "Tidelines",
+    "duration": 211.0,
+    "instrumental": false,
+    "plainLyrics": "Unsynced album words",
+    "syncedLyrics": null
+  },
+  {
+    "id": 103,
+    "trackName": "Paper Lanterns",
+    "artistName": "The Quiet Harbour",
+    "albumName": "Tidelines (Deluxe)",
+    "duration": 214.5,
+    "instrumental": false,
+    "plainLyrics": "Synced album words",
+    "syncedLyrics": "[00:17.00] Synced album words"
+  },
+  {
+    "id": 104,
+    "trackName": "Paper Lanterns",
+    "artistName": "The Quiet Harbour",
+    "albumName": "Tidelines",
+    "duration": 212.0,
+    "instrumental": false,
+    "plainLyrics": "",
+    "syncedLyrics": ""
+  }
+]

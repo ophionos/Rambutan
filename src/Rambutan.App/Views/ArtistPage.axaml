@@ -1,0 +1,167 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:views="using:Rambutan.App.Views"
+             xmlns:core="using:Rambutan.Core.Models"
+             xmlns:conv="using:Rambutan.App.Converters"
+             x:Class="Rambutan.App.Views.ArtistPage"
+             x:Name="Root"
+             x:DataType="vm:ArtistPageViewModel">
+
+  <Panel>
+  <!-- Load failed with nothing to show: the failure takes the page. -->
+  <ContentControl Margin="0,0,12,0" Content="{Binding LoadError}"
+                  ContentTemplate="{StaticResource ErrorState.Full}"
+                  HorizontalAlignment="Center" VerticalAlignment="Center" />
+  <ScrollViewer Classes="pagescroll" IsVisible="{Binding LoadError, Converter={x:Static ObjectConverters.IsNull}}"
+                controls:ScrollMemory.IsEnabled="True">
+    <StackPanel Spacing="14" Margin="4,0">
+
+      <Grid ColumnDefinitions="Auto,*">
+        <Border Classes="heroart" CornerRadius="88" Width="176" Height="176">
+          <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+        </Border>
+        <StackPanel Grid.Column="1" Margin="24,0,0,0" Spacing="12" VerticalAlignment="Center">
+          <TextBlock Classes="herotitle" Text="{Binding Name}" />
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Button Classes="accent" Command="{Binding PlayTopSongsCommand}"
+                    IsEnabled="{Binding !!TopSongs.Count}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T artist.playTopSongs}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <!-- Shown only when the state is known. The label shows the state, as
+                 YouTube Music's does; the name and tooltip say what a press does. -->
+            <Button Command="{Binding ToggleSubscribedCommand}"
+                    IsVisible="{Binding CanSubscribe}"
+                    Content="{Binding Subscribed, Converter={x:Static vm:Converters.SubscribeLabel}}"
+                    ToolTip.Tip="{Binding Subscribed, Converter={x:Static vm:Converters.SubscribeAction}}"
+                    AutomationProperties.Name="{Binding Subscribed, Converter={x:Static vm:Converters.SubscribeAction}}" />
+            <!-- Only while Last.fm stations are on and connected. -->
+            <Button Command="{Binding OpenStationCommand}" IsVisible="{Binding CanOpenStation}"
+                    ToolTip.Tip="{l:T artist.lastFmStationTip}"
+                    AutomationProperties.Name="{l:T artist.lastFmStation}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource Icon.Radio}" Width="16" Height="16" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T artist.lastFmStation}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
+          </StackPanel>
+
+        </StackPanel>
+      </Grid>
+
+      <TextBlock Text="{l:T artist.topSongs}" FontSize="{StaticResource Token.Font.Section}" FontWeight="Bold" Margin="0,8,0,0" />
+
+      <StackPanel Spacing="8">
+        <StackPanel.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="IsLoading" />
+            <Binding Path="!TopSongs.Count" />
+          </MultiBinding>
+        </StackPanel.IsVisible>
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+      </StackPanel>
+
+      <!-- One tab stop, arrows inside: ↑/↓ between rows, ←/→ from a row onto
+           its actions. Enter plays from the focused row. -->
+      <ItemsControl ItemsSource="{Binding TopSongs}"
+                    AutomationProperties.Name="{l:T artist.topSongs}"
+                    controls:RovingFocus.IsEnabled="True"
+                    controls:ItemActivation.Command="{Binding PlayFromCommand}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="core:TrackInfo">
+            <!-- ItemsControl rows get no ListBoxItem hover or selection for
+                 free: the trackrow border supplies both by hand. The grid is
+                 the row's focus stop, so its actions can stay hidden at rest
+                 (Controls.axaml) and the menu key still reaches its menu. -->
+            <Border Classes="trackrow">
+            <controls:FocusRow ColumnDefinitions="Auto,Auto,*,Auto,Auto" Background="Transparent"
+                  AutomationProperties.Name="{Binding Converter={x:Static controls:AccessibleNames.ItemConverter}}"
+                  controls:TrackMenu.Track="{Binding}">
+              <!-- Playing marker; the slot is always present so titles keep
+                   a common left edge. -->
+              <Border Classes="rowart">
+                <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="96" />
+              </Border>
+              <Panel Grid.Column="1" Width="14">
+                <PathIcon Data="{StaticResource Icon.Play}" Width="12" Height="12"
+                          VerticalAlignment="Center"
+                          Foreground="{StaticResource Token.Brush.Accent}">
+                  <PathIcon.IsVisible>
+                    <MultiBinding Converter="{x:Static conv:IsPlayingTrackConverter.Instance}">
+                      <Binding Path="Identity" />
+                      <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Player.NowPlaying.Identity" />
+                    </MultiBinding>
+                  </PathIcon.IsVisible>
+                </PathIcon>
+              </Panel>
+              <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                <TextBlock Classes="rowtitle" Text="{Binding Title}" />
+                <!-- The downloaded mark leads the meta line, so titles keep their edge. -->
+                <DockPanel>
+                  <PathIcon DockPanel.Dock="Left" Classes="downloadmark">
+                    <PathIcon.IsVisible>
+                      <MultiBinding Converter="{x:Static conv:IsDownloadedConverter.Instance}">
+                        <Binding Path="VideoId" />
+                        <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Actions.DownloadedIds" />
+                      </MultiBinding>
+                    </PathIcon.IsVisible>
+                  </PathIcon>
+                  <TextBlock Classes="rowmeta" Text="{Binding ArtistDisplay}" />
+                </DockPanel>
+              </StackPanel>
+              <TextBlock Grid.Column="4" Classes="rowmeta"
+                         Text="{Binding Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                         MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+              <Panel Grid.Column="3" Width="112">
+                <StackPanel Classes="rowactions" Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                  <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.playFromHere}"
+                          Command="{Binding #Root.((vm:ArtistPageViewModel)DataContext).PlayFromCommand}"
+                          CommandParameter="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" />
+                  </Button>
+                  <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToQueue}"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToQueueCommand}"
+                          CommandParameter="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+                  </Button>
+                  <controls:RateButton Classes="icon subtle small" IconSize="16" Kind="Like"
+                                       Track="{Binding}"
+                                       Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.LikeCommand}"
+                                       CommandParameter="{Binding}" />
+                  <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToPlaylist}"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToPlaylistCommand}"
+                          CommandParameter="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.AddToPlaylist}" Width="16" Height="16" />
+                  </Button>
+                </StackPanel>
+              </Panel>
+            </controls:FocusRow>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <ItemsControl ItemsSource="{Binding Shelves}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="core:Shelf">
+            <views:ShelfView Margin="0,6,0,14"
+                             OpenCommand="{Binding #Root.((vm:ArtistPageViewModel)DataContext).OpenEntryCommand}"
+                             PlayCommand="{Binding #Root.((vm:ArtistPageViewModel)DataContext).PlayEntryCommand}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+  </ScrollViewer>
+  </Panel>
+</UserControl>

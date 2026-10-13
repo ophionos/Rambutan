@@ -1,0 +1,69 @@
+name: Bug report
+description: Something in Rambutan doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. One problem per report, please.
+        Remove anything personal (account names, playlist names you'd rather not share, file paths with your name) before you submit.
+  - type: input
+    id: version
+    attributes:
+      label: Rambutan version
+      description: Shown in Settings → Updates, e.g. "Rambutan 0.1.0-alpha.1".
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      description: On Linux, say the distribution and desktop in the description.
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: signed-in
+    attributes:
+      label: Signed in to YouTube Music?
+      options:
+        - "Yes"
+        - "No"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do?
+      description: The steps that lead to the problem, as exact as you can make them.
+      placeholder: |
+        1. Open an album
+        2. Play the third track
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Screenshots help. Drag them in here.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        The end of the log file, from around the time of the problem.
+        Windows: `%LOCALAPPDATA%\Rambutan\logs\rambutan.log`. Linux: `~/.local/share/Rambutan/logs/rambutan.log`.
+        The log holds no cookies or keys, but it can name tracks you played; remove what you don't want to share.
+      render: text

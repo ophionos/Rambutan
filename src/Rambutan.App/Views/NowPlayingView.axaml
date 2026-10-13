@@ -1,0 +1,142 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:views="using:Rambutan.App.Views"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="640"
+             x:Class="Rambutan.App.Views.NowPlayingView"
+             x:DataType="vm:NowPlayingViewModel">
+
+  <Design.DataContext>
+    <vm:NowPlayingViewModel />
+  </Design.DataContext>
+
+  <!-- Translucent over the shell's PageBackground: no blurred copy of its own. The
+       page underneath is hidden while this is open (MainWindow), so what shows
+       through is the shared backdrop, or the window colour with ambient off.
+       The gradient only deepens the bottom, where the visualizer sits. -->
+  <Panel Background="Transparent">
+    <Border>
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+          <GradientStop Offset="0" Color="#000A0A0C" />
+          <GradientStop Offset="1" Color="#990A0A0C" />
+        </LinearGradientBrush>
+      </Border.Background>
+    </Border>
+
+    <Grid RowDefinitions="*,Auto" Margin="48,40">
+
+      <!-- Nothing loaded: say where music comes from instead of a bare title.
+          Search closes the overlay, like any navigation. -->
+      <StackPanel Grid.Row="0" Classes="empty"
+                  IsVisible="{Binding Player.ShownTrack, Converter={x:Static ObjectConverters.IsNull}}">
+        <PathIcon Data="{StaticResource Icon.Play}" />
+        <TextBlock Classes="title" Text="{l:T player.nothingPlaying}" />
+        <TextBlock Classes="hint" Text="{l:T nowPlaying.emptyHint}" />
+        <Button Classes="accent" HorizontalAlignment="Center" Margin="0,10,0,0"
+                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).GoSearchCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource Icon.Search}" Width="14" Height="14" VerticalAlignment="Center" />
+            <TextBlock Text="{l:T nav.search}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+
+      <!-- The stage: track identity alone, centred (lyrics off), or the
+           lyrics overlay: a compact title over a centred lyrics column,
+           on the shell's blurred artwork. The arrangement is set in
+           code-behind (ApplyLayout), since grid definitions can't be styled. -->
+      <Grid x:Name="Stage" Grid.Row="0"
+            IsVisible="{Binding Player.ShownTrack, Converter={x:Static ObjectConverters.IsNotNull}}">
+
+      <!-- Track identity, centered in the free space above the visualizer. -->
+      <StackPanel x:Name="Identity" VerticalAlignment="Center" HorizontalAlignment="Center"
+                  Spacing="0" MaxWidth="560">
+        <Border x:Name="Art" CornerRadius="12" ClipToBounds="True"
+                Width="300" Height="300" Margin="0,0,0,28"
+                IsVisible="{Binding Player.ArtworkUrl, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <controls:RemoteImage Url="{Binding Player.ArtworkUrl}" DecodeWidth="640"
+                                Stretch="UniformToFill" />
+        </Border>
+        <!-- Links as in the player bar; following one closes
+             this overlay, since any navigation does. -->
+        <Button x:Name="TitleLink" Classes="link" HorizontalAlignment="Center" FontSize="24" FontWeight="SemiBold"
+                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
+                CommandParameter="{Binding Player.ShownTrack}"
+                Classes.inert="{Binding Player.ShownTrack.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}"
+                ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.Album}}">
+          <TextBlock Text="{Binding Player.Title}"
+                     TextAlignment="Center" TextWrapping="Wrap" MaxLines="2"
+                     TextTrimming="CharacterEllipsis" />
+        </Button>
+        <!-- Wraps rather than overflowing a narrow stage: the album drops to its own line. -->
+        <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                    Margin="0,6,0,0" Opacity="0.65">
+          <Button Classes="link" FontSize="15" MaxWidth="300"
+                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToArtistCommand}"
+                  CommandParameter="{Binding Player.ShownTrack.PrimaryArtist}"
+                  Classes.inert="{Binding Player.ShownTrack.PrimaryArtist, Converter={x:Static ObjectConverters.IsNull}}"
+                  ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.PrimaryArtist.Name}}">
+            <TextBlock Text="{Binding Player.ShownTrack.ArtistDisplay}" TextTrimming="CharacterEllipsis" />
+          </Button>
+          <TextBlock Text=" • " FontSize="15" VerticalAlignment="Center"
+                     IsVisible="{Binding Player.ShownTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <Button Classes="link" FontSize="15" MaxWidth="250"
+                  Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
+                  CommandParameter="{Binding Player.ShownTrack}"
+                  Classes.inert="{Binding Player.ShownTrack.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}"
+                  IsVisible="{Binding Player.ShownTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                  ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.Album}}">
+            <TextBlock Text="{Binding Player.ShownTrack.Album}" TextTrimming="CharacterEllipsis" />
+          </Button>
+        </WrapPanel>
+      </StackPanel>
+
+      <views:LyricsPane x:Name="LyricsHost" DataContext="{Binding Lyrics}"
+                        MaxWidth="{x:Static views:NowPlayingView.LyricsMaxWidth}"
+                        IsVisible="{Binding $parent[UserControl].((vm:NowPlayingViewModel)DataContext).IsLyricsPaneVisible}" />
+      </Grid>
+
+      <!-- Visualizer pane. Hidden with no
+           track — resting floor dots under "Nothing playing" read as debris.
+           Under reduced motion it stops drawing and says so in
+           its place, rather than leaving a blank band. -->
+      <Panel x:Name="VisualizerBand" Grid.Row="1" Height="110" Margin="24,28,24,0"
+             IsVisible="{Binding Player.NowPlaying, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <controls:VisualizerControl
+            IsVisible="{Binding !$parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion}">
+          <controls:VisualizerControl.IsActive>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="IsOpen" />
+              <Binding Path="!$parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion" />
+            </MultiBinding>
+          </controls:VisualizerControl.IsActive>
+        </controls:VisualizerControl>
+        <TextBlock Text="{l:T nowPlaying.visualizerPaused}"
+                   FontSize="12" Opacity="0.55" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                   IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion}" />
+      </Panel>
+    </Grid>
+
+    <!-- Header: the lyrics toggle (remembered in settings; lit while lyrics
+         show), then collapse, mirroring the expand affordance on the
+         player-bar artwork. -->
+    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Top"
+                Margin="0,12,16,0">
+      <Button x:Name="LyricsToggle" Classes="icon subtle" Classes.active="{Binding ShowLyrics}"
+              Command="{Binding ToggleLyricsCommand}"
+              ToolTip.Tip="{Binding LyricsToggleTip}"
+              IsVisible="{Binding Player.NowPlaying, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <PathIcon Data="{StaticResource Icon.Lyrics}" Width="20" Height="20" />
+      </Button>
+      <Button Classes="icon subtle" Command="{Binding CloseCommand}"
+              ToolTip.Tip="{l:T nowPlaying.collapse}">
+        <PathIcon Data="{StaticResource Icon.ChevronDown}" Width="22" Height="22" />
+      </Button>
+    </StackPanel>
+  </Panel>
+</UserControl>

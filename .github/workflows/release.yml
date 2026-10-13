@@ -1,0 +1,126 @@
+# Tag v* → NativeAOT publish → vpk pack (Windows and Linux) →
+# draft GitHub release. Tags with a prerelease suffix (v0.1.0-alpha.1) go to the
+# beta channels and are marked prereleases; UpdateService follows whichever
+# channel the installed build came from. Channels are per OS (win, win-beta,
+# linux, linux-beta), so the two platforms' release feeds never collide.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      beta: ${{ steps.channel.outputs.beta }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag must match Directory.Build.props
+        run: |
+          version=$(grep -oP '(?<=<Version>)[^<]+' Directory.Build.props)
+          [ "v$version" = "$GITHUB_REF_NAME" ] || {
+            echo "tag $GITHUB_REF_NAME != <Version>$version</Version>"; exit 1; }
+
+      - name: Channel from tag
+        id: channel
+        run: echo "beta=$([[ "$GITHUB_REF_NAME" == *-* ]] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  pack:
+    needs: check
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            platform: win
+          - os: ubuntu-latest
+            rid: linux-x64
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    env:
+      CHANNEL: ${{ matrix.platform }}${{ needs.check.outputs.beta == 'true' && '-beta' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Keep in step with the Velopack package in Rambutan.Integrations.csproj,
+      # so the packer and the in-app updater are the same release.
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version 1.2.161
+
+      # Prior release is the delta base; tolerated to fail on the first release.
+      # The token keeps it clear of the anonymous API rate limit.
+      - name: Fetch previous release
+        continue-on-error: true
+        shell: bash
+        run: >
+          vpk download github --repoUrl "https://github.com/${{ github.repository }}"
+          --channel "$CHANNEL" --token "${{ github.token }}"
+          ${{ needs.check.outputs.beta == 'true' && '--pre' || '' }}
+          --outputDir build/releases
+
+      # The integration keys are compiled in (IntegrationKeys); an unset secret
+      # is an empty value, which the app shows as "not available in this build".
+      - name: Publish and pack
+        shell: pwsh
+        env:
+          RambutanDiscordAppId: ${{ secrets.RAMBUTAN_DISCORD_APP_ID }}
+          RambutanLastFmApiKey: ${{ secrets.RAMBUTAN_LASTFM_API_KEY }}
+          RambutanLastFmSharedSecret: ${{ secrets.RAMBUTAN_LASTFM_SHARED_SECRET }}
+        run: ./build/pack.ps1 -Rid ${{ matrix.rid }} -Channel $env:CHANNEL -OutputDir build/out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.platform }}
+          path: build/out/*
+          if-no-files-found: error
+
+  release:
+    needs: [check, pack]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: build/releases
+          merge-multiple: true
+
+      - name: Draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The standing notes for the alpha; a release's own changes are added to
+          # the draft by hand.
+          cat > notes.md <<'EOF'
+          _What changed in this build goes here._
+
+          What the alpha does, and its limits, is in the README under
+          "What the alpha does". Report bugs and feedback with the issue forms.
+
+          **Windows:** run the `Setup.exe`. It isn't code-signed, so Windows
+          SmartScreen warns first: choose "More info", then "Run anyway".
+          **Linux:** run the `.AppImage` (x64). Media keys and the panel's media
+          controls work through MPRIS. It has been checked on real hardware with one
+          desktop so far (COSMIC on Wayland). On Linux, your YouTube
+          Music cookies, Last.fm session and phone remote pairing go into the system keyring. When no
+          keyring is running, they are stored **unencrypted**, in a file that only
+          your user account can read; the sign-in screen says so too.
+
+          **Updates:** the app checks this repository for new builds and offers
+          them in the status strip.
+
+          Discord and Last.fm are off by default.
+          EOF
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag \
+            ${{ needs.check.outputs.beta == 'true' && '--prerelease' || '' }} \
+            --title "Rambutan $GITHUB_REF_NAME" --notes-file notes.md build/releases/*

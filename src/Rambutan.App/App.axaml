@@ -1,0 +1,23 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Rambutan.App.App"
+             RequestedThemeVariant="Dark">
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Rambutan.App/Styles/Tokens.axaml" />
+                <ResourceInclude Source="avares://Rambutan.App/Styles/States.axaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <!-- Styles come after Resources: Icons.axaml references the tokens above. -->
+    <Application.Styles>
+        <!-- Stock FluentTheme; the accent it reads is pinned in Resources above. -->
+        <FluentTheme />
+        <StyleInclude Source="avares://Rambutan.App/Styles/Icons.axaml" />
+        <StyleInclude Source="avares://Rambutan.App/Styles/Controls.axaml" />
+        <StyleInclude Source="avares://Rambutan.App/Styles/Browse.axaml" />
+    </Application.Styles>
+</Application>

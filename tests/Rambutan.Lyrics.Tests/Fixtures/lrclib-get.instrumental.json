@@ -1,0 +1,13 @@
+{
+  "id": 37471959,
+  "name": "Greensleeves",
+  "trackName": "Greensleeves",
+  "artistName": "the mantovani orchestra",
+  "albumName": "Beautiful Moments",
+  "duration": 189.0,
+  "instrumental": true,
+  "hasWordSync": false,
+  "plainLyrics": null,
+  "syncedLyrics": null,
+  "lyricsfile": "version: '1.0'\nmetadata:\n  title: Greensleeves\n  artist: the mantovani orchestra\n  album: Beautiful Moments\n  duration_ms: 188546\n  instrumental: true\nlines: []\n"
+}
