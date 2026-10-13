@@ -153,10 +153,21 @@ public sealed class VisualizerControl : Control
     }
 
     private CompositionCustomVisual? _visual;
+    private Window? _window;
+    private bool _polling;
+
+    /// <summary>Whether the bars poll the analyzer and draw: while active and
+    /// while the window shows. A minimized window, or one hidden in the tray,
+    /// still gets animation frames, so it would keep the analysis and the
+    /// redraws running for nobody.</summary>
+    internal bool IsPolling => _polling;
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        _window = TopLevel.GetTopLevel(this) as Window;
+        if (_window is not null)
+            _window.PropertyChanged += OnWindowPropertyChanged;
         if (ElementComposition.GetElementVisual(this) is not { } elementVisual)
             return;
 
@@ -167,16 +178,37 @@ public sealed class VisualizerControl : Control
         _visual.SendHandlerMessage(new BarsHandler.Compact(Groups));
         _visual.SendHandlerMessage(new BarsHandler.Overlay(OverlayBars, ShowPeaks));
         _visual.SendHandlerMessage(new BarsHandler.Pacing(MaxFrameRate));
-        if (IsActive)
-            _visual.SendHandlerMessage(BarsHandler.StartMessage);
+        _polling = false;
+        UpdatePolling();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        if (_window is not null)
+            _window.PropertyChanged -= OnWindowPropertyChanged;
+        _window = null;
         _visual?.SendHandlerMessage(BarsHandler.StopMessage);
+        _polling = false;
         ElementComposition.SetElementChildVisual(this, null);
         _visual = null;
         base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Window.WindowStateProperty || e.Property == IsVisibleProperty)
+            UpdatePolling();
+    }
+
+    private void UpdatePolling()
+    {
+        var shown = _window is not { } window
+            || (window.IsVisible && window.WindowState != WindowState.Minimized);
+        var polling = _visual is not null && IsActive && shown;
+        if (polling == _polling)
+            return;
+        _polling = polling;
+        _visual?.SendHandlerMessage(polling ? BarsHandler.StartMessage : BarsHandler.StopMessage);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -189,8 +221,7 @@ public sealed class VisualizerControl : Control
         }
         else if (change.Property == IsActiveProperty)
         {
-            _visual?.SendHandlerMessage(
-                change.GetNewValue<bool>() ? BarsHandler.StartMessage : BarsHandler.StopMessage);
+            UpdatePolling();
         }
         else if (change.Property == GroupsProperty)
         {

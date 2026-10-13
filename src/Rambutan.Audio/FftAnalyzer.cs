@@ -3,8 +3,9 @@ using System.Numerics;
 namespace Rambutan.Audio;
 
 /// <summary>
-/// Taps the mixed output and continuously emits spectrum frames for the
-/// visualizer and overlay. Fed on the device callback; the FFT
+/// Taps the mixed output and emits spectrum frames for the visualizer and
+/// overlay, while one of them reads (see <see cref="ReadLease"/>). Fed on the
+/// device callback; the FFT
 /// (2048-point radix-2, Hann window) costs microseconds and allocates nothing
 /// per frame, so it runs inline.
 /// </summary>
@@ -24,8 +25,22 @@ public sealed class FftAnalyzer
     private int _filled;
     private long _version; // guarded by the snapshot lock
 
-    public FftAnalyzer()
+    /// <summary>
+    /// How long the analysis keeps running after the last <see cref="CopyLatest"/>.
+    /// Well above every reader's interval (a display frame; the overlay's 33 ms),
+    /// short enough that a hidden visualizer stops costing within a moment.
+    /// </summary>
+    public static readonly TimeSpan ReadLease = TimeSpan.FromMilliseconds(500);
+
+    private readonly Func<long> _clock;
+    private long _lastReadAt = long.MinValue / 2; // milliseconds on _clock; lapsed until the first read
+    private bool _idle = true; // device callback only
+
+    /// <param name="clock">Milliseconds, monotonic; <see cref="Environment.TickCount64"/>
+    /// when null. Tests pass their own.</param>
+    public FftAnalyzer(Func<long>? clock = null)
     {
+        _clock = clock ?? (static () => Environment.TickCount64);
         for (var i = 0; i < WindowSize; i++)
             _window[i] = 0.5f * (1f - MathF.Cos(2f * MathF.PI * i / (WindowSize - 1)));
         _bandBins = BuildLogBands();
@@ -35,20 +50,44 @@ public sealed class FftAnalyzer
     /// Latest spectrum frame, band magnitudes normalized 0..1. Copies into
     /// <paramref name="destination"/> and returns a version that increments per
     /// analyzed frame — an unchanged version means the feed has stopped (pause,
-    /// device gone), letting consumers decay to silence instead of freezing.
+    /// device gone, or nobody read within <see cref="ReadLease"/>), letting
+    /// consumers decay to silence instead of freezing.
+    /// Each call also renews the lease that keeps the analysis running, so a
+    /// reader must call at least once per lease. The first call after a lapse
+    /// gets silence rather than the frame left over from before it.
     /// </summary>
     public long CopyLatest(Span<float> destination)
     {
+        var now = _clock();
         lock (_bandsSnapshot)
         {
+            if (now - Volatile.Read(ref _lastReadAt) > ReadLease.TotalMilliseconds)
+                Array.Clear(_bandsSnapshot);
+            Volatile.Write(ref _lastReadAt, now);
             _bandsSnapshot.AsSpan(0, Math.Min(BandCount, destination.Length)).CopyTo(destination);
             return _version;
         }
     }
 
-    /// <summary>Feeds interleaved stereo samples from the device callback.</summary>
+    /// <summary>
+    /// Feeds interleaved stereo samples from the device callback. Does nothing
+    /// while nobody reads: the device keeps calling whether or not a visualizer,
+    /// the meter or the OBS overlay is showing.
+    /// </summary>
     public void Feed(ReadOnlySpan<float> interleaved)
     {
+        if (_clock() - Volatile.Read(ref _lastReadAt) > ReadLease.TotalMilliseconds)
+        {
+            _idle = true;
+            return;
+        }
+        if (_idle)
+        {
+            // Samples from before the lapse don't belong in the new first window.
+            _idle = false;
+            _filled = 0;
+        }
+
         for (var i = 0; i + 1 < interleaved.Length; i += FfmpegDecoder.Channels)
         {
             _mono[_filled++] = (interleaved[i] + interleaved[i + 1]) * 0.5f;

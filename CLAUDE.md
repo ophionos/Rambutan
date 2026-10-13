@@ -141,7 +141,10 @@ file sink), never to files directly.
   bands as the overlay page does. Each redraw costs a compositor frame, so the
   control redraws only through `VisualizerRedrawGate` (visible change only, at
   most `MaxFrameRate` a second); the meter and Now Playing follow the user's
-  "Visualizer frame rate" setting, 30 fps by default.
+  "Visualizer frame rate" setting, 30 fps by default. The analyzer runs only
+  while a reader calls `CopyLatest` within its `ReadLease`, so a reader that
+  isn't seen stops reading: the control stops while it is inactive or its
+  window is minimized or hidden.
 - Native Wayland: `App/Services/WaylandFramePacing` (frame pacing) and
   `App/Services/WaylandToplevel` (app id `rambutan`, raising a window)
   reach into Avalonia.Wayland's internals by name; `WaylandFramePacingTests` and
