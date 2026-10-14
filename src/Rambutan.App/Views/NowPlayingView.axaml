@@ -56,12 +56,20 @@
       <!-- Track identity, centered in the free space above the visualizer. -->
       <StackPanel x:Name="Identity" VerticalAlignment="Center" HorizontalAlignment="Center"
                   Spacing="0" MaxWidth="560">
-        <Border x:Name="Art" CornerRadius="12" ClipToBounds="True"
-                Width="300" Height="300" Margin="0,0,0,28"
-                IsVisible="{Binding Player.ArtworkUrl, Converter={x:Static ObjectConverters.IsNotNull}}">
-          <controls:RemoteImage Url="{Binding Player.ArtworkUrl}" DecodeWidth="640"
-                                Stretch="UniformToFill" />
-        </Border>
+        <!-- The radial style draws around the artwork, behind it: its control
+             reaches RadialRenderer.Margin past the artwork on every side
+             (code-behind), and takes no input from it. -->
+        <Panel x:Name="ArtSlot" HorizontalAlignment="Center" Margin="0,0,0,28"
+               IsVisible="{Binding Player.ArtworkUrl, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <controls:VisualizerControl x:Name="Ring" VisualizerStyle="Radial" IsHitTestVisible="False"
+                                      IsVisible="{Binding ShowsRing}" IsActive="{Binding IsRingActive}"
+                                      BarColor="{Binding Colors.Color}"
+                                      MaxFrameRate="{Binding Appearance.VisualizerFrameRate}" />
+          <Border x:Name="Art" CornerRadius="12" ClipToBounds="True" Width="300" Height="300">
+            <controls:RemoteImage Url="{Binding Player.ArtworkUrl}" DecodeWidth="640"
+                                  Stretch="UniformToFill" />
+          </Border>
+        </Panel>
         <!-- Links as in the player bar; following one closes
              this overlay, since any navigation does. -->
         <Button x:Name="TitleLink" Classes="link" HorizontalAlignment="Center" FontSize="24" FontWeight="SemiBold"
@@ -101,25 +109,19 @@
                         IsVisible="{Binding $parent[UserControl].((vm:NowPlayingViewModel)DataContext).IsLyricsPaneVisible}" />
       </Grid>
 
-      <!-- Visualizer pane. Hidden with no
+      <!-- Visualizer pane. Gives way to the radial style's ring. Hidden with no
            track — resting floor dots under "Nothing playing" read as debris.
            Under reduced motion it stops drawing and says so in
            its place, rather than leaving a blank band. -->
       <Panel x:Name="VisualizerBand" Grid.Row="1" Height="110" Margin="24,28,24,0"
-             IsVisible="{Binding Player.NowPlaying, Converter={x:Static ObjectConverters.IsNotNull}}">
+             IsVisible="{Binding IsBandShown}">
         <controls:VisualizerControl
-            IsVisible="{Binding !$parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion}"
-            MaxFrameRate="{Binding $parent[Window].((vm:MainViewModel)DataContext).Appearance.VisualizerFrameRate}">
-          <controls:VisualizerControl.IsActive>
-            <MultiBinding Converter="{x:Static BoolConverters.And}">
-              <Binding Path="IsOpen" />
-              <Binding Path="!$parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion" />
-            </MultiBinding>
-          </controls:VisualizerControl.IsActive>
-        </controls:VisualizerControl>
+            IsVisible="{Binding !Appearance.ReduceMotion}" IsActive="{Binding IsBandActive}"
+            VisualizerStyle="{Binding BandStyle}" BarColor="{Binding Colors.Color}"
+            MaxFrameRate="{Binding Appearance.VisualizerFrameRate}" />
         <TextBlock Text="{l:T nowPlaying.visualizerPaused}"
                    FontSize="12" Opacity="0.55" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                   IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion}" />
+                   IsVisible="{Binding Appearance.ReduceMotion}" />
       </Panel>
     </Grid>
 

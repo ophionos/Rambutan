@@ -88,3 +88,19 @@ internal interface IVisualizerRenderer : IDisposable
     /// </summary>
     void Render(SKCanvas canvas, SKSize size, float scale, in VisualizerFrame frame);
 }
+
+internal static class VisualizerRenderers
+{
+    /// <summary>A new renderer for <paramref name="style"/>, for the handler to own.</summary>
+    public static IVisualizerRenderer Create(Services.VisualizerStyle style) => style switch
+    {
+        Services.VisualizerStyle.MirroredBars => new MirroredBarsRenderer(),
+        Services.VisualizerStyle.Led => new LedRenderer(),
+        Services.VisualizerStyle.Line => new SpectrumCurveRenderer(filled: false),
+        Services.VisualizerStyle.Area => new SpectrumCurveRenderer(filled: true),
+        Services.VisualizerStyle.Radial => new RadialRenderer(),
+        Services.VisualizerStyle.Oscilloscope => new OscilloscopeRenderer(),
+        Services.VisualizerStyle.Vectorscope => new VectorscopeRenderer(),
+        _ => new BarsRenderer(),
+    };
+}

@@ -109,6 +109,17 @@ public sealed class VisualizerControl : Control
         set => SetValue(PeakColorProperty, value);
     }
 
+    /// <summary>The style the full-size visualizer draws in; bars by default.
+    /// The compact meter and the overlay preview are always bars.</summary>
+    public static readonly StyledProperty<Services.VisualizerStyle> VisualizerStyleProperty =
+        AvaloniaProperty.Register<VisualizerControl, Services.VisualizerStyle>(nameof(VisualizerStyle));
+
+    public Services.VisualizerStyle VisualizerStyle
+    {
+        get => GetValue(VisualizerStyleProperty);
+        set => SetValue(VisualizerStyleProperty, value);
+    }
+
     internal const double BarGap = 3;
     internal const double MinBarHeight = 2;
     internal const double PeakThickness = 2;
@@ -189,7 +200,7 @@ public sealed class VisualizerControl : Control
         _visual.SendHandlerMessage(new BarsHandler.Compact(Groups));
         _visual.SendHandlerMessage(new BarsHandler.Overlay(OverlayBars, ShowPeaks));
         _visual.SendHandlerMessage(new BarsHandler.Pacing(MaxFrameRate));
-        _visual.SendHandlerMessage(new BarsHandler.Style(new BarsRenderer()));
+        _visual.SendHandlerMessage(new BarsHandler.Style(VisualizerRenderers.Create(VisualizerStyle)));
         _polling = false;
         UpdatePolling();
     }
@@ -246,6 +257,10 @@ public sealed class VisualizerControl : Control
         else if (change.Property == OverlayBarsProperty || change.Property == ShowPeaksProperty)
         {
             _visual?.SendHandlerMessage(new BarsHandler.Overlay(OverlayBars, ShowPeaks));
+        }
+        else if (change.Property == VisualizerStyleProperty)
+        {
+            _visual?.SendHandlerMessage(new BarsHandler.Style(VisualizerRenderers.Create(VisualizerStyle)));
         }
         else if (change.Property == MaxFrameRateProperty)
         {
@@ -431,10 +446,14 @@ public sealed class VisualizerControl : Control
             }
 
             var stale = now - _versionChangedAt > StaleAfter;
-            _activity = stale
+            // Paused, the output keeps running a while (EngineAudioPlayer's idle
+            // timer) and the analyzer keeps reading its silence: a silent feed
+            // winds an animated style down like a stopped one.
+            var idle = stale || Silent(_target);
+            _activity = idle
                 ? _activity * (float)Math.Exp(-dt / ActivityDecayTau)
                 : _activity + (1 - _activity) * (float)(1 - Math.Exp(-dt / AttackTau));
-            if (stale && _activity < ActivityRest)
+            if (idle && _activity < ActivityRest)
                 _activity = 0;
             if ((inputs & VisualizerInputs.Waveform) != 0)
             {
@@ -470,7 +489,7 @@ public sealed class VisualizerControl : Control
             {
                 if (UsesRenderer && _renderer!.IsAnimated)
                 {
-                    draw = _gate.ShouldDrawAnimated(now, Resting(stale));
+                    draw = _gate.ShouldDrawAnimated(now, Resting(idle));
                 }
                 else
                 {
@@ -490,11 +509,21 @@ public sealed class VisualizerControl : Control
             RegisterForNextAnimationFrameUpdate();
         }
 
-        /// <summary>Whether an animated style has wound down: the feed stopped,
-        /// its activity reached 0, and the bars fell to the floor.</summary>
-        private bool Resting(bool stale)
+        private static bool Silent(ReadOnlySpan<float> bands)
         {
-            if (!stale || _activity > 0)
+            foreach (var band in bands)
+            {
+                if (band > 0)
+                    return false;
+            }
+            return true;
+        }
+
+        /// <summary>Whether an animated style has wound down: the feed stopped or
+        /// went silent, its activity reached 0, and the bars fell to the floor.</summary>
+        private bool Resting(bool idle)
+        {
+            if (!idle || _activity > 0)
                 return false;
             foreach (var level in _display)
             {

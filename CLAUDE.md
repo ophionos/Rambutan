@@ -137,18 +137,25 @@ file sink), never to files directly.
 - Visualizer: `FftAnalyzer` emits raw bands, and a decimated stereo waveform
   for the styles that draw one; smoothing and peaks live in
   `Controls/VisualizerControl`, which draws on the composition thread. Keep it
-  that way: the OBS overlay smooths the raw bands itself. The Now Playing band
-  draws through an `IVisualizerRenderer` on Skia's canvas (Avalonia's Skia
-  lease), which asks only for the inputs it uses; beats come from
-  `Core/Visualizer/OnsetDetector`. The compact meter and the overlay
-  preview draw with Avalonia's primitives. The overlay style
+  that way: the OBS overlay smooths the raw bands itself. Now Playing draws
+  through an `IVisualizerRenderer` on Skia's canvas (Avalonia's Skia lease),
+  one per style (`VisualizerRenderers.Create`), which asks only for the inputs
+  it uses; beats come from `Core/Visualizer/OnsetDetector`. A renderer is
+  built on the UI thread and from then on belongs to the render thread, which
+  disposes it; it allocates nothing per frame (`VisualizerRendererTests`).
+  The radial style draws around the artwork, not in the band: the band hides
+  while it shows, and shows bars where there is no artwork (lyrics open, no
+  cover). `NowPlayingViewModel` decides which one shows and polls. The
+  "artwork" colour is `Core/Visualizer/ArtworkColor`, read from a small
+  decode of the cover by `Services/VisualizerColors`. The compact meter and
+  the overlay preview draw with Avalonia's primitives, always as bars. The overlay style
   editor's native preview reuses the control with `OverlayBars`, which groups
   bands as the overlay page does. Each redraw costs a compositor frame, so the
   control redraws only through `VisualizerRedrawGate` (visible change only, at
   most `MaxFrameRate` a second); the meter and Now Playing follow the user's
   "Visualizer frame rate" setting, 30 fps by default. A style that moves on its
-  own (`IsAnimated`) draws at that cap instead, until the feed stops and it
-  comes to rest. Each analyzer output runs only while a reader calls it
+  own (`IsAnimated`) draws at that cap instead, until the feed stops or goes
+  silent (paused, the output runs on) and it comes to rest. Each analyzer output runs only while a reader calls it
   (`CopyLatest`, `CopyWaveform`) within its `ReadLease`, so a reader that
   isn't seen stops reading: the control stops while it is inactive or its
   window is minimized or hidden.

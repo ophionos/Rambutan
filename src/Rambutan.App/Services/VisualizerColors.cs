@@ -1,0 +1,159 @@
+using System;
+using System.ComponentModel;
+using System.Threading;
+using System.Threading.Tasks;
+using Avalonia.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
+using Rambutan.App.ViewModels;
+using Rambutan.Core.Diagnostics;
+using Rambutan.Core.Visualizer;
+using SkiaSharp;
+
+namespace Rambutan.App.Services;
+
+/// <summary>
+/// The colour the Now Playing visualizer draws in, from the appearance settings
+/// and, for <see cref="VisualizerColorSource.Artwork"/>, the playing track's
+/// cover. A cover is read only while that source is chosen.
+/// </summary>
+public sealed partial class VisualizerColors : ObservableObject
+{
+    /// <summary>The cover is scaled to this many pixels a side before picking:
+    /// enough for its colours, little enough to read in a millisecond.</summary>
+    private const int SampleSize = 48;
+
+    private readonly AppearanceSettings _appearance;
+    private readonly PlayerBarViewModel _player;
+    private readonly Func<string, CancellationToken, Task<byte[]>>? _loadBytes;
+    private CancellationTokenSource? _reading;
+    private string? _pickedUrl;
+    private Color? _picked;
+
+    /// <summary>The colour to draw in; null for the theme's accent. With the
+    /// artwork source, the accent until the cover has been read, and when it
+    /// can't be.</summary>
+    [ObservableProperty] private Color? _color;
+
+    /// <summary>The cover read in progress, for tests to wait on.</summary>
+    internal Task Pending { get; private set; } = Task.CompletedTask;
+
+    /// <param name="loadBytes">The cover's bytes by URL; null reads no covers,
+    /// so the artwork source draws in the accent.</param>
+    public VisualizerColors(
+        AppearanceSettings appearance,
+        PlayerBarViewModel player,
+        Func<string, CancellationToken, Task<byte[]>>? loadBytes)
+    {
+        _appearance = appearance;
+        _player = player;
+        _loadBytes = loadBytes;
+        appearance.PropertyChanged += OnAppearanceChanged;
+        player.PropertyChanged += OnPlayerChanged;
+        Update();
+    }
+
+    private void OnAppearanceChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(AppearanceSettings.VisualizerColorSource) or nameof(AppearanceSettings.VisualizerCustomColor))
+            Update();
+    }
+
+    private void OnPlayerChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PlayerBarViewModel.ArtworkUrl))
+            Update();
+    }
+
+    private void Update()
+    {
+        switch (_appearance.VisualizerColorSource)
+        {
+            case VisualizerColorSource.Custom:
+                Cancel();
+                Color = CssHexColor.TryParse(_appearance.VisualizerCustomColor, out var custom)
+                    ? Avalonia.Media.Color.FromRgb(custom.R, custom.G, custom.B)
+                    : null;
+                break;
+
+            case VisualizerColorSource.Artwork:
+                var url = _player.ArtworkUrl;
+                if (url is not null && url == _pickedUrl)
+                {
+                    Cancel();
+                    Color = _picked;
+                    break;
+                }
+                // The last cover's colour would be wrong for this one: the
+                // accent shows until this one is read.
+                Color = null;
+                Cancel();
+                if (url is not null && _loadBytes is not null)
+                    Pending = ReadAsync(url);
+                break;
+
+            default:
+                Cancel();
+                Color = null;
+                break;
+        }
+    }
+
+    private void Cancel()
+    {
+        _reading?.Cancel();
+        _reading?.Dispose();
+        _reading = null;
+    }
+
+    private async Task ReadAsync(string url)
+    {
+        var reading = new CancellationTokenSource();
+        _reading = reading;
+        var token = reading.Token;
+        Color? picked = null;
+        try
+        {
+            var bytes = await _loadBytes!(url, token);
+            picked = await Task.Run(() => Pick(bytes), token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("viz", $"Couldn't read the cover's colour: {ex.Message}");
+        }
+
+        // Back on the UI thread. A newer track or a changed source cancelled
+        // this read; a result that arrives anyway is for a cover no longer shown.
+        if (token.IsCancellationRequested || url != _player.ArtworkUrl
+            || _appearance.VisualizerColorSource != VisualizerColorSource.Artwork)
+            return;
+        _pickedUrl = url;
+        _picked = picked;
+        Color = picked;
+    }
+
+    /// <summary>The visualizer colour for an encoded image; null when it can't be
+    /// decoded or has no opaque pixel.</summary>
+    internal static Color? Pick(byte[] encoded)
+    {
+        using var data = SKData.CreateCopy(encoded);
+        using var codec = SKCodec.Create(data);
+        if (codec is null)
+            return null;
+        // A JPEG decodes at an eighth of its size for little more than the cost
+        // of reading it; the sample needs no more.
+        var info = codec.Info.WithSize(codec.GetScaledDimensions(SampleSize / (float)Math.Max(1, Math.Min(codec.Info.Width, codec.Info.Height))));
+        using var source = SKBitmap.Decode(codec, info);
+        if (source is null)
+            return null;
+        // ArtworkColor reads unpremultiplied RGBA; Skia's native order is BGRA
+        // on Windows, so the sample's format is spelled out.
+        using var sample = new SKBitmap(new SKImageInfo(SampleSize, SampleSize, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+        if (!source.ScalePixels(sample, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.None)))
+            return null;
+        return ArtworkColor.Pick(sample.GetPixelSpan()) is { } c ? Avalonia.Media.Color.FromRgb(c.R, c.G, c.B) : null;
+    }
+}

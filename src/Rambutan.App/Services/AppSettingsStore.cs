@@ -44,6 +44,18 @@ public sealed class AppSettings
     /// visualizer: 30, 60, or 0 for the display rate. Default 30.</summary>
     public int VisualizerFrameRate { get; set; } = AppearanceSettings.DefaultFrameRate;
 
+    /// <summary>The Now Playing visualizer's style: "bars", "mirrored", "led",
+    /// "line", "area", "radial", "oscilloscope" or "vectorscope". An unknown
+    /// value reads as "bars".</summary>
+    public string VisualizerStyle { get; set; } = "bars";
+
+    /// <summary>The visualizer's colour: "accent", "artwork" (picked from the
+    /// cover) or "custom". An unknown value reads as "accent".</summary>
+    public string VisualizerColor { get; set; } = "accent";
+
+    /// <summary>The colour "custom" uses, as #RRGGBB.</summary>
+    public string VisualizerCustomColor { get; set; } = AppearanceSettings.DefaultCustomColor;
+
     /// <summary>"system" (follow the OS's reduce-motion setting), "reduced" or
     /// "full". A string rather than an enum number so the file
     /// stays readable and an unknown value degrades to "system".</summary>
