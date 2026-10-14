@@ -7,6 +7,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Rambutan.App.Controls;
+using Rambutan.App.Services;
 using Rambutan.App.ViewModels;
 
 namespace Rambutan.App.Views;
@@ -48,7 +49,22 @@ public partial class MainWindow : Window
                         () => QueueList.ScrollIntoView(restored),
                         Avalonia.Threading.DispatcherPriority.Loaded);
                 HistoryButtons.Attach(this, vm.Navigation);
+
+                if (vm.IsMiniPlayer)
+                    ApplyMiniPlayer(true);
+                vm.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(MainViewModel.IsMiniPlayer))
+                        ApplyMiniPlayer(vm.IsMiniPlayer);
+                    else if (e.PropertyName == nameof(MainViewModel.HasStatus) && _isMini)
+                        PostFitMiniHeight();
+                };
             }
+        };
+        Opened += (_, _) =>
+        {
+            if (DataContext is MainViewModel vm)
+                vm.CanPin = !WaylandToplevel.IsWayland(this);
         };
 
         // Recomputed, not bound: maximizing and tiling change the decorations' edges.
@@ -57,7 +73,11 @@ public partial class MainWindow : Window
         PropertyChanged += (_, e) =>
         {
             if (e.Property == OffScreenMarginProperty || e.Property == WindowDecorationMarginProperty)
+            {
                 FitShell();
+                if (_isMini)
+                    PostFitMiniHeight();
+            }
             else if (e.Property == ClientSizeProperty)
             {
                 HoldMinWidth();
@@ -79,6 +99,14 @@ public partial class MainWindow : Window
             else
                 BeginMoveDrag(e);
         };
+        // The mini player has no title bar: the bar itself moves the window.
+        // Its buttons, links and sliders take their own presses first.
+        PlayerBar.PointerPressed += (_, e) =>
+        {
+            if (_isMini && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+                BeginMoveDrag(e);
+        };
+        MiniCloseButton.Click += (_, _) => Close();
 
         // Seek on release; while pressed, the VM stops pushing positions. The
         // handlers live on the panel (its full height hit-tests, the slider's own
@@ -149,6 +177,12 @@ public partial class MainWindow : Window
             if (e.Property == BoundsProperty)
                 FitSeekArea();
         };
+        // The mini player's buttons came, or the pin's label changed its width.
+        BarModes.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == BoundsProperty && _isMini)
+                FitSeekArea();
+        };
 
         SeekArea.AddHandler(PointerReleasedEvent, async (_, e) =>
         {
@@ -185,6 +219,12 @@ public partial class MainWindow : Window
     /// counts while it is hidden too, so the first track doesn't change the fit.</summary>
     private void FitSeekArea()
     {
+        if (_isMini)
+        {
+            FitMiniBar();
+            return;
+        }
+
         // Hidden with nothing loaded, the identity isn't measured by layout; its
         // artwork and actions are, measured here, since their size never changes.
         var artwork = BarIdentity.Children[0];
@@ -249,7 +289,7 @@ public partial class MainWindow : Window
 
     private void HoldMinWidth()
     {
-        var min = PlayerBarLayout.HeldMinimum(ClientSize.Width, BarMinWidth);
+        var min = PlayerBarLayout.HeldMinimum(ClientSize.Width, _isMini ? MiniMinWidth : BarMinWidth);
         if (Math.Abs(MinWidth - min) > 0.5)
             MinWidth = min;
     }
@@ -261,10 +301,15 @@ public partial class MainWindow : Window
 
     private void FitSidebar()
     {
+        // Hidden, the sidebar keeps the bounds it had in the full window.
+        if (_isMini)
+            return;
         var need = Sidebar.Padding.Top + Sidebar.Padding.Bottom +
                    SidebarNavScroll.Margin.Top + SidebarNavScroll.Margin.Bottom + SidebarNav.DesiredSize.Height +
                    SidebarAccount.Margin.Top + SidebarAccount.Margin.Bottom + SidebarAccount.DesiredSize.Height;
-        var min = Math.Ceiling(ClientSize.Height - Sidebar.Bounds.Height + need);
+        // Back from the mini player, the first pass can see the sidebar's old
+        // height in a window not grown yet; the pass after it has both right.
+        var min = Math.Max(0, Math.Ceiling(ClientSize.Height - Sidebar.Bounds.Height + need));
         if (Math.Abs(min - SidebarMinHeight) <= 0.5)
             return;
         SidebarMinHeight = min;
@@ -273,9 +318,143 @@ public partial class MainWindow : Window
 
     private void HoldMinHeight()
     {
+        // The mini player's height is its content's (FitMiniHeight).
+        if (_isMini)
+            return;
         var min = PlayerBarLayout.HeldMinimum(ClientSize.Height, SidebarMinHeight);
         if (Math.Abs(MinHeight - min) > 0.5)
             MinHeight = min;
+    }
+
+    private bool _isMini;
+    private WindowStatePersistence? _persistence;
+
+    /// <summary>The window's minimum width as the mini player: its bar with the seek line at the floor.</summary>
+    internal double MiniMinWidth { get; private set; }
+
+    /// <summary>The mini player has no width of its own yet: it takes one from its
+    /// minimum once the bar has been measured.</summary>
+    private bool _miniAtMinimum;
+
+    /// <summary>Takes over the window's bounds from the app, and puts the window
+    /// in the mode the settings left it in: before it shows, so a start in the mini
+    /// player doesn't open at full size first.</summary>
+    internal void AttachPersistence(WindowStatePersistence persistence)
+    {
+        _persistence = persistence;
+        // Attaching put the full window's bounds back: switch again, now with the mini player's.
+        if (_isMini)
+        {
+            _isMini = false;
+            ApplyMiniPlayer(true);
+        }
+    }
+
+    /// <summary>Turns the window into the mini player or back. The page, Now
+    /// Playing and the panels stay as they were underneath, only hidden (the
+    /// <c>mini</c> class), and the full window's bounds are kept apart from the
+    /// mini player's, so leaving puts the window back where it was.</summary>
+    private void ApplyMiniPlayer(bool mini)
+    {
+        if (mini == _isMini)
+            return;
+        _isMini = mini;
+        if (_persistence is not null)
+            _persistence.Paused = true;
+        try
+        {
+            if (mini)
+            {
+                WindowState = WindowState.Normal;
+                // No caption buttons: they would take a third of the bar. The
+                // bar has its own close, and the border still resizes.
+                WindowDecorations = WindowDecorations.BorderOnly;
+                MinWidth = 0;
+                MinHeight = 0;
+                _miniAtMinimum = _persistence?.RestoreMini() != true;
+                PostFitMiniHeight();
+            }
+            else
+            {
+                BarMoreButton.Flyout?.Hide();
+                VolumeButton.Flyout?.Hide();
+                WindowDecorations = WindowDecorations.Full;
+                MinHeight = 0;
+                MaxHeight = double.PositiveInfinity;
+                _persistence?.RestoreFull();
+                // The full bar's fit starts again from the full bar.
+                _barFit = PlayerBarFit.Narrow;
+                SetBarFit(PlayerBarFit.Full);
+                HoldMinWidth();
+                HoldMinHeight();
+            }
+        }
+        finally
+        {
+            if (_persistence is not null)
+            {
+                _persistence.IsMini = mini;
+                _persistence.Paused = false;
+            }
+        }
+    }
+
+    /// <summary>The mini player's bar: the identity left, the transport and seek
+    /// line centred, the volume button and the mini player's own buttons right.
+    /// There is no full fit: rating, save, shuffle, repeat, lyrics and queue fold
+    /// away, and the volume slider is behind its button. Below the window's
+    /// minimum (a tiling window manager) the times move under the line.</summary>
+    private void FitMiniBar()
+    {
+        // The first pass after the switch still holds the full bar's measures:
+        // the volume slider, lyrics and queue in the modes' width.
+        var measured = _barFit != PlayerBarFit.Full && BarModes.IsMeasureValid;
+        if (!SeekRow.Classes.Contains("timesUnder"))
+            _timeLabelsWidth = SeekRow.Children[0].DesiredSize.Width + SeekRow.Children[2].DesiredSize.Width;
+        var artwork = BarIdentity.Children[0];
+        if (!BarIdentity.IsVisible)
+            artwork.Measure(Size.Infinity);
+        var identityRest = artwork.DesiredSize.Width + 2 * BarIdentity.ColumnSpacing + BarIdentity.Margin.Right;
+        var side = Math.Max(identityRest + PlayerBarLayout.CompactTitleWidth, BarModes.DesiredSize.Width);
+        var barWidth = PlayerBarGrid.Bounds.Width;
+        var fits = barWidth >= PlayerBarLayout.MinBarWidth(side, _timeLabelsWidth) - 0.5;
+        SetBarFit(fits ? PlayerBarFit.Compact : PlayerBarFit.Narrow);
+        // As in the full bar, a long title takes room from the seek line before it trims.
+        var titledSide = Math.Max(side, identityRest + PlayerBarLayout.TitleRoom(TitleWidth()));
+        var width = fits ? PlayerBarLayout.SeekWidth(barWidth, titledSide, _timeLabelsWidth) : PlayerBarLayout.MinSeekWidth;
+        if (Math.Abs(width - SeekArea.Width) > 0.5)
+            SeekArea.Width = width;
+
+        MiniMinWidth = Math.Ceiling(PlayerBarLayout.MinBarWidth(side, _timeLabelsWidth) +
+                                    PlayerBarGrid.Margin.Left + PlayerBarGrid.Margin.Right +
+                                    Shell.Margin.Left + Shell.Margin.Right);
+        if (_miniAtMinimum && measured && _timeLabelsWidth > 0)
+        {
+            _miniAtMinimum = false;
+            // The title at the full bar's floor rather than the compact one's.
+            Width = MiniMinWidth + 2 * (PlayerBarLayout.MinTitleWidth - PlayerBarLayout.CompactTitleWidth);
+        }
+        HoldMinWidth();
+    }
+
+    private void PostFitMiniHeight() =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(FitMiniHeight, Avalonia.Threading.DispatcherPriority.Loaded);
+
+    /// <summary>Holds the mini player at its content's height: the bar, and the
+    /// status strip above it while it has something to say. Measured here, not
+    /// read from layout: a window held at the bar's height lays the strip out at nothing.</summary>
+    private void FitMiniHeight()
+    {
+        if (!_isMini)
+            return;
+        StatusStrip.Measure(new Size(Math.Max(0, ClientSize.Width - Shell.Margin.Left - Shell.Margin.Right),
+                                     double.PositiveInfinity));
+        var height = Math.Ceiling(PlayerBar.Height + StatusStrip.DesiredSize.Height +
+                                  Shell.Margin.Top + Shell.Margin.Bottom);
+        MaxHeight = double.PositiveInfinity;
+        MinHeight = height;
+        Height = height;
+        MaxHeight = height;
     }
 
     private void SetBarFit(PlayerBarFit fit)
@@ -355,12 +534,19 @@ public partial class MainWindow : Window
                 Run(vm.GoSettingsCommand);
                 break;
             case (Key.B, KeyModifiers.Control):
-                Run(vm.ToggleSidebarCommand);
+                // The sidebar isn't in the mini player: show the window it is in.
+                if (vm.IsMiniPlayer)
+                    vm.IsMiniPlayer = false;
+                else
+                    Run(vm.ToggleSidebarCommand);
                 break;
             case (Key.P, KeyModifiers.Control):
-                vm.NowPlaying.ToggleCommand.Execute(null);
+                vm.ToggleNowPlayingCommand.Execute(null);
                 break;
-            case (Key.Escape, KeyModifiers.None) when vm.NowPlaying.IsOpen:
+            case (Key.M, KeyModifiers.Control):
+                vm.ToggleMiniPlayerCommand.Execute(null);
+                break;
+            case (Key.Escape, KeyModifiers.None) when vm.NowPlaying.IsOpen && !vm.IsMiniPlayer:
                 vm.NowPlaying.CloseCommand.Execute(null);
                 break;
             case (Key.F1, KeyModifiers.None):

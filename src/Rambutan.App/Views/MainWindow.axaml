@@ -15,6 +15,8 @@
         Background="{StaticResource Token.Brush.Ground}"
         Title="Rambutan"
         Classes.reducedmotion="{Binding Appearance.ReduceMotion}"
+        Classes.mini="{Binding IsMiniPlayer}"
+        Topmost="{Binding IsPinnedOnTop}"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="40">
 
@@ -92,7 +94,7 @@
          with Back and Forward at the same spot on every page, root or
          drill-down. The window
          decorations draw the caption buttons on the right: keep clear of them. -->
-    <Border DockPanel.Dock="Top" x:Name="TitleBar" Height="40" Background="Transparent"
+    <Border DockPanel.Dock="Top" x:Name="TitleBar" Classes="fullOnly" Height="40" Background="Transparent"
             KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="0">
       <StackPanel Orientation="Horizontal" Spacing="4" Margin="16,0,150,0" VerticalAlignment="Center">
         <StackPanel Orientation="Horizontal" Spacing="8" Width="172" VerticalAlignment="Center">
@@ -104,6 +106,11 @@
         <Button x:Name="SidebarToggle" Classes="icon subtle small" Command="{Binding ToggleSidebarCommand}"
                 ToolTip.Tip="{Binding IsSidebarOpen, Converter={x:Static vm:Converters.SidebarToggleTip}}">
           <PathIcon Data="{StaticResource Icon.Sidebar}" Width="18" Height="18" />
+        </Button>
+        <!-- Into the mini player: the window shrinks to the player bar. -->
+        <Button Classes="icon subtle small" Command="{Binding ToggleMiniPlayerCommand}"
+                ToolTip.Tip="{Binding MiniPlayerTip}">
+          <PathIcon Data="{StaticResource Icon.MiniPlayer}" Width="18" Height="18" />
         </Button>
         <Button Classes="icon subtle small" Command="{Binding Navigation.BackCommand}"
                 IsEnabled="{Binding Navigation.CanGoBack}"
@@ -120,7 +127,7 @@
 
     <!-- Player bar: identity | transport over the seek line | lyrics, queue,
          volume. It sits on the ground like the title bar. -->
-    <Border DockPanel.Dock="Bottom" Height="88" Background="Transparent"
+    <Border x:Name="PlayerBar" DockPanel.Dock="Bottom" Height="88" Background="Transparent"
             KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="3">
 
         <!-- Three zones: identity left, transport centred, modes
@@ -142,7 +149,7 @@
                  reduced motion it is gone, not frozen. -->
             <Button Grid.Column="0" Padding="0" CornerRadius="{StaticResource Token.Radius.Control}"
                     Background="Transparent" BorderThickness="0"
-                    Command="{Binding NowPlaying.ToggleCommand}"
+                    Command="{Binding ToggleNowPlayingCommand}"
                     ToolTip.Tip="{l:T player.openNowPlaying}">
               <Panel>
                 <Border CornerRadius="{StaticResource Token.Radius.Control}" ClipToBounds="True" Width="56" Height="56"
@@ -207,7 +214,7 @@
 
             <!-- Rating and save. In a compact bar (PlayerBarLayout) they fold
                  into More, whose flyout holds the same three. -->
-            <StackPanel x:Name="BarIdentityActions" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+            <StackPanel x:Name="BarIdentityActions" Grid.Column="2" Classes="fullOnly" Orientation="Horizontal" VerticalAlignment="Center">
               <StackPanel x:Name="BarFullActions" Orientation="Horizontal">
                 <!-- Toggles showing the song's rating; the control
                      draws the thumb and names it for what a press does now. -->
@@ -267,7 +274,7 @@
                       Classes.idle="{Binding Player.ShownTrack, Converter={x:Static ObjectConverters.IsNull}}">
             <Panel HorizontalAlignment="Center">
               <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Classes="icon subtle" Classes.active="{Binding Player.IsShuffleOn}"
+                <Button Classes="icon subtle fullOnly" Classes.active="{Binding Player.IsShuffleOn}"
                         Command="{Binding Player.ToggleShuffleCommand}"
                         ToolTip.Tip="{Binding Player.ShuffleTip}">
                   <PathIcon Data="{StaticResource Icon.Shuffle}" Width="18" Height="18" />
@@ -294,7 +301,7 @@
                         IsEnabled="{Binding Player.HasQueue}">
                   <PathIcon Data="{StaticResource Icon.Next}" Width="24" Height="24" />
                 </Button>
-                <Button Classes="icon subtle" Classes.active="{Binding Player.IsRepeatOn}"
+                <Button Classes="icon subtle fullOnly" Classes.active="{Binding Player.IsRepeatOn}"
                         Command="{Binding Player.CycleRepeatCommand}"
                         ToolTip.Tip="{Binding Player.RepeatTip}">
                   <Panel>
@@ -370,17 +377,17 @@
                other way back. -->
           <StackPanel x:Name="BarModes" Grid.Column="2" Orientation="Horizontal" Spacing="2"
                       VerticalAlignment="Center" HorizontalAlignment="Right">
-            <Button Classes="icon subtle" Classes.active="{Binding NowPlaying.AreLyricsOnScreen}"
+            <Button Classes="icon subtle fullOnly" Classes.active="{Binding NowPlaying.AreLyricsOnScreen}"
                     Command="{Binding NowPlaying.OpenLyricsCommand}"
                     ToolTip.Tip="{Binding NowPlaying.LyricsButtonTip}">
               <PathIcon Data="{StaticResource Icon.Lyrics}" Width="18" Height="18" />
             </Button>
-            <Button Classes="icon subtle" Classes.active="{Binding IsQueueOpen}"
+            <Button Classes="icon subtle fullOnly" Classes.active="{Binding IsQueueOpen}"
                     Command="{Binding ToggleQueueCommand}"
                     ToolTip.Tip="{Binding IsQueueOpen, Converter={x:Static vm:Converters.QueuePillTip}}">
               <PathIcon Data="{StaticResource Icon.Queue}" Width="20" Height="20" />
             </Button>
-            <Border Width="1" Height="20" Margin="8,0" Background="{StaticResource Token.Brush.Line}"
+            <Border Classes="fullOnly" Width="1" Height="20" Margin="8,0" Background="{StaticResource Token.Brush.Line}"
                     VerticalAlignment="Center" />
             <Button x:Name="MuteButton" Classes="icon subtle" Command="{Binding Player.ToggleMuteCommand}"
                     ToolTip.Tip="{Binding Player.MuteTip}">
@@ -458,6 +465,27 @@
                 </Flyout>
               </Button.Flyout>
             </Button>
+            <!-- The mini player's own: keep on top, back to the full window, and
+                 close, which the caption buttons do in the full window. -->
+            <Button Classes="icon subtle miniOnly" Classes.active="{Binding IsPinned}"
+                    Command="{Binding TogglePinCommand}"
+                    ToolTip.Tip="{Binding PinTip}"
+                    ToolTip.ShowOnDisabled="True">
+              <Panel>
+                <PathIcon Data="{StaticResource Icon.Pin}" Width="18" Height="18"
+                          IsVisible="{Binding !IsPinned}" />
+                <PathIcon Data="{StaticResource Icon.PinFilled}" Width="18" Height="18"
+                          IsVisible="{Binding IsPinned}" />
+              </Panel>
+            </Button>
+            <Button Classes="icon subtle miniOnly" Command="{Binding ToggleMiniPlayerCommand}"
+                    ToolTip.Tip="{Binding MiniPlayerTip}">
+              <PathIcon Data="{StaticResource Icon.FullWindow}" Width="18" Height="18" />
+            </Button>
+            <Button x:Name="MiniCloseButton" Classes="icon subtle miniOnly"
+                    ToolTip.Tip="{l:T common.close}">
+              <PathIcon Data="{StaticResource Icon.Close}" Width="18" Height="18" />
+            </Button>
           </StackPanel>
         </Grid>
     </Border>
@@ -532,7 +560,7 @@
 
     <!-- Sidebar: full, or collapsed to a rail of icons (styles in
          Controls.axaml). The title bar's toggle and Ctrl+B switch it. -->
-    <Border x:Name="Sidebar" DockPanel.Dock="Left" Margin="8,0,0,0"
+    <Border x:Name="Sidebar" DockPanel.Dock="Left" Classes="fullOnly" Margin="8,0,0,0"
             Classes.rail="{Binding !IsSidebarOpen}"
             Background="{StaticResource Token.Brush.Surface.Panel}"
             CornerRadius="{StaticResource Token.Radius.Panel}" Padding="12"
@@ -668,8 +696,13 @@
     <Border DockPanel.Dock="Right" Width="300" Margin="0,0,8,0"
             Background="{StaticResource Token.Brush.Surface.Panel}"
             CornerRadius="{StaticResource Token.Radius.Panel}" Padding="12,12,12,4"
-            KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="2"
-            IsVisible="{Binding IsQueueOpen}">
+            KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="2">
+      <Border.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="IsQueueOpen" />
+          <Binding Path="!IsMiniPlayer" />
+        </MultiBinding>
+      </Border.IsVisible>
       <DockPanel>
         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="8,0,0,4">
           <TextBlock Text="{l:T queue.title}" FontSize="16" FontWeight="Bold" VerticalAlignment="Center" />
@@ -785,7 +818,7 @@
          (sidebar and queue stay put — the docked panels are the app's frame,
          the overlay replaces its page). ClipToBounds keeps scrolled content
          inside the rounded corners. -->
-    <Border Margin="8,0" Background="{StaticResource Token.Brush.Surface.Panel}"
+    <Border Classes="fullOnly" Margin="8,0" Background="{StaticResource Token.Brush.Surface.Panel}"
             CornerRadius="{StaticResource Token.Radius.Panel}" ClipToBounds="True">
     <Panel KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
       <!-- Hidden (not detached, so scroll and selection survive) while Now
@@ -802,5 +835,10 @@
     </Panel>
     </Border>
   </DockPanel>
+
+  <!-- The mini player has no content region for the toasts to show over,
+       so they show over the bar there, until they expire or are dismissed. -->
+  <views:ToastHost Classes="miniOnly" DataContext="{Binding Toasts}" VerticalAlignment="Center" Margin="8"
+                   ReduceMotion="{Binding $parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion}" />
   </Panel>
 </Window>

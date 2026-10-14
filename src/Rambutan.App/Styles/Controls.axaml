@@ -549,6 +549,19 @@
     <Setter Property="HorizontalAlignment" Value="Right" />
   </Style>
 
+  <!-- The mini player (MainWindow): the player bar is the whole window. What
+       it has no room for folds away (fullOnly); its own buttons appear
+       (miniOnly). Setters, not local values, so the window's class can win. -->
+  <Style Selector=":is(Control).miniOnly">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Window.mini :is(Control).miniOnly">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <Style Selector="Window.mini :is(Control).fullOnly">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+
   <!-- The compact player bar's flyouts: a column as wide as the button they open
        from, on the raised surface Search's drop-down uses. -->
   <Style Selector="FlyoutPresenter.barColumn">

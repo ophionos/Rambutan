@@ -139,7 +139,7 @@ public partial class App : Application
             if (main.Profiles.ShowsProfile)
                 window.Title += $" — {main.Profiles.CurrentName}";
             SetupProfileSwitch(desktop, main.Profiles);
-            WindowStatePersistence.Attach(window, _services.GetRequiredService<AppSettings>());
+            window.AttachPersistence(WindowStatePersistence.Attach(window, _services.GetRequiredService<AppSettings>()));
             StartupTrace.Attach(window);
             desktop.MainWindow = window;
             desktop.Exit += (_, _) => OnExit();
@@ -729,6 +729,7 @@ public partial class App : Application
 
         var menu = new NativeMenu();
         menu.Items.Add(MenuItem("tray.show", () => ShowMainWindow(window)));
+        menu.Items.Add(MiniPlayerItem(window));
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(MenuItem("tray.playPause", coordinator.TogglePlayPause));
         menu.Items.Add(MenuItem("tray.next", () => _ = coordinator.NextAsync()));
@@ -757,6 +758,28 @@ public partial class App : Application
             Strings.Changed += () => item.Header = Strings.Get(key);
             return item;
         }
+    }
+
+    /// <summary>The tray's mini player switch, checked while the window is the
+    /// mini player. It shows the window too: a hidden window changing shape shows nothing.</summary>
+    private static NativeMenuItem MiniPlayerItem(MainWindow window)
+    {
+        var item = new NativeMenuItem(Strings.Get("tray.miniPlayer")) { ToggleType = MenuItemToggleType.CheckBox };
+        Strings.Changed += () => item.Header = Strings.Get("tray.miniPlayer");
+        if (window.DataContext is not MainViewModel vm)
+            return item;
+        item.IsChecked = vm.IsMiniPlayer;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.IsMiniPlayer))
+                item.IsChecked = vm.IsMiniPlayer;
+        };
+        item.Click += (_, _) =>
+        {
+            vm.IsMiniPlayer = !vm.IsMiniPlayer;
+            ShowMainWindow(window);
+        };
+        return item;
     }
 
     private void SetupMediaSession(IClassicDesktopStyleApplicationLifetime desktop, MainWindow window)

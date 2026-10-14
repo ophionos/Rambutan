@@ -157,6 +157,12 @@ file sink), never to files directly.
   paused or stopped; play and resume start it again. A shorter delay makes
   quick resumes slow (a Bluetooth output can lose the start of a track), so
   don't shorten it without the maintainer.
+- Mini player: the main window itself, not a second window.
+  `MainWindow.ApplyMiniPlayer` changes its shape, the `mini` class hides what
+  it has no room for (`fullOnly` / `miniOnly` in `Controls.axaml`), and
+  `WindowStatePersistence` keeps its bounds apart from the full window's. The
+  page and panels stay underneath, so leaving puts them back. Native Wayland
+  can't keep a window on top, so there the pin is disabled and says why.
 - Lyrics degrade in explicit states: word-synced → line-synced → plain → "no
   lyrics found". Imported custom lyrics always win over providers.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.

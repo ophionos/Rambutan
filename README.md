@@ -24,9 +24,10 @@ your own YouTube Music account to use your library.
   the app.
 - **Last.fm and Discord:** scrobbling, your Last.fm stations on Home and on
   artist pages, and Discord Rich Presence.
-- **Your desktop:** media keys and system media controls, a tray icon,
-  keyboard shortcuts (press F1 to see them), screen-reader names, and
-  reduced motion.
+- **Your desktop:** media keys and system media controls, a tray icon, a
+  mini player that can stay on top of other windows (not on Wayland, which
+  doesn't allow it), keyboard shortcuts (press F1 to see them), screen-reader
+  names, and reduced motion.
 
 Everything that sends data off your computer is off until you turn it on:
 Last.fm, Discord, online lyrics lookups and the phone remote. Each setting
