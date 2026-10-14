@@ -39,6 +39,49 @@ public partial class SettingsPageViewModel : ViewModelBase
     /// <summary>Position in <see cref="AppearanceSettings.FrameRateChoices"/>.</summary>
     [ObservableProperty] private int _visualizerFrameRateIndex;
 
+    /// <summary>Position in <see cref="AppearanceSettings.StyleChoices"/>.</summary>
+    [ObservableProperty] private int _visualizerStyleIndex;
+
+    /// <summary>Accent / From the artwork / Custom, in the order of
+    /// <see cref="VisualizerColorSource"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCustomVisualizerColor))]
+    private int _visualizerColorIndex;
+
+    public bool IsCustomVisualizerColor => VisualizerColorIndex == (int)VisualizerColorSource.Custom;
+
+    /// <summary>The custom colour's hex box. The visualizer keeps the last
+    /// valid colour while the text isn't one.</summary>
+    [ObservableProperty] private string _customColorHex = AppearanceSettings.DefaultCustomColor;
+    [ObservableProperty] private string? _customColorError;
+
+    /// <summary>Ready-made custom colours, beside the picker.</summary>
+    public IReadOnlyList<ColorPreset> ColorPresets { get; } =
+    [
+        new("#FF4E45", "settings.appearance.visualizerColor.preset.red"),
+        new("#FF9F43", "settings.appearance.visualizerColor.preset.orange"),
+        new("#FFD93D", "settings.appearance.visualizerColor.preset.yellow"),
+        new("#6BCB77", "settings.appearance.visualizerColor.preset.green"),
+        new("#4FC3F7", "settings.appearance.visualizerColor.preset.cyan"),
+        new("#5B8DEF", "settings.appearance.visualizerColor.preset.blue"),
+        new("#B388FF", "settings.appearance.visualizerColor.preset.violet"),
+        new("#F06292", "settings.appearance.visualizerColor.preset.pink"),
+    ];
+
+    /// <summary>The colour picker's side of <see cref="CustomColorHex"/>.</summary>
+    public Avalonia.Media.Color CustomColor
+    {
+        get => CssHexColor.Parse(_appearance?.VisualizerCustomColor ?? AppearanceSettings.DefaultCustomColor, Avalonia.Media.Colors.White);
+        set
+        {
+            if (value == CustomColor)
+                return;
+            CustomColorHex = CssHexColor.Format(Avalonia.Media.Color.FromRgb(value.R, value.G, value.B));
+        }
+    }
+
+    public Avalonia.Media.IBrush CustomColorSwatch => new Avalonia.Media.Immutable.ImmutableSolidColorBrush(CustomColor);
+
     /// <summary>The lyrics pane may ask LRCLIB. Written through the
     /// pane's view model, which applies and remembers it.</summary>
     [ObservableProperty] private bool _lookUpLyricsOnline;
@@ -187,6 +230,9 @@ public partial class SettingsPageViewModel : ViewModelBase
         _visualizerFrameRateIndex = Math.Max(0,
             Array.IndexOf(AppearanceSettings.FrameRateChoices, appearance.VisualizerFrameRate));
         _motionIndex = (int)appearance.Motion;
+        _visualizerStyleIndex = Math.Max(0, Array.IndexOf(AppearanceSettings.StyleChoices, appearance.VisualizerStyle));
+        _visualizerColorIndex = (int)appearance.VisualizerColorSource;
+        _customColorHex = appearance.VisualizerCustomColor;
         _systemMotionNote = MotionNote(appearance.SystemReducesMotion);
         appearance.PropertyChanged += (_, e) =>
         {
@@ -563,6 +609,42 @@ public partial class SettingsPageViewModel : ViewModelBase
         ? Strings.Get("settings.appearance.motionNoteReduced")
         : Strings.Get("settings.appearance.motionNoteFull");
 
+    partial void OnVisualizerStyleIndexChanged(int value)
+    {
+        if (_appearance is null || value < 0 || value >= AppearanceSettings.StyleChoices.Length)
+            return;
+        _appearance.VisualizerStyle = AppearanceSettings.StyleChoices[value];
+        _persist?.Invoke();
+    }
+
+    partial void OnVisualizerColorIndexChanged(int value)
+    {
+        if (_appearance is null || value is < 0 or > (int)VisualizerColorSource.Custom)
+            return;
+        _appearance.VisualizerColorSource = (VisualizerColorSource)value;
+        _persist?.Invoke();
+    }
+
+    partial void OnCustomColorHexChanged(string value)
+    {
+        // Solid colours only: the visualizer draws its own translucency.
+        if (CssHexColor.Normalize(value) is not { Length: 4 or 7 } normalized)
+        {
+            CustomColorError = Strings.Get("settings.appearance.visualizerColor.invalid");
+            return;
+        }
+        CustomColorError = null;
+        if (_appearance is null)
+            return;
+        _appearance.VisualizerCustomColor = AppearanceSettings.ParseCustomColor(normalized);
+        OnPropertyChanged(nameof(CustomColor));
+        OnPropertyChanged(nameof(CustomColorSwatch));
+        _persist?.Invoke();
+    }
+
+    [RelayCommand]
+    private void UseColorPreset(ColorPreset preset) => CustomColorHex = preset.Hex;
+
     partial void OnMotionIndexChanged(int value)
     {
         if (_appearance is null || value is < 0 or > (int)MotionPreference.Full)
@@ -628,4 +710,16 @@ public sealed record AudioQualityChoice(AudioQuality Value)
     /// <summary>What the list reads out, for screen readers.</summary>
     public override string ToString() => Strings.Get(
         Value == AudioQuality.DataSaver ? "settings.playback.qualityDataSaver" : "settings.playback.qualityHigh");
+}
+
+/// <summary>One of the custom colour's ready-made choices.</summary>
+public sealed class ColorPreset(string hex, string nameKey)
+{
+    public string Hex { get; } = hex;
+
+    public Avalonia.Media.IBrush Brush { get; } =
+        new Avalonia.Media.Immutable.ImmutableSolidColorBrush(CssHexColor.Parse(hex, Avalonia.Media.Colors.White));
+
+    /// <summary>For screen readers and the tooltip: the colour's name.</summary>
+    public string Name => Strings.Get(nameKey);
 }

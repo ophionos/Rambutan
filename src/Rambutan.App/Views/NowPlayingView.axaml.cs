@@ -3,6 +3,7 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Rambutan.App.Controls;
 using Rambutan.App.ViewModels;
 
 namespace Rambutan.App.Views;
@@ -44,7 +45,7 @@ public partial class NowPlayingView : UserControl
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(NowPlayingViewModel.IsLyricsPaneVisible))
+        if (e.PropertyName is nameof(NowPlayingViewModel.IsLyricsPaneVisible) or nameof(NowPlayingViewModel.ShowsRing))
             ApplyLayout();
     }
 
@@ -94,7 +95,11 @@ public partial class NowPlayingView : UserControl
     private void SetArt(double size)
     {
         Art.Width = Art.Height = size;
-        Art.Margin = size > 0 ? new Thickness(0, 0, 0, 28) : default;
+        // The ring reaches past the artwork; the slot keeps the title, and the
+        // header above, clear of it.
+        var ring = size > 0 && _vm?.ShowsRing == true ? RadialRenderer.Margin : 0;
+        ArtSlot.Margin = size > 0 ? new Thickness(0, ring, 0, 28 + ring) : default;
+        Ring.Margin = new Thickness(-RadialRenderer.Margin);
     }
 
     private static void Place(Control control, int row) => Grid.SetRow(control, row);

@@ -135,4 +135,50 @@ public class VisualizerRedrawGateTests
 
         Assert.True(gate.ShouldDraw(Ms(10), [0f, 0f, 0f], [], Height));
     }
+
+    [Fact]
+    public void AnAnimatedStyle_DrawsAtTheCap_WhileItMoves()
+    {
+        // 30 a second on a 100 Hz display, for one second.
+        var gate = new VisualizerRedrawGate { MinInterval = Ms(1000.0 / 30) };
+        var draws = 0;
+        for (var t = 0; t < 1000; t += 10)
+            if (gate.ShouldDrawAnimated(Ms(t), resting: false))
+                draws++;
+
+        Assert.InRange(draws, 29, 31);
+    }
+
+    [Fact]
+    public void AnAnimatedStyle_DrawsItsRestOnce_ThenStops()
+    {
+        var gate = new VisualizerRedrawGate { MinInterval = Ms(1000.0 / 30) };
+        gate.ShouldDrawAnimated(Ms(0), resting: false);
+
+        Assert.True(gate.ShouldDrawAnimated(Ms(40), resting: true));
+        for (var t = 50; t <= 2000; t += 10)
+            Assert.False(gate.ShouldDrawAnimated(Ms(t), resting: true));
+    }
+
+    [Fact]
+    public void AnAnimatedStyle_AtRest_StartsAgainWhenItMoves()
+    {
+        var gate = new VisualizerRedrawGate { MinInterval = Ms(1000.0 / 30) };
+        gate.ShouldDrawAnimated(Ms(0), resting: true);
+        Assert.False(gate.ShouldDrawAnimated(Ms(500), resting: true));
+
+        Assert.True(gate.ShouldDrawAnimated(Ms(510), resting: false));
+    }
+
+    [Fact]
+    public void AnAnimatedStyle_AtRest_RedrawsOnReset()
+    {
+        // A new palette or size must show even when nothing plays.
+        var gate = new VisualizerRedrawGate { MinInterval = Ms(1000.0 / 30) };
+        gate.ShouldDrawAnimated(Ms(0), resting: true);
+
+        gate.Reset();
+        Assert.True(gate.ShouldDrawAnimated(Ms(5), resting: true));
+        Assert.False(gate.ShouldDrawAnimated(Ms(100), resting: true));
+    }
 }

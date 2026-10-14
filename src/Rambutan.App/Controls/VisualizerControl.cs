@@ -4,8 +4,11 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Rendering.Composition;
+using Avalonia.Skia;
 using Rambutan.Core.Diagnostics;
+using Rambutan.Core.Visualizer;
 using Rambutan.Audio;
+using SkiaSharp;
 
 namespace Rambutan.App.Controls;
 
@@ -15,9 +18,13 @@ namespace Rambutan.App.Controls;
 /// on the render thread — no UI-thread work, no per-frame allocation. Smoothing
 /// (attack/decay envelopes, peak-hold) lives here, not in the analyzer, which
 /// keeps emitting raw bands for other consumers (overlay).
+/// The full-size visualizer draws through an <see cref="IVisualizerRenderer"/> on
+/// Skia's canvas, and with Avalonia's primitives where Skia isn't the renderer
+/// (headless tests).
 /// With <see cref="Groups"/> set it draws a compact meter instead: a few thin bars
 /// without peaks, grown up and down from the middle, for small places like the
-/// player bar's artwork.
+/// player bar's artwork. The compact meter and <see cref="OverlayBars"/> draw
+/// with primitives only.
 /// </summary>
 public sealed class VisualizerControl : Control
 {
@@ -102,6 +109,35 @@ public sealed class VisualizerControl : Control
         set => SetValue(PeakColorProperty, value);
     }
 
+    /// <summary>The style the full-size visualizer draws in; bars by default.
+    /// The compact meter and the overlay preview are always bars.</summary>
+    public static readonly StyledProperty<Services.VisualizerStyle> VisualizerStyleProperty =
+        AvaloniaProperty.Register<VisualizerControl, Services.VisualizerStyle>(nameof(VisualizerStyle));
+
+    public Services.VisualizerStyle VisualizerStyle
+    {
+        get => GetValue(VisualizerStyleProperty);
+        set => SetValue(VisualizerStyleProperty, value);
+    }
+
+    /// <summary>Whether the feed has nothing to show: it stopped, or every band
+    /// is at the floor. An animated style winds down while it is idle.</summary>
+    internal static bool IsIdle(bool stale, ReadOnlySpan<float> bands)
+    {
+        if (stale)
+            return true;
+        foreach (var band in bands)
+        {
+            if (band > 0)
+                return false;
+        }
+        return true;
+    }
+
+    internal const double BarGap = 3;
+    internal const double MinBarHeight = 2;
+    internal const double PeakThickness = 2;
+
     /// <summary>
     /// Folds the bands into the overlay's bars the way its page does
     /// (web/overlay Visualizer.svelte): as many bars as bands means every band,
@@ -178,6 +214,7 @@ public sealed class VisualizerControl : Control
         _visual.SendHandlerMessage(new BarsHandler.Compact(Groups));
         _visual.SendHandlerMessage(new BarsHandler.Overlay(OverlayBars, ShowPeaks));
         _visual.SendHandlerMessage(new BarsHandler.Pacing(MaxFrameRate));
+        _visual.SendHandlerMessage(new BarsHandler.Style(VisualizerRenderers.Create(VisualizerStyle)));
         _polling = false;
         UpdatePolling();
     }
@@ -187,7 +224,7 @@ public sealed class VisualizerControl : Control
         if (_window is not null)
             _window.PropertyChanged -= OnWindowPropertyChanged;
         _window = null;
-        _visual?.SendHandlerMessage(BarsHandler.StopMessage);
+        _visual?.SendHandlerMessage(BarsHandler.ReleaseMessage);
         _polling = false;
         ElementComposition.SetElementChildVisual(this, null);
         _visual = null;
@@ -235,6 +272,10 @@ public sealed class VisualizerControl : Control
         {
             _visual?.SendHandlerMessage(new BarsHandler.Overlay(OverlayBars, ShowPeaks));
         }
+        else if (change.Property == VisualizerStyleProperty)
+        {
+            _visual?.SendHandlerMessage(new BarsHandler.Style(VisualizerRenderers.Create(VisualizerStyle)));
+        }
         else if (change.Property == MaxFrameRateProperty)
         {
             _visual?.SendHandlerMessage(new BarsHandler.Pacing(MaxFrameRate));
@@ -252,20 +293,26 @@ public sealed class VisualizerControl : Control
     {
         public static readonly object StartMessage = new();
         public static readonly object StopMessage = new();
+        /// <summary>Stops and disposes the renderer: the visual is going away.</summary>
+        public static readonly object ReleaseMessage = new();
         public sealed record Palette(Color Accent, Color? Peak);
         public sealed record Compact(int Groups);
         public sealed record Overlay(int Bars, bool Peaks);
         public sealed record Pacing(int MaxFrameRate);
+        /// <summary>The full-size style, built on the UI thread; the handler owns
+        /// it from then on and disposes it.</summary>
+        public sealed record Style(IVisualizerRenderer Renderer);
 
-        private const double BarGap = 3;
         private const double CompactBarGap = 3;
-        private const double MinBarHeight = 2;
-        private const double PeakThickness = 2;
 
         // Rise fast enough to feel live, fall slow enough to read as motion.
         private const double AttackTau = 0.035;
         private const double DecayTau = 0.16;
         private const double PeakFallPerSecond = 0.9;
+
+        // How an animated style winds down after the feed stops.
+        private const double ActivityDecayTau = 0.4;
+        private const float ActivityRest = 0.005f;
 
         /// <summary>No new analyzer frame for this long → feed stopped, decay to rest.</summary>
         private static readonly TimeSpan StaleAfter = TimeSpan.FromSeconds(0.3);
@@ -282,10 +329,24 @@ public sealed class VisualizerControl : Control
 
         private ImmutableSolidColorBrush _barBrush = new(Color.FromRgb(0xFF, 0x4E, 0x45));
         private ImmutableSolidColorBrush _peakBrush = new(Colors.White, 0.55);
+        private VisualizerPalette _palette = new(new SKColor(0xFF, 0x4E, 0x45), DefaultPeak);
         private bool _running;
         private long _version = -1;
         private TimeSpan _versionChangedAt;
         private TimeSpan _lastFrameAt;
+        private TimeSpan _startedAt;
+
+        // The renderer path: the style, and the inputs it may ask for.
+        private IVisualizerRenderer? _renderer;
+        private readonly float[] _left = new float[FftAnalyzer.WaveformLength];
+        private readonly float[] _right = new float[FftAnalyzer.WaveformLength];
+        private readonly float[] _mono = new float[FftAnalyzer.WaveformLength];
+        private readonly OnsetDetector _onsets = new();
+        private float _activity;
+        private readonly SKPaint _layerPaint = new();
+
+        /// <summary>The primitives path's 0.55-opacity white, as one colour.</summary>
+        private static readonly SKColor DefaultPeak = new(0xFF, 0xFF, 0xFF, 140);
 
         // Frame-pacing evidence: opt-in via RAMBUTAN_VIZ_TRACE.
         private static readonly bool Trace =
@@ -293,7 +354,13 @@ public sealed class VisualizerControl : Control
         private double _traceWorstMs;
         private int _traceFrames;
         private int _traceDraws;
+        private long _traceAllocated;
+        private float _traceScale; // 0 until a style draws through Skia
         private TimeSpan _traceStartedAt;
+
+        /// <summary>Whether the full-size style draws: not the compact meter, not
+        /// the overlay's bars.</summary>
+        private bool UsesRenderer => _renderer is not null && _grouped.Length == 0 && _overlayLevels.Length == 0;
 
         public override void OnMessage(object message)
         {
@@ -302,9 +369,12 @@ public sealed class VisualizerControl : Control
                 _running = true;
                 _lastFrameAt = CompositionNow;
                 _versionChangedAt = CompositionNow;
+                _startedAt = CompositionNow;
+                _onsets.Reset();
                 _traceFrames = 0;
                 _traceDraws = 0;
                 _traceWorstMs = 0;
+                _traceAllocated = 0;
                 _gate.Reset();
                 RegisterForNextAnimationFrameUpdate();
             }
@@ -312,12 +382,29 @@ public sealed class VisualizerControl : Control
             {
                 _running = false;
             }
+            else if (ReferenceEquals(message, ReleaseMessage))
+            {
+                _running = false;
+                _renderer?.Dispose();
+                _renderer = null;
+                _layerPaint.Dispose();
+            }
+            else if (message is Style style)
+            {
+                _renderer?.Dispose();
+                _renderer = style.Renderer;
+                _gate.Reset();
+                Invalidate();
+            }
             else if (message is Palette palette)
             {
                 _barBrush = new ImmutableSolidColorBrush(palette.Accent);
                 _peakBrush = palette.Peak is { } peak
                     ? new ImmutableSolidColorBrush(peak)
                     : new ImmutableSolidColorBrush(Colors.White, 0.55);
+                _palette = new VisualizerPalette(
+                    ToSkia(palette.Accent),
+                    palette.Peak is { } skiaPeak ? ToSkia(skiaPeak) : DefaultPeak);
                 _gate.Reset();
                 Invalidate();
             }
@@ -344,15 +431,19 @@ public sealed class VisualizerControl : Control
             }
         }
 
+        private static SKColor ToSkia(Color color) => new(color.R, color.G, color.B, color.A);
+
         public override void OnAnimationFrameUpdate()
         {
             if (!_running)
                 return;
 
+            var allocatedBefore = Trace ? GC.GetAllocatedBytesForCurrentThread() : 0;
             var now = CompositionNow;
             var dt = Math.Clamp((now - _lastFrameAt).TotalSeconds, 0.001, 0.1);
             _lastFrameAt = now;
 
+            var inputs = UsesRenderer ? _renderer!.Inputs : VisualizerInputs.None;
             if (Source?.Invoke() is { } analyzer)
             {
                 var version = analyzer.CopyLatest(_target);
@@ -360,10 +451,35 @@ public sealed class VisualizerControl : Control
                 {
                     _version = version;
                     _versionChangedAt = now;
+                    // Once per analyzer frame: a repeated frame has no flux.
+                    if ((inputs & VisualizerInputs.Beat) != 0)
+                        _onsets.Update(_target, now.TotalSeconds);
                 }
+                if ((inputs & VisualizerInputs.Waveform) != 0)
+                    analyzer.CopyWaveform(_left, _right);
             }
 
             var stale = now - _versionChangedAt > StaleAfter;
+            // Paused, the output keeps running a while (EngineAudioPlayer's idle
+            // timer) and the analyzer keeps reading its silence: a silent feed
+            // winds an animated style down like a stopped one.
+            var idle = IsIdle(stale, _target);
+            _activity = idle
+                ? _activity * (float)Math.Exp(-dt / ActivityDecayTau)
+                : _activity + (1 - _activity) * (float)(1 - Math.Exp(-dt / AttackTau));
+            if (idle && _activity < ActivityRest)
+                _activity = 0;
+            if ((inputs & VisualizerInputs.Waveform) != 0)
+            {
+                // The analyzer repeats its last block when the feed stops; this
+                // flattens it with the activity instead of freezing it.
+                for (var i = 0; i < _mono.Length; i++)
+                {
+                    _left[i] *= _activity;
+                    _right[i] *= _activity;
+                    _mono[i] = (_left[i] + _right[i]) * 0.5f;
+                }
+            }
             var attack = 1 - Math.Exp(-dt / AttackTau);
             var decay = 1 - Math.Exp(-dt / DecayTau);
 
@@ -385,16 +501,41 @@ public sealed class VisualizerControl : Control
             var draw = false;
             if (size.X > 0 && size.Y > 0)
             {
-                var (levels, peaks) = Bars();
-                draw = _gate.ShouldDraw(now, levels, peaks, size.Y);
+                if (UsesRenderer && _renderer!.IsAnimated)
+                {
+                    draw = _gate.ShouldDrawAnimated(now, Resting(idle));
+                }
+                else
+                {
+                    var (levels, peaks) = Bars();
+                    var reach = UsesRenderer ? _renderer!.LevelReach(new SKSize((float)size.X, (float)size.Y)) : size.Y;
+                    draw = _gate.ShouldDraw(now, levels, peaks, reach);
+                }
             }
             if (draw)
                 Invalidate();
 
             if (Trace)
+            {
+                _traceAllocated += GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
                 RecordFrame(now, dt, draw);
+            }
 
             RegisterForNextAnimationFrameUpdate();
+        }
+
+        /// <summary>Whether an animated style has wound down: the feed stopped or
+        /// went silent, its activity reached 0, and the bars fell to the floor.</summary>
+        private bool Resting(bool idle)
+        {
+            if (!idle || _activity > 0)
+                return false;
+            foreach (var level in _display)
+            {
+                if (level > 0.001f)
+                    return false;
+            }
+            return true;
         }
 
         /// <summary>The levels and peaks as drawn: grouped for the compact meter or
@@ -420,6 +561,15 @@ public sealed class VisualizerControl : Control
             var size = EffectiveSize;
             if (size.X <= 0 || size.Y <= 0)
                 return;
+
+            if (UsesRenderer && context.TryGetFeature<ISkiaSharpApiLeaseFeature>() is { } skia)
+            {
+                var allocatedBefore = Trace ? GC.GetAllocatedBytesForCurrentThread() : 0;
+                RenderStyle(skia, size);
+                if (Trace)
+                    _traceAllocated += GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+                return;
+            }
 
             var (levels, peaks) = Bars();
             if (_grouped.Length > 0)
@@ -456,6 +606,50 @@ public sealed class VisualizerControl : Control
             }
         }
 
+        private void RenderStyle(ISkiaSharpApiLeaseFeature skia, Vector size)
+        {
+            using var lease = skia.Lease();
+            var canvas = lease.SkCanvas;
+            // The canvas maps DIPs to device pixels (and carries the visual's
+            // offset); its scale is what a style sizes pixel surfaces by.
+            var matrix = canvas.TotalMatrix;
+            var scale = MathF.Sqrt(matrix.ScaleX * matrix.ScaleX + matrix.SkewY * matrix.SkewY);
+            _traceScale = scale;
+
+            var inputs = _renderer!.Inputs;
+            var waveform = (inputs & VisualizerInputs.Waveform) != 0;
+            float level = 0;
+            foreach (var band in _display)
+                level += band;
+
+            var frame = new VisualizerFrame
+            {
+                Bands = _display,
+                Peaks = _showPeaks ? _peaks : [],
+                Waveform = waveform ? _mono : [],
+                Left = waveform ? _left : [],
+                Right = waveform ? _right : [],
+                Beat = (inputs & VisualizerInputs.Beat) != 0 ? _onsets.Pulse(CompositionNow.TotalSeconds) : 0,
+                Level = level / _display.Length,
+                Activity = _activity,
+                Time = (CompositionNow - _startedAt).TotalSeconds,
+                Palette = _palette,
+            };
+
+            var saved = canvas.Save();
+            // Avalonia applies its controls' opacity to its own paints, not to
+            // the canvas, so a raw Skia draw would ignore a translucent parent.
+            // One layer for the whole style covers paints, shaders and surfaces.
+            var opacity = lease.CurrentOpacity;
+            if (opacity < 1)
+            {
+                _layerPaint.Color = new SKColor(0, 0, 0, (byte)Math.Round(Math.Clamp(opacity, 0, 1) * 255));
+                canvas.SaveLayer(new SKRect(0, 0, (float)size.X, (float)size.Y), _layerPaint);
+            }
+            _renderer.Render(canvas, new SKSize((float)size.X, (float)size.Y), scale, in frame);
+            canvas.RestoreToCount(saved);
+        }
+
         private void RenderCompact(ImmediateDrawingContext context, Vector size, float[] levels)
         {
             var count = levels.Length;
@@ -484,10 +678,11 @@ public sealed class VisualizerControl : Control
             {
                 AppLog.Write("viz", string.Create(
                     System.Globalization.CultureInfo.InvariantCulture,
-                    $"{_traceFrames / elapsed:F1} fps avg, {_traceDraws / elapsed:F1} draws/s, worst frame {_traceWorstMs:F1} ms"));
+                    $"{_traceFrames / elapsed:F1} fps avg, {_traceDraws / elapsed:F1} draws/s, worst frame {_traceWorstMs:F1} ms, {_traceAllocated / (double)_traceFrames:F0} B allocated per frame{(_traceScale > 0 ? $", Skia at {_traceScale:F2}x" : "")}"));
                 _traceFrames = 0;
                 _traceDraws = 0;
                 _traceWorstMs = 0;
+                _traceAllocated = 0;
             }
         }
     }

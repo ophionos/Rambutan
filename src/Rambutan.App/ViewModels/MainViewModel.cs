@@ -145,7 +145,7 @@ public partial class MainViewModel : ViewModelBase
         Actions = new TrackActionsViewModel();
         Navigation = new NavigationService(null!, null!, null!);
         Player = new PlayerBarViewModel();
-        NowPlaying = new NowPlayingViewModel(Player) { IsOpen = false };
+        NowPlaying = new NowPlayingViewModel(Player, appearance: Appearance) { IsOpen = false };
         QueuePanel = new QueueViewModel();
         Session = new SessionViewModel();
         FollowNavigation();

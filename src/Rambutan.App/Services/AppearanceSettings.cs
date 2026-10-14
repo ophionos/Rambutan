@@ -7,6 +7,13 @@ namespace Rambutan.App.Services;
 /// the operating system's reduce-motion setting.</summary>
 public enum MotionPreference { System, Reduced, Full }
 
+/// <summary>How the Now Playing visualizer draws. <see cref="Radial"/> draws
+/// around the artwork, and the band shows bars while it does.</summary>
+public enum VisualizerStyle { Bars, MirroredBars, Led, Line, Area, Radial, Oscilloscope, Vectorscope }
+
+/// <summary>Where the Now Playing visualizer's colour comes from.</summary>
+public enum VisualizerColorSource { Accent, Artwork, Custom }
+
 /// <summary>
 /// Appearance state shared live between the shell and the settings page — the
 /// same arrangement <see cref="Rambutan.Core.Settings.PlaybackSettings"/> has for
@@ -45,6 +52,75 @@ public sealed partial class AppearanceSettings : ObservableObject
     /// build) reads as the default.</summary>
     public static int ParseFrameRate(int value) =>
         Array.IndexOf(FrameRateChoices, value) >= 0 ? value : DefaultFrameRate;
+
+    /// <summary>The Now Playing visualizer's style. Bars by default, as it drew
+    /// before there was a choice. The meter over the player bar's artwork is
+    /// always bars.</summary>
+    [ObservableProperty] private VisualizerStyle _visualizerStyle = VisualizerStyle.Bars;
+
+    [ObservableProperty] private VisualizerColorSource _visualizerColorSource = VisualizerColorSource.Accent;
+
+    /// <summary>The colour for <see cref="VisualizerColorSource.Custom"/>, as
+    /// #RRGGBB. Kept while another source is chosen, so switching back finds it.</summary>
+    [ObservableProperty] private string _visualizerCustomColor = DefaultCustomColor;
+
+    public const string DefaultCustomColor = "#4FC3F7";
+
+    /// <summary>The settings page's style choices, in its order.</summary>
+    public static readonly VisualizerStyle[] StyleChoices =
+    [
+        VisualizerStyle.Bars, VisualizerStyle.MirroredBars, VisualizerStyle.Led, VisualizerStyle.Line,
+        VisualizerStyle.Area, VisualizerStyle.Radial, VisualizerStyle.Oscilloscope, VisualizerStyle.Vectorscope,
+    ];
+
+    /// <summary>The style as persisted. Unknown words (hand-edited, or a style
+    /// from a newer build) read as bars.</summary>
+    public static VisualizerStyle ParseStyle(string? value) => value switch
+    {
+        "mirrored" => VisualizerStyle.MirroredBars,
+        "led" => VisualizerStyle.Led,
+        "line" => VisualizerStyle.Line,
+        "area" => VisualizerStyle.Area,
+        "radial" => VisualizerStyle.Radial,
+        "oscilloscope" => VisualizerStyle.Oscilloscope,
+        "vectorscope" => VisualizerStyle.Vectorscope,
+        _ => VisualizerStyle.Bars,
+    };
+
+    public static string FormatStyle(VisualizerStyle value) => value switch
+    {
+        VisualizerStyle.MirroredBars => "mirrored",
+        VisualizerStyle.Led => "led",
+        VisualizerStyle.Line => "line",
+        VisualizerStyle.Area => "area",
+        VisualizerStyle.Radial => "radial",
+        VisualizerStyle.Oscilloscope => "oscilloscope",
+        VisualizerStyle.Vectorscope => "vectorscope",
+        _ => "bars",
+    };
+
+    /// <summary>The colour source as persisted: "accent", "artwork" or "custom";
+    /// unknown words read as accent.</summary>
+    public static VisualizerColorSource ParseColorSource(string? value) => value switch
+    {
+        "artwork" => VisualizerColorSource.Artwork,
+        "custom" => VisualizerColorSource.Custom,
+        _ => VisualizerColorSource.Accent,
+    };
+
+    public static string FormatColorSource(VisualizerColorSource value) => value switch
+    {
+        VisualizerColorSource.Artwork => "artwork",
+        VisualizerColorSource.Custom => "custom",
+        _ => "accent",
+    };
+
+    /// <summary>A saved custom colour as #RRGGBB, or the default when it isn't
+    /// one. An alpha is dropped: the visualizer's colour is always solid.</summary>
+    public static string ParseCustomColor(string? value) =>
+        CssHexColor.TryParse(CssHexColor.Normalize(value), out var color)
+            ? CssHexColor.Format(Avalonia.Media.Color.FromRgb(color.R, color.G, color.B))
+            : DefaultCustomColor;
 
     /// <summary>The user's choice; System by default, so an OS-wide setting is
     /// honoured without anyone visiting Settings.</summary>

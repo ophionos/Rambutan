@@ -243,6 +243,9 @@ public partial class App : Application
             AmbientBackground = settings.AmbientBackground,
             ArtworkMeter = settings.ArtworkMeter,
             VisualizerFrameRate = AppearanceSettings.ParseFrameRate(settings.VisualizerFrameRate),
+            VisualizerStyle = AppearanceSettings.ParseStyle(settings.VisualizerStyle),
+            VisualizerColorSource = AppearanceSettings.ParseColorSource(settings.VisualizerColor),
+            VisualizerCustomColor = AppearanceSettings.ParseCustomColor(settings.VisualizerCustomColor),
             Motion = AppearanceSettings.ParseMotion(settings.Motion),
         });
 
@@ -495,7 +498,12 @@ public partial class App : Application
         services.AddSingleton(sp => new NowPlayingViewModel(
             sp.GetRequiredService<PlayerBarViewModel>(),
             sp.GetRequiredService<LyricsViewModel>(),
-            sp.GetRequiredService<AppSettings>()));
+            sp.GetRequiredService<AppSettings>(),
+            sp.GetRequiredService<AppearanceSettings>(),
+            new VisualizerColors(
+                sp.GetRequiredService<AppearanceSettings>(),
+                sp.GetRequiredService<PlayerBarViewModel>(),
+                sp.GetRequiredService<ArtworkCache>().GetBytesAsync)));
         services.AddSingleton<PlayerBarViewModel>(sp =>
         {
             var vm = new PlayerBarViewModel(
@@ -659,6 +667,9 @@ public partial class App : Application
         settings.AmbientBackground = appearance.AmbientBackground;
         settings.ArtworkMeter = appearance.ArtworkMeter;
         settings.VisualizerFrameRate = appearance.VisualizerFrameRate;
+        settings.VisualizerStyle = AppearanceSettings.FormatStyle(appearance.VisualizerStyle);
+        settings.VisualizerColor = AppearanceSettings.FormatColorSource(appearance.VisualizerColorSource);
+        settings.VisualizerCustomColor = AppearanceSettings.ParseCustomColor(appearance.VisualizerCustomColor);
         settings.Motion = AppearanceSettings.FormatMotion(appearance.Motion);
         services.GetRequiredService<AppSettingsStore>().Save(settings);
 

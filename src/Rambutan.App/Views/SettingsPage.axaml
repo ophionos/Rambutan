@@ -10,6 +10,29 @@
        on the left, its control on the right. Styles in Controls.axaml
        ("Settings"). Switches carry their label as their accessible name,
        since the label beside them is a separate element. -->
+  <UserControl.Styles>
+    <!-- The colour picker's theme, for the visualizer's custom colour. -->
+    <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
+    <Style Selector="Button.swatch">
+      <Setter Property="Width" Value="28" />
+      <Setter Property="Height" Value="28" />
+      <Setter Property="Padding" Value="2" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{StaticResource Token.Brush.Line}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- The flyout focuses the spectrum without a navigation method; show its
+         focus ring on any focus, as the overlay editor does. -->
+    <Style Selector="ColorSpectrum:focus /template/ Ellipse#FocusEllipse">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+  </UserControl.Styles>
+
   <ScrollViewer Classes="pagescroll">
     <StackPanel Classes="settings" Margin="4,0,4,24" MaxWidth="720" HorizontalAlignment="Left">
       <TextBlock Text="{l:T settings.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold"
@@ -308,6 +331,94 @@
                   <ComboBoxItem Content="{l:T settings.appearance.visualizerFrameRate.display}" />
                 </ComboBox>
               </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.appearance.visualizerStyle}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.appearance.visualizerStyleHelp}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" SelectedIndex="{Binding VisualizerStyleIndex}" VerticalAlignment="Center" MinWidth="170"
+                          AutomationProperties.Name="{l:T settings.appearance.visualizerStyle}">
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.bars}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.mirrored}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.led}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.line}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.area}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.radial}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.oscilloscope}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.vectorscope}" />
+                </ComboBox>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <!-- The custom colour's controls sit under the label, so the row's
+                   margins go on this panel: the row styles only reach a Grid
+                   directly inside the row. -->
+              <StackPanel Spacing="10" Margin="0,14">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Margin="0,0,24,0">
+                    <TextBlock Classes="settinglabel" Text="{l:T settings.appearance.visualizerColor}" />
+                    <TextBlock Classes="settinghelp" Text="{l:T settings.appearance.visualizerColorHelp}" />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" SelectedIndex="{Binding VisualizerColorIndex}" VerticalAlignment="Center" MinWidth="170"
+                            AutomationProperties.Name="{l:T settings.appearance.visualizerColor}">
+                    <ComboBoxItem Content="{l:T settings.appearance.visualizerColor.accent}" />
+                    <ComboBoxItem Content="{l:T settings.appearance.visualizerColor.artwork}" />
+                    <ComboBoxItem Content="{l:T settings.appearance.visualizerColor.custom}" />
+                  </ComboBox>
+                </Grid>
+                <!-- Custom: the colour in use (its swatch opens the overlay editor's
+                     picker) and its hex, then ready-made swatches. Solid colours only. -->
+                <StackPanel Spacing="6" IsVisible="{Binding IsCustomVisualizerColor}">
+                  <StackPanel Orientation="Horizontal">
+                    <Button Classes="swatch"
+                            AutomationProperties.Name="{l:T settings.appearance.visualizerColor.pick}"
+                            ToolTip.Tip="{l:T settings.appearance.visualizerColor.pick}">
+                      <Border CornerRadius="4" Background="{Binding CustomColorSwatch}" />
+                      <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedLeft">
+                          <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="12" Margin="4"
+                                KeyboardNavigation.TabNavigation="Cycle">
+                            <ColorSlider Orientation="Vertical" Width="20" Height="240" TabIndex="1"
+                                         ColorModel="Hsva" ColorComponent="Component3"
+                                         IsAlphaVisible="False" IsPerceptive="True"
+                                         HsvColor="{Binding #VisualizerSpectrum.HsvColor, Mode=TwoWay}"
+                                         AutomationProperties.Name="{l:T settings.overlay.editor.color.brightness}" />
+                            <ColorSpectrum x:Name="VisualizerSpectrum" Grid.Column="1" Width="240" Height="240" Focusable="True" TabIndex="0"
+                                           Components="HueSaturation" Shape="Box" CornerRadius="6"
+                                           Color="{Binding CustomColor, Mode=TwoWay}"
+                                           AutomationProperties.Name="{l:T settings.overlay.editor.color.spectrum}" />
+                          </Grid>
+                        </Flyout>
+                      </Button.Flyout>
+                    </Button>
+                    <TextBox Text="{Binding CustomColorHex}" FontFamily="Consolas,Menlo,monospace" Width="110"
+                             MaxLength="7" VerticalAlignment="Center"
+                             AutomationProperties.Name="{l:T settings.appearance.visualizerColor.hexName}" />
+                    <ItemsControl ItemsSource="{Binding ColorPresets}" Margin="20,0,0,0">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ColorPreset">
+                          <Button Classes="swatch"
+                                  Command="{Binding $parent[UserControl].((vm:SettingsPageViewModel)DataContext).UseColorPresetCommand}"
+                                  CommandParameter="{Binding}"
+                                  AutomationProperties.Name="{Binding Name}" ToolTip.Tip="{Binding Name}">
+                            <Border CornerRadius="4" Background="{Binding Brush}" />
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <TextBlock Text="{Binding CustomColorError}" FontSize="12" TextWrapping="Wrap"
+                             Foreground="{StaticResource Token.Brush.Error}"
+                             IsVisible="{Binding CustomColorError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+              </StackPanel>
             </Border>
             <Border Classes="settingrow">
               <Grid ColumnDefinitions="*,Auto">

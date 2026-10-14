@@ -4,7 +4,8 @@ namespace Rambutan.Audio;
 
 /// <summary>
 /// Taps the mixed output and emits spectrum frames for the visualizer and
-/// overlay, while one of them reads (see <see cref="ReadLease"/>). Fed on the
+/// overlay, and a decimated stereo waveform for the styles that draw one, each
+/// only while somebody reads it (see <see cref="ReadLease"/>). Fed on the
 /// device callback; the FFT
 /// (2048-point radix-2, Hann window) costs microseconds and allocates nothing
 /// per frame, so it runs inline.
@@ -15,6 +16,15 @@ public sealed class FftAnalyzer
     public const int BandCount = 32;
     private const int HopSize = WindowSize / 2;
     private const float MinDb = -60f;
+
+    /// <summary>Samples per channel in a waveform read: at <see cref="WaveformDecimation"/>
+    /// that is ~43 ms, more than a frame at 30 fps, so consecutive frames overlap
+    /// rather than leave gaps.</summary>
+    public const int WaveformLength = 512;
+
+    /// <summary>Device frames averaged into one waveform sample (48 kHz → 12 kHz).
+    /// The average is a crude low-pass, enough for a drawn line.</summary>
+    public const int WaveformDecimation = 4;
 
     private readonly float[] _window = new float[WindowSize];
     private readonly float[] _mono = new float[WindowSize];
@@ -35,6 +45,19 @@ public sealed class FftAnalyzer
     private readonly Func<long> _clock;
     private long _lastReadAt = long.MinValue / 2; // milliseconds on _clock; lapsed until the first read
     private bool _idle = true; // device callback only
+
+    // The waveform: a ring of decimated samples per channel, written by Feed
+    // and read by CopyWaveform under _waveLock. Its lease is its own, so a
+    // bars-only reader doesn't keep it running, nor a waveform reader the FFT.
+    private readonly object _waveLock = new();
+    private readonly float[] _waveLeft = new float[WaveformLength];
+    private readonly float[] _waveRight = new float[WaveformLength];
+    private int _waveHead; // next write; guarded by _waveLock
+    private long _waveVersion; // guarded by _waveLock
+    private long _lastWaveReadAt = long.MinValue / 2;
+    private bool _waveIdle = true; // device callback only
+    private float _sumLeft, _sumRight; // device callback only: the decimation in progress
+    private int _summed;
 
     /// <param name="clock">Milliseconds, monotonic; <see cref="Environment.TickCount64"/>
     /// when null. Tests pass their own.</param>
@@ -70,24 +93,101 @@ public sealed class FftAnalyzer
     }
 
     /// <summary>
+    /// The latest <see cref="WaveformLength"/> decimated samples per channel,
+    /// oldest first, -1..1, into <paramref name="left"/> and <paramref name="right"/>
+    /// (the most recent ones that fit when they are shorter). Returns a version
+    /// that increments with each fed block; an unchanged version means the feed
+    /// has stopped. Renews the waveform's own lease, as
+    /// <see cref="CopyLatest"/> does the bands'; the first read after a lapse
+    /// gets silence.
+    /// </summary>
+    public long CopyWaveform(Span<float> left, Span<float> right)
+    {
+        var now = _clock();
+        lock (_waveLock)
+        {
+            if (now - Volatile.Read(ref _lastWaveReadAt) > ReadLease.TotalMilliseconds)
+            {
+                Array.Clear(_waveLeft);
+                Array.Clear(_waveRight);
+            }
+            Volatile.Write(ref _lastWaveReadAt, now);
+            CopyRing(_waveLeft, left);
+            CopyRing(_waveRight, right);
+            return _waveVersion;
+        }
+    }
+
+    private void CopyRing(float[] ring, Span<float> destination)
+    {
+        var count = Math.Min(WaveformLength, destination.Length);
+        var start = (_waveHead - count + WaveformLength) % WaveformLength;
+        var first = Math.Min(count, WaveformLength - start);
+        ring.AsSpan(start, first).CopyTo(destination);
+        ring.AsSpan(0, count - first).CopyTo(destination[first..]);
+    }
+
+    /// <summary>
     /// Feeds interleaved stereo samples from the device callback. Does nothing
     /// while nobody reads: the device keeps calling whether or not a visualizer,
     /// the meter or the OBS overlay is showing.
     /// </summary>
     public void Feed(ReadOnlySpan<float> interleaved)
     {
-        if (_clock() - Volatile.Read(ref _lastReadAt) > ReadLease.TotalMilliseconds)
+        var now = _clock();
+        if (now - Volatile.Read(ref _lastReadAt) > ReadLease.TotalMilliseconds)
         {
             _idle = true;
-            return;
         }
-        if (_idle)
+        else
         {
-            // Samples from before the lapse don't belong in the new first window.
-            _idle = false;
-            _filled = 0;
+            if (_idle)
+            {
+                // Samples from before the lapse don't belong in the new first window.
+                _idle = false;
+                _filled = 0;
+            }
+            FeedBands(interleaved);
         }
 
+        if (now - Volatile.Read(ref _lastWaveReadAt) > ReadLease.TotalMilliseconds)
+        {
+            _waveIdle = true;
+        }
+        else
+        {
+            if (_waveIdle)
+            {
+                _waveIdle = false;
+                _summed = 0;
+                _sumLeft = _sumRight = 0;
+            }
+            FeedWaveform(interleaved);
+        }
+    }
+
+    private void FeedWaveform(ReadOnlySpan<float> interleaved)
+    {
+        lock (_waveLock)
+        {
+            for (var i = 0; i + 1 < interleaved.Length; i += FfmpegDecoder.Channels)
+            {
+                _sumLeft += interleaved[i];
+                _sumRight += interleaved[i + 1];
+                if (++_summed < WaveformDecimation)
+                    continue;
+                _waveLeft[_waveHead] = _sumLeft / WaveformDecimation;
+                _waveRight[_waveHead] = _sumRight / WaveformDecimation;
+                _waveHead = (_waveHead + 1) % WaveformLength;
+                _summed = 0;
+                _sumLeft = _sumRight = 0;
+            }
+            _waveVersion++;
+        }
+    }
+
+    private void FeedBands(ReadOnlySpan<float> interleaved)
+    {
         for (var i = 0; i + 1 < interleaved.Length; i += FfmpegDecoder.Channels)
         {
             _mono[_filled++] = (interleaved[i] + interleaved[i + 1]) * 0.5f;
