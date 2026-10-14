@@ -59,6 +59,10 @@ internal readonly ref struct VisualizerFrame
     public double Time { get; init; }
 
     public VisualizerPalette Palette { get; init; }
+
+    /// <summary>The GPU the canvas draws on, for a style's offscreen surfaces;
+    /// null when Skia draws in software, and in tests.</summary>
+    public GRContext? Gpu { get; init; }
 }
 
 /// <summary>
@@ -106,6 +110,10 @@ internal static class VisualizerRenderers
         Services.VisualizerStyle.Radial => new RadialRenderer(),
         Services.VisualizerStyle.Oscilloscope => new OscilloscopeRenderer(),
         Services.VisualizerStyle.Vectorscope => new VectorscopeRenderer(),
+        Services.VisualizerStyle.Feedback => new FeedbackRenderer(),
+        Services.VisualizerStyle.Plasma => new ShaderRenderer(ShaderPresets.Plasma),
+        Services.VisualizerStyle.Tunnel => new ShaderRenderer(ShaderPresets.Tunnel),
+        Services.VisualizerStyle.Kaleidoscope => new ShaderRenderer(ShaderPresets.Kaleidoscope),
         _ => new BarsRenderer(),
     };
 }

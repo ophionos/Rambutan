@@ -1,0 +1,37 @@
+// Plasma: four sine fields summed, in the visualizer's colour and the same
+// colour with its channels turned. The audio bends the fields; the light
+// stays near one level, so nothing flashes.
+//
+// u[0] = (width, height, phase, activity), sizes in pixels
+// u[1] = (bass, mid, high, beat), eased, 0..1
+// u[2] = (red, green, blue, 0), 0..1
+uniform float4 u[3];
+
+// Fades the edges to transparent, so the area has no hard border.
+float feather(float2 p, float2 res) {
+    float2 e = min(p, res - p) / min(res.x, res.y);
+    return smoothstep(0.0, 0.15, min(e.x, e.y));
+}
+
+half4 main(float2 p) {
+    float2 res = u[0].xy;
+    float t = u[0].z;
+    float bass = u[1].x;
+    float mid = u[1].y;
+    float high = u[1].z;
+    float beat = u[1].w;
+    float3 base = u[2].rgb;
+
+    float2 q = (p - 0.5 * res) / res.y;
+    float v = sin(q.x * (7.0 + 3.0 * mid) + t)
+            + sin(q.y * 8.0 + t * 0.7)
+            + sin((q.x + q.y) * (6.0 + 4.0 * high) + t * 1.3)
+            + sin(length(q) * (10.0 + 6.0 * bass) - t * 1.1);
+    // Through a sine again, so the sum shows as bands rather than one wash.
+    float k = 0.5 + 0.5 * sin(v * 2.4);
+
+    float3 col = mix(base.brg * 0.15, base, k);
+    col *= 0.6 + 0.08 * bass + 0.06 * beat;
+    float a = feather(p, res);
+    return half4(half3(col * a), half(a));
+}

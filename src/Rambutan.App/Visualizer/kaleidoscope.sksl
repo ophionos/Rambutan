@@ -1,0 +1,41 @@
+// Kaleidoscope: a wave pattern folded into eight mirrored segments that
+// turn slowly; the bass and mids change the pattern's frequencies.
+//
+// u[0] = (width, height, phase, activity), sizes in pixels
+// u[1] = (bass, mid, high, beat), eased, 0..1
+// u[2] = (red, green, blue, 0), 0..1
+uniform float4 u[3];
+
+float feather(float2 p, float2 res) {
+    float2 e = min(p, res - p) / min(res.x, res.y);
+    return smoothstep(0.0, 0.15, min(e.x, e.y));
+}
+
+half4 main(float2 p) {
+    float2 res = u[0].xy;
+    float t = u[0].z;
+    float bass = u[1].x;
+    float mid = u[1].y;
+    float high = u[1].z;
+    float beat = u[1].w;
+    float3 base = u[2].rgb;
+
+    float2 q = (p - 0.5 * res) / res.y;
+    float r = length(q);
+    float segment = 6.2831853 / 8.0;
+    float angle = mod(atan(q.y, q.x) + t * 0.15, segment);
+    angle = abs(angle - 0.5 * segment);
+    float2 k = r * float2(cos(angle), sin(angle));
+    k.x -= t * 0.08;
+
+    float v = sin(k.x * (9.0 + 3.0 * bass) + sin(k.y * 7.0 + t))
+            * cos(k.y * 11.0 - t * 0.6 + 2.0 * mid);
+    v = 0.5 + 0.5 * v;
+
+    float3 col = mix(base.gbr * 0.2, base, v);
+    col = mix(col, float3(1.0), 0.12 * high * v);
+    col *= 0.65 + 0.08 * bass + 0.06 * beat;
+    col *= 1.0 - 0.5 * smoothstep(0.3, 1.2, r);
+    float a = feather(p, res);
+    return half4(half3(col * a), half(a));
+}

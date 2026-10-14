@@ -348,6 +348,34 @@
                   <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.radial}" />
                   <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.oscilloscope}" />
                   <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.vectorscope}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.feedback}" IsVisible="{Binding VisualizerAdvanced}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.plasma}" IsVisible="{Binding VisualizerAdvanced}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.tunnel}" IsVisible="{Binding VisualizerAdvanced}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerStyle.kaleidoscope}" IsVisible="{Binding VisualizerAdvanced}" />
+                </ComboBox>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.appearance.visualizerAdvanced}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.appearance.visualizerAdvancedHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding VisualizerAdvanced}"
+                              AutomationProperties.Name="{l:T settings.appearance.visualizerAdvanced}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.appearance.visualizerCycle}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.appearance.visualizerCycleHelp}" />
+                </StackPanel>
+                <ComboBox Grid.Column="1" SelectedIndex="{Binding VisualizerCycleIndex}" VerticalAlignment="Center" MinWidth="170"
+                          AutomationProperties.Name="{l:T settings.appearance.visualizerCycle}">
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerCycle.off}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerCycle.random}" />
+                  <ComboBoxItem Content="{l:T settings.appearance.visualizerCycle.track}" />
                 </ComboBox>
               </Grid>
             </Border>

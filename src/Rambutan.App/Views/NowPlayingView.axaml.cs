@@ -24,6 +24,14 @@ public partial class NowPlayingView : UserControl
     {
         InitializeComponent();
         Stage.SizeChanged += (_, _) => ApplyLayout();
+        StageVisualizer.PropertyChanged += OnVisualizerPropertyChanged;
+        BandVisualizer.PropertyChanged += OnVisualizerPropertyChanged;
+    }
+
+    private void OnVisualizerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == VisualizerControl.IsDrawnInSoftwareProperty && _vm is not null)
+            _vm.IsDrawnInSoftware = StageVisualizer.IsDrawnInSoftware || BandVisualizer.IsDrawnInSoftware;
     }
 
     /// <summary>How the stage is arranged now.</summary>

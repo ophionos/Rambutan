@@ -28,6 +28,15 @@
       </Border.Background>
     </Border>
 
+    <!-- The stage: the visualizer takes the pane in place of the artwork and
+         title, under the header's buttons. With lyrics on it dims behind
+         their column. Under reduced motion the band's note shows instead. -->
+    <controls:VisualizerControl x:Name="StageVisualizer" Margin="24,60,24,24" IsHitTestVisible="False"
+                                IsVisible="{Binding IsStageVisualizerShown}" IsActive="{Binding IsStageActive}"
+                                Opacity="{Binding StageOpacity}"
+                                VisualizerStyle="{Binding BandStyle}" BarColor="{Binding Colors.Color}"
+                                MaxFrameRate="{Binding Appearance.VisualizerFrameRate}" />
+
     <Grid RowDefinitions="*,Auto" Margin="48,40">
 
       <!-- Nothing loaded: say where music comes from instead of a bare title.
@@ -55,7 +64,7 @@
 
       <!-- Track identity, centered in the free space above the visualizer. -->
       <StackPanel x:Name="Identity" VerticalAlignment="Center" HorizontalAlignment="Center"
-                  Spacing="0" MaxWidth="560">
+                  Spacing="0" MaxWidth="560" IsVisible="{Binding IsIdentityShown}">
         <!-- The radial style draws around the artwork, behind it: its control
              reaches RadialRenderer.Margin past the artwork on every side
              (code-behind), and takes no input from it. -->
@@ -115,7 +124,7 @@
            its place, rather than leaving a blank band. -->
       <Panel x:Name="VisualizerBand" Grid.Row="1" Height="110" Margin="24,28,24,0"
              IsVisible="{Binding IsBandShown}">
-        <controls:VisualizerControl
+        <controls:VisualizerControl x:Name="BandVisualizer"
             IsVisible="{Binding !Appearance.ReduceMotion}" IsActive="{Binding IsBandActive}"
             VisualizerStyle="{Binding BandStyle}" BarColor="{Binding Colors.Color}"
             MaxFrameRate="{Binding Appearance.VisualizerFrameRate}" />
@@ -125,19 +134,35 @@
       </Panel>
     </Grid>
 
-    <!-- Header: the lyrics toggle (remembered in settings; lit while lyrics
-         show), then collapse, mirroring the expand affordance on the
+    <!-- Without a GPU, Skia draws on the CPU, and the presets draw at a
+         lower resolution to keep that affordable. -->
+    <TextBlock Text="{l:T nowPlaying.softwareRendering}" FontSize="12" Opacity="0.55"
+               HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="24,0,24,12"
+               TextWrapping="Wrap" TextAlignment="Center"
+               IsVisible="{Binding ShowsSoftwareNote}" />
+
+    <!-- Header: the stage and lyrics toggles (remembered in settings; lit
+         while on), then collapse, mirroring the expand affordance on the
          player-bar artwork. -->
     <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Top"
                 Margin="0,12,16,0">
+      <Button x:Name="StageToggle" Classes="icon subtle" Classes.active="{Binding ShowStage}"
+              Command="{Binding ToggleStageCommand}"
+              ToolTip.Tip="{Binding StageToggleTip}"
+              AutomationProperties.Name="{Binding StageToggleTip}"
+              IsVisible="{Binding Player.NowPlaying, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <PathIcon Data="{StaticResource Icon.Visualizer}" Width="20" Height="20" />
+      </Button>
       <Button x:Name="LyricsToggle" Classes="icon subtle" Classes.active="{Binding ShowLyrics}"
               Command="{Binding ToggleLyricsCommand}"
               ToolTip.Tip="{Binding LyricsToggleTip}"
+              AutomationProperties.Name="{Binding LyricsToggleTip}"
               IsVisible="{Binding Player.NowPlaying, Converter={x:Static ObjectConverters.IsNotNull}}">
         <PathIcon Data="{StaticResource Icon.Lyrics}" Width="20" Height="20" />
       </Button>
       <Button Classes="icon subtle" Command="{Binding CloseCommand}"
-              ToolTip.Tip="{l:T nowPlaying.collapse}">
+              ToolTip.Tip="{l:T nowPlaying.collapse}"
+              AutomationProperties.Name="{l:T nowPlaying.collapse}">
         <PathIcon Data="{StaticResource Icon.ChevronDown}" Width="22" Height="22" />
       </Button>
     </StackPanel>

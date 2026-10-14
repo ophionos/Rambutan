@@ -142,7 +142,23 @@ file sink), never to files directly.
   one per style (`VisualizerRenderers.Create`), which asks only for the inputs
   it uses; beats come from `Core/Visualizer/OnsetDetector`. A renderer is
   built on the UI thread and from then on belongs to the render thread, which
-  disposes it; it allocates nothing per frame (`VisualizerRendererTests`).
+  disposes it; it allocates nothing per frame (`VisualizerRendererTests`),
+  except the shader presets, which build a SkiaSharp shader each frame (a few
+  hundred bytes, bounded by `VisualizerPresetTests`; SkiaSharp can't update a
+  built shader's uniforms).
+  The animated presets are our own: SkSL shaders under `App/Visualizer/*.sksl`
+  (`ShaderRenderer`) and the feedback loop (`FeedbackRenderer`), not projectM.
+  They show only while the "Animated presets" setting is on, whose help says
+  they cost more processor and graphics card. They draw offscreen at
+  `VisualizerRenderScale` (half the device pixels at most, within a GPU and a
+  smaller software budget) and scale up; without a GPU context they draw in
+  software and Now Playing says so. They move only with the feed's activity, so
+  they come to rest when it stops. A new preset passes the photosensitivity
+  test in `VisualizerPresetTests` (at most 3 flashes a second, from WCAG 2.3.1).
+  The stage (`NowPlayingViewModel.ShowStage`) fills the Now Playing pane with
+  the visualizer instead of the artwork, dimmed behind the lyrics when they
+  show; it works with any style. Changing the style automatically
+  (`VisualizerCycler`) picks among the styles the picker offers.
   The radial style draws around the artwork, not in the band: the band hides
   while it shows, and shows bars where there is no artwork (lyrics open, no
   cover). `NowPlayingViewModel` decides which one shows and polls. The

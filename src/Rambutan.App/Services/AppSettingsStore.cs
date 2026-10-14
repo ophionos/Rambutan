@@ -45,9 +45,19 @@ public sealed class AppSettings
     public int VisualizerFrameRate { get; set; } = AppearanceSettings.DefaultFrameRate;
 
     /// <summary>The Now Playing visualizer's style: "bars", "mirrored", "led",
-    /// "line", "area", "radial", "oscilloscope" or "vectorscope". An unknown
-    /// value reads as "bars".</summary>
+    /// "line", "area", "radial", "oscilloscope" or "vectorscope", or one of the
+    /// animated presets "feedback", "plasma", "tunnel" or "kaleidoscope". An
+    /// unknown value reads as "bars".</summary>
     public string VisualizerStyle { get; set; } = "bars";
+
+    /// <summary>Offer the animated presets, which use more CPU and graphics
+    /// card. Default off.</summary>
+    public bool VisualizerAdvanced { get; set; }
+
+    /// <summary>Whether the visualizer changes style on its own: "off",
+    /// "random" (every 30 seconds while it plays) or "track" (on each new
+    /// track). An unknown value reads as "off".</summary>
+    public string VisualizerCycle { get; set; } = "off";
 
     /// <summary>The visualizer's colour: "accent", "artwork" (picked from the
     /// cover) or "custom". An unknown value reads as "accent".</summary>
@@ -122,6 +132,10 @@ public sealed class AppSettings
     /// Default off. Showing lyrics sends nothing by itself: the pane shows the
     /// user's own lyrics and any already cached.</summary>
     public bool ShowLyrics { get; set; }
+
+    /// <summary>Now Playing gives its pane to the visualizer, without the
+    /// artwork and title. Default off.</summary>
+    public bool ShowVisualizerStage { get; set; }
 
     /// <summary>The lyrics pane may look tracks up on LRCLIB, which sends each
     /// track's title and artist off the machine. Default off, like every

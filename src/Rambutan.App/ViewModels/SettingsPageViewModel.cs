@@ -39,8 +39,18 @@ public partial class SettingsPageViewModel : ViewModelBase
     /// <summary>Position in <see cref="AppearanceSettings.FrameRateChoices"/>.</summary>
     [ObservableProperty] private int _visualizerFrameRateIndex;
 
-    /// <summary>Position in <see cref="AppearanceSettings.StyleChoices"/>.</summary>
+    /// <summary>Position in <see cref="AppearanceSettings.AllStyleChoices"/>: of
+    /// the shown style, so a preset kept while advanced mode is off reads as
+    /// the bars that draw.</summary>
     [ObservableProperty] private int _visualizerStyleIndex;
+
+    /// <summary>Offer the animated presets; the picker's last items show only
+    /// while this is on.</summary>
+    [ObservableProperty] private bool _visualizerAdvanced;
+
+    /// <summary>Off / Random / On track change, in the order of
+    /// <see cref="VisualizerCycle"/>.</summary>
+    [ObservableProperty] private int _visualizerCycleIndex;
 
     /// <summary>Accent / From the artwork / Custom, in the order of
     /// <see cref="VisualizerColorSource"/>.</summary>
@@ -230,7 +240,9 @@ public partial class SettingsPageViewModel : ViewModelBase
         _visualizerFrameRateIndex = Math.Max(0,
             Array.IndexOf(AppearanceSettings.FrameRateChoices, appearance.VisualizerFrameRate));
         _motionIndex = (int)appearance.Motion;
-        _visualizerStyleIndex = Math.Max(0, Array.IndexOf(AppearanceSettings.StyleChoices, appearance.VisualizerStyle));
+        _visualizerStyleIndex = StyleIndex(appearance.ShownStyle);
+        _visualizerAdvanced = appearance.VisualizerAdvanced;
+        _visualizerCycleIndex = (int)appearance.VisualizerCycle;
         _visualizerColorIndex = (int)appearance.VisualizerColorSource;
         _customColorHex = appearance.VisualizerCustomColor;
         _systemMotionNote = MotionNote(appearance.SystemReducesMotion);
@@ -609,11 +621,39 @@ public partial class SettingsPageViewModel : ViewModelBase
         ? Strings.Get("settings.appearance.motionNoteReduced")
         : Strings.Get("settings.appearance.motionNoteFull");
 
+    private static int StyleIndex(VisualizerStyle style) =>
+        Math.Max(0, Array.IndexOf(AppearanceSettings.AllStyleChoices, style));
+
     partial void OnVisualizerStyleIndexChanged(int value)
     {
-        if (_appearance is null || value < 0 || value >= AppearanceSettings.StyleChoices.Length)
+        if (_appearance is null || value < 0 || value >= AppearanceSettings.AllStyleChoices.Length)
             return;
-        _appearance.VisualizerStyle = AppearanceSettings.StyleChoices[value];
+        var style = AppearanceSettings.AllStyleChoices[value];
+        // A hidden preset can't be picked; a stale index from the picker
+        // while advanced mode turns off must not replace the kept choice.
+        if (style == _appearance.ShownStyle)
+            return;
+        _appearance.VisualizerStyle = style;
+        _persist?.Invoke();
+    }
+
+    partial void OnVisualizerAdvancedChanged(bool value)
+    {
+        if (_appearance is null)
+            return;
+        _appearance.VisualizerAdvanced = value;
+        _persist?.Invoke();
+        // The picker follows what draws: the kept preset comes back with
+        // advanced mode, and bars stand in for it without.
+        _visualizerStyleIndex = StyleIndex(_appearance.ShownStyle);
+        OnPropertyChanged(nameof(VisualizerStyleIndex));
+    }
+
+    partial void OnVisualizerCycleIndexChanged(int value)
+    {
+        if (_appearance is null || value is < 0 or > (int)VisualizerCycle.TrackChange)
+            return;
+        _appearance.VisualizerCycle = (VisualizerCycle)value;
         _persist?.Invoke();
     }
 
