@@ -120,6 +120,20 @@ public sealed class VisualizerControl : Control
         set => SetValue(VisualizerStyleProperty, value);
     }
 
+    /// <summary>Whether the feed has nothing to show: it stopped, or every band
+    /// is at the floor. An animated style winds down while it is idle.</summary>
+    internal static bool IsIdle(bool stale, ReadOnlySpan<float> bands)
+    {
+        if (stale)
+            return true;
+        foreach (var band in bands)
+        {
+            if (band > 0)
+                return false;
+        }
+        return true;
+    }
+
     internal const double BarGap = 3;
     internal const double MinBarHeight = 2;
     internal const double PeakThickness = 2;
@@ -449,7 +463,7 @@ public sealed class VisualizerControl : Control
             // Paused, the output keeps running a while (EngineAudioPlayer's idle
             // timer) and the analyzer keeps reading its silence: a silent feed
             // winds an animated style down like a stopped one.
-            var idle = stale || Silent(_target);
+            var idle = IsIdle(stale, _target);
             _activity = idle
                 ? _activity * (float)Math.Exp(-dt / ActivityDecayTau)
                 : _activity + (1 - _activity) * (float)(1 - Math.Exp(-dt / AttackTau));
@@ -494,7 +508,8 @@ public sealed class VisualizerControl : Control
                 else
                 {
                     var (levels, peaks) = Bars();
-                    draw = _gate.ShouldDraw(now, levels, peaks, size.Y);
+                    var reach = UsesRenderer ? _renderer!.LevelReach(new SKSize((float)size.X, (float)size.Y)) : size.Y;
+                    draw = _gate.ShouldDraw(now, levels, peaks, reach);
                 }
             }
             if (draw)
@@ -507,16 +522,6 @@ public sealed class VisualizerControl : Control
             }
 
             RegisterForNextAnimationFrameUpdate();
-        }
-
-        private static bool Silent(ReadOnlySpan<float> bands)
-        {
-            foreach (var band in bands)
-            {
-                if (band > 0)
-                    return false;
-            }
-            return true;
         }
 
         /// <summary>Whether an animated style has wound down: the feed stopped or

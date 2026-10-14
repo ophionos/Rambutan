@@ -203,4 +203,33 @@ public class VisualizerRendererTests
         Assert.Equal(0, bounds.Left, 3);
         Assert.Equal(300, bounds.Right, 3);
     }
+
+    [Fact]
+    public void AStoppedFeed_IsIdle() =>
+        Assert.True(VisualizerControl.IsIdle(stale: true, [0.5f, 0.8f]));
+
+    [Fact]
+    public void ASilentFeed_IsIdle()
+    {
+        // Paused, the output runs on and the analyzer reads silence: fresh
+        // frames, every band at the floor.
+        Assert.True(VisualizerControl.IsIdle(stale: false, new float[32]));
+    }
+
+    [Fact]
+    public void AFeedWithAnyLevel_IsLive()
+    {
+        var bands = new float[32];
+        bands[31] = 0.01f;
+        Assert.False(VisualizerControl.IsIdle(stale: false, bands));
+    }
+
+    [Fact]
+    public void TheRing_IsGatedByItsSpokes_NotItsArea()
+    {
+        using var ring = VisualizerRenderers.Create(VisualizerStyle.Radial);
+        using var bars = VisualizerRenderers.Create(VisualizerStyle.Bars);
+        Assert.Equal(RadialRenderer.Extent, ring.LevelReach(new SKSize(400, 400)));
+        Assert.Equal(110, bars.LevelReach(new SKSize(600, 110)));
+    }
 }

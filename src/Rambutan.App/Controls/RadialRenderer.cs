@@ -29,6 +29,9 @@ internal sealed class RadialRenderer : IVisualizerRenderer
 
     public VisualizerInputs Inputs => VisualizerInputs.None;
 
+    /// <summary>A spoke spans <see cref="Extent"/>, not the area's height.</summary>
+    public float LevelReach(SKSize size) => Extent;
+
     public bool IsAnimated => false;
 
     /// <summary>The direction of spoke <paramref name="index"/> of

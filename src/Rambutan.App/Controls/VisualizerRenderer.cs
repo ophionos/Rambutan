@@ -87,6 +87,11 @@ internal interface IVisualizerRenderer : IDisposable
     /// hairline divides by. The canvas's state is restored afterwards.
     /// </summary>
     void Render(SKCanvas canvas, SKSize size, float scale, in VisualizerFrame frame);
+
+    /// <summary>How many DIPs a level of 1 spans in a <paramref name="size"/>
+    /// area: what the redraw gate measures a visible change against. The
+    /// area's height for a style that grows bars up it.</summary>
+    float LevelReach(SKSize size) => size.Height;
 }
 
 internal static class VisualizerRenderers

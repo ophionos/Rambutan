@@ -352,9 +352,12 @@
               </Grid>
             </Border>
             <Border Classes="settingrow">
-              <StackPanel Spacing="10">
+              <!-- The custom colour's controls sit under the label, so the row's
+                   margins go on this panel: the row styles only reach a Grid
+                   directly inside the row. -->
+              <StackPanel Spacing="10" Margin="0,14">
                 <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel>
+                  <StackPanel Margin="0,0,24,0">
                     <TextBlock Classes="settinglabel" Text="{l:T settings.appearance.visualizerColor}" />
                     <TextBlock Classes="settinghelp" Text="{l:T settings.appearance.visualizerColorHelp}" />
                   </StackPanel>
@@ -365,28 +368,11 @@
                     <ComboBoxItem Content="{l:T settings.appearance.visualizerColor.custom}" />
                   </ComboBox>
                 </Grid>
-                <!-- Custom: ready-made swatches, the overlay editor's picker, and a
-                     hex box. Solid colours only. -->
+                <!-- Custom: the colour in use (its swatch opens the overlay editor's
+                     picker) and its hex, then ready-made swatches. Solid colours only. -->
                 <StackPanel Spacing="6" IsVisible="{Binding IsCustomVisualizerColor}">
                   <StackPanel Orientation="Horizontal">
-                    <ItemsControl ItemsSource="{Binding ColorPresets}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <StackPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ColorPreset">
-                          <Button Classes="swatch"
-                                  Command="{Binding $parent[UserControl].((vm:SettingsPageViewModel)DataContext).UseColorPresetCommand}"
-                                  CommandParameter="{Binding}"
-                                  AutomationProperties.Name="{Binding Name}" ToolTip.Tip="{Binding Name}">
-                            <Border CornerRadius="4" Background="{Binding Brush}" />
-                          </Button>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <Button Classes="swatch" Margin="8,0,8,0"
+                    <Button Classes="swatch"
                             AutomationProperties.Name="{l:T settings.appearance.visualizerColor.pick}"
                             ToolTip.Tip="{l:T settings.appearance.visualizerColor.pick}">
                       <Border CornerRadius="4" Background="{Binding CustomColorSwatch}" />
@@ -410,6 +396,23 @@
                     <TextBox Text="{Binding CustomColorHex}" FontFamily="Consolas,Menlo,monospace" Width="110"
                              MaxLength="7" VerticalAlignment="Center"
                              AutomationProperties.Name="{l:T settings.appearance.visualizerColor.hexName}" />
+                    <ItemsControl ItemsSource="{Binding ColorPresets}" Margin="20,0,0,0">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ColorPreset">
+                          <Button Classes="swatch"
+                                  Command="{Binding $parent[UserControl].((vm:SettingsPageViewModel)DataContext).UseColorPresetCommand}"
+                                  CommandParameter="{Binding}"
+                                  AutomationProperties.Name="{Binding Name}" ToolTip.Tip="{Binding Name}">
+                            <Border CornerRadius="4" Background="{Binding Brush}" />
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                   </StackPanel>
                   <TextBlock Text="{Binding CustomColorError}" FontSize="12" TextWrapping="Wrap"
                              Foreground="{StaticResource Token.Brush.Error}"
