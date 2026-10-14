@@ -152,8 +152,20 @@ public sealed class HomeStationsSavedTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_dir))
-            Directory.Delete(_dir, recursive: true);
+        // A shelf a test didn't wait for can still be saving on the thread pool
+        // (HomeStations chains its saves there), and a file it writes mid-delete
+        // makes the delete fail with "directory not empty". Seen on Linux CI.
+        for (var attempt = 1; Directory.Exists(_dir); attempt++)
+        {
+            try
+            {
+                Directory.Delete(_dir, recursive: true);
+            }
+            catch (IOException) when (attempt < 10)
+            {
+                Thread.Sleep(50);
+            }
+        }
     }
 
     private sealed class ManualTime : TimeProvider
