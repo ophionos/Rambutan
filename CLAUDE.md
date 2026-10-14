@@ -193,6 +193,19 @@ file sink), never to files directly.
   `WindowStatePersistence` keeps its bounds apart from the full window's. The
   page and panels stay underneath, so leaving puts them back. Native Wayland
   can't keep a window on top, so there the pin is disabled and says why.
+- Fullscreen: two modes in the main window. The drawn caption's fullscreen
+  button gives the whole app the screen; Now Playing's fullscreen button
+  (`NowPlayingViewModel.IsFullscreen`) gives it to the visualizer: the
+  `stagefull` class hides the `frame` (title bar, sidebar, player bar, queue)
+  and `MainWindow.ApplyStageFullscreen` sets the window state. Its controls
+  fade out with the pointer without input. Esc and F11 leave either mode, and
+  leaving the window's fullscreen from outside ends the visualizer's too.
+  Neither mode is saved (`WindowStatePersistence` writes only Normal or
+  Maximized), and fullscreen and the mini player end each other. A gradient
+  drawn over a shader preset's feathered edge can show stray white lines
+  (seen along the bottom; the top shade showed none), so the transport sits
+  on a flat backdrop. Check the presets with the controls up after changing
+  what draws over the visualizer.
 - Lyrics degrade in explicit states: word-synced → line-synced → plain → "no
   lyrics found". Imported custom lyrics always win over providers.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.

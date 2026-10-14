@@ -52,6 +52,11 @@ public partial class MainWindow : Window
 
                 if (vm.IsMiniPlayer)
                     ApplyMiniPlayer(true);
+                vm.NowPlaying.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(NowPlayingViewModel.IsFullscreen))
+                        ApplyStageFullscreen(vm.NowPlaying.IsFullscreen);
+                };
                 vm.PropertyChanged += (_, e) =>
                 {
                     if (e.PropertyName == nameof(MainViewModel.IsMiniPlayer))
@@ -82,6 +87,10 @@ public partial class MainWindow : Window
             {
                 HoldMinWidth();
                 HoldMinHeight();
+            }
+            else if (e.Property == WindowStateProperty)
+            {
+                OnWindowStateChanged(e.GetOldValue<WindowState>(), e.GetNewValue<WindowState>());
             }
         };
         FitShell();
@@ -219,6 +228,9 @@ public partial class MainWindow : Window
     /// counts while it is hidden too, so the first track doesn't change the fit.</summary>
     private void FitSeekArea()
     {
+        // Hidden in the fullscreen visualizer: its parts measure to nothing.
+        if (_isStageFullscreen)
+            return;
         if (_isMini)
         {
             FitMiniBar();
@@ -302,7 +314,7 @@ public partial class MainWindow : Window
     private void FitSidebar()
     {
         // Hidden, the sidebar keeps the bounds it had in the full window.
-        if (_isMini)
+        if (_isMini || _isStageFullscreen)
             return;
         var need = Sidebar.Padding.Top + Sidebar.Padding.Bottom +
                    SidebarNavScroll.Margin.Top + SidebarNavScroll.Margin.Bottom + SidebarNav.DesiredSize.Height +
@@ -318,8 +330,9 @@ public partial class MainWindow : Window
 
     private void HoldMinHeight()
     {
-        // The mini player's height is its content's (FitMiniHeight).
-        if (_isMini)
+        // The mini player's height is its content's (FitMiniHeight); the
+        // fullscreen visualizer's is the screen's.
+        if (_isMini || _isStageFullscreen)
             return;
         var min = PlayerBarLayout.HeldMinimum(ClientSize.Height, SidebarMinHeight);
         if (Math.Abs(MinHeight - min) > 0.5)
@@ -437,6 +450,92 @@ public partial class MainWindow : Window
         HoldMinWidth();
     }
 
+    private bool _isStageFullscreen;
+
+    /// <summary>The state the window had before it last went fullscreen, either
+    /// way: its caption button (the whole app) or the visualizer's.</summary>
+    private WindowState _beforeFullScreen = WindowState.Normal;
+
+    /// <summary>Whether the window was fullscreen already (the whole app) when
+    /// the visualizer took it: leaving puts the whole app back.</summary>
+    private bool _wasFullScreen;
+
+    /// <summary>Gives the window to the fullscreen visualizer, or takes it back.
+    /// The frame folds away (the <c>stagefull</c> class); the page, the panels
+    /// and their sizes stay as they were underneath.</summary>
+    private void ApplyStageFullscreen(bool on)
+    {
+        if (on == _isStageFullscreen)
+            return;
+        _isStageFullscreen = on;
+        if (on)
+        {
+            _wasFullScreen = WindowState == WindowState.FullScreen;
+            BarMoreButton.Flyout?.Hide();
+            VolumeButton.Flyout?.Hide();
+            _contentMargin = ContentPanel.Margin;
+            _contentCorners = ContentPanel.CornerRadius;
+            ContentPanel.Margin = default;
+            ContentPanel.CornerRadius = default;
+            WindowState = WindowState.FullScreen;
+        }
+        else
+        {
+            ContentPanel.Margin = _contentMargin;
+            ContentPanel.CornerRadius = _contentCorners;
+            if (!_wasFullScreen && WindowState == WindowState.FullScreen)
+                WindowState = _beforeFullScreen;
+            // What was measured hidden is measured again.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                FitSidebar();
+                FitSeekArea();
+                HoldMinWidth();
+                HoldMinHeight();
+            }, Avalonia.Threading.DispatcherPriority.Loaded);
+        }
+    }
+
+    private Thickness _contentMargin;
+    private CornerRadius _contentCorners;
+
+    /// <summary>Fullscreen can end outside the app (the window manager, a
+    /// display change): the visualizer's fullscreen ends with it.</summary>
+    private void OnWindowStateChanged(WindowState old, WindowState state)
+    {
+        if (state == WindowState.FullScreen && old != WindowState.FullScreen && old != WindowState.Minimized)
+            _beforeFullScreen = old;
+        if (_isStageFullscreen && LeftFullScreen(old, state) && DataContext is MainViewModel vm)
+        {
+            _wasFullScreen = true; // the window has already left; don't move it again
+            vm.NowPlaying.IsFullscreen = false;
+        }
+    }
+
+    /// <summary>Whether a window state change takes the window out of
+    /// fullscreen. Only a change from fullscreen counts: on Wayland, asking for
+    /// fullscreen first reports the old state again (Normal to Normal) until
+    /// the compositor confirms it. Minimizing doesn't count either.</summary>
+    internal static bool LeftFullScreen(WindowState old, WindowState state) =>
+        old == WindowState.FullScreen && state is not (WindowState.FullScreen or WindowState.Minimized);
+
+    /// <summary>Esc and F11 leave either fullscreen: the visualizer's first,
+    /// then the whole app's, whose caption buttons are gone.</summary>
+    private bool LeaveFullScreen(MainViewModel vm)
+    {
+        if (vm.NowPlaying.IsFullscreen)
+        {
+            vm.NowPlaying.IsFullscreen = false;
+            return true;
+        }
+        if (WindowState == WindowState.FullScreen)
+        {
+            WindowState = _beforeFullScreen;
+            return true;
+        }
+        return false;
+    }
+
     private void PostFitMiniHeight() =>
         Avalonia.Threading.Dispatcher.UIThread.Post(FitMiniHeight, Avalonia.Threading.DispatcherPriority.Loaded);
 
@@ -545,6 +644,12 @@ public partial class MainWindow : Window
                 break;
             case (Key.M, KeyModifiers.Control):
                 vm.ToggleMiniPlayerCommand.Execute(null);
+                break;
+            case (Key.Escape, KeyModifiers.None) when LeaveFullScreen(vm):
+                break;
+            case (Key.F11, KeyModifiers.None):
+                if (!LeaveFullScreen(vm) && !vm.IsMiniPlayer)
+                    WindowState = WindowState.FullScreen;
                 break;
             case (Key.Escape, KeyModifiers.None) when vm.NowPlaying.IsOpen && !vm.IsMiniPlayer:
                 vm.NowPlaying.CloseCommand.Execute(null);

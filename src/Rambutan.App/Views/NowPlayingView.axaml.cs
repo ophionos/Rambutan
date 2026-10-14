@@ -2,6 +2,8 @@ using System;
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Rambutan.App.Controls;
 using Rambutan.App.ViewModels;
@@ -18,14 +20,82 @@ public partial class NowPlayingView : UserControl
     /// keep a few more lines.</summary>
     public const double CompactWidth = 720;
 
+    private static readonly Cursor NoCursor = new(StandardCursorType.None);
+
     private NowPlayingViewModel? _vm;
+    private TopLevel? _topLevel;
+    private Point? _lastPointer;
+    private readonly Thickness _stageMargin;
+    private readonly Thickness _bodyMargin;
 
     public NowPlayingView()
     {
         InitializeComponent();
+        _stageMargin = StageVisualizer.Margin;
+        _bodyMargin = Body.Margin;
         Stage.SizeChanged += (_, _) => ApplyLayout();
         StageVisualizer.PropertyChanged += OnVisualizerPropertyChanged;
         BandVisualizer.PropertyChanged += OnVisualizerPropertyChanged;
+
+        // Fullscreen's controls come back with any input. Tunnelled and
+        // handled too: a button or the focus manager takes the event first.
+        AddHandler(PointerMovedEvent, OnPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(PointerPressedEvent, (_, _) => _vm?.ShowChrome(), RoutingStrategies.Tunnel, handledEventsToo: true);
+        // The pointer over the controls holds them. Keyboard focus doesn't:
+        // they hide after the wait like the rest, and the next key brings
+        // them back.
+        foreach (var part in new Control[] { Header, Transport })
+        {
+            part.PointerEntered += (_, _) => UpdateHold();
+            part.PointerExited += (_, _) => UpdateHold();
+        }
+    }
+
+    /// <summary>Keys reach the window, not this view, while the focus is
+    /// elsewhere; Tab is taken before the window sees it.</summary>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _topLevel = TopLevel.GetTopLevel(this);
+        _topLevel?.AddHandler(KeyDownEvent, OnAnyKey, RoutingStrategies.Tunnel, handledEventsToo: true);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _topLevel?.RemoveHandler(KeyDownEvent, OnAnyKey);
+        _topLevel = null;
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnAnyKey(object? sender, KeyEventArgs e) => _vm?.ShowChrome();
+
+    /// <summary>A move only: a window that settles, or a pointer that sits
+    /// still, still sends PointerMoved, and that would keep the controls up.</summary>
+    private void OnPointerMoved(object? sender, PointerEventArgs e)
+    {
+        var at = e.GetPosition(this);
+        if (_lastPointer is { } last && Math.Abs(last.X - at.X) < 1 && Math.Abs(last.Y - at.Y) < 1)
+            return;
+        _lastPointer = at;
+        _vm?.ShowChrome();
+    }
+
+    private void UpdateHold() =>
+        _vm?.HoldChrome(Header.IsPointerOver || Transport.IsPointerOver);
+
+    private const double FullscreenBodyBottom = 112;
+
+    private void ApplyFullscreen()
+    {
+        var fullscreen = _vm?.IsFullscreen == true;
+        StageVisualizer.Margin = fullscreen ? default : _stageMargin;
+        // The lyrics column ends above the transport, so its footer stays clear.
+        Body.Margin = fullscreen
+            ? new Thickness(_bodyMargin.Left, _bodyMargin.Top, _bodyMargin.Right, FullscreenBodyBottom)
+            : _bodyMargin;
+        Cursor = _vm?.IsChromeHidden == true ? NoCursor : null;
+        if (!fullscreen)
+            _lastPointer = null;
     }
 
     private void OnVisualizerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -49,12 +119,15 @@ public partial class NowPlayingView : UserControl
 
         base.OnDataContextChanged(e);
         ApplyLayout();
+        ApplyFullscreen();
     }
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(NowPlayingViewModel.IsLyricsPaneVisible) or nameof(NowPlayingViewModel.ShowsRing))
             ApplyLayout();
+        else if (e.PropertyName is nameof(NowPlayingViewModel.IsFullscreen) or nameof(NowPlayingViewModel.IsChromeHidden))
+            ApplyFullscreen();
     }
 
     private void ApplyLayout()

@@ -21,10 +21,23 @@ public partial class NowPlayingViewModel : ViewModelBase
     private readonly VisualizerCycler _cycler;
     private readonly Func<TimeSpan, Action, IDisposable> _every;
     private IDisposable? _cycleTimer;
+    private IDisposable? _fullscreenTimer;
+    private TimeSpan _chromeIdle;
+    private TimeSpan _titleAge;
+    private bool _isChromeHeld;
     private string? _lastTrackId;
 
     /// <summary>How often the cycle timer counts playing time.</summary>
     internal static readonly TimeSpan CycleTick = TimeSpan.FromSeconds(1);
+
+    /// <summary>How often fullscreen counts towards hiding its controls and title.</summary>
+    internal static readonly TimeSpan FullscreenTick = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>How long fullscreen's controls stay without input.</summary>
+    internal static readonly TimeSpan ChromeDelay = TimeSpan.FromSeconds(3);
+
+    /// <summary>How long fullscreen shows a new track's title.</summary>
+    internal static readonly TimeSpan TitleCardTime = TimeSpan.FromSeconds(5);
 
     public PlayerBarViewModel Player { get; }
     public LyricsViewModel Lyrics { get; }
@@ -53,6 +66,39 @@ public partial class NowPlayingViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(StageToggleTip))]
     private bool _showStage;
 
+    /// <summary>The visualizer fills the screen: the window goes fullscreen with
+    /// only this pane in it (MainWindow), and the stage shows whatever its own
+    /// toggle says. Not remembered: a start in fullscreen would surprise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FullscreenTip), nameof(IsWindowed), nameof(IsChromeHidden))]
+    private bool _isFullscreen;
+
+    /// <summary>Fullscreen's controls show: after input, until
+    /// <see cref="ChromeDelay"/> passes without any, and while held.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTitleCardShown), nameof(IsChromeHidden))]
+    private bool _isChromeShown;
+
+    /// <summary>Fullscreen without input for a while: the controls and the
+    /// pointer are hidden. The controls stay focusable, and a key shows them.</summary>
+    public bool IsChromeHidden => IsFullscreen && !IsChromeShown;
+
+    /// <summary>A track started in fullscreen less than <see cref="TitleCardTime"/> ago.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTitleCardShown))]
+    private bool _isTitleFresh;
+
+    public string FullscreenTip => Strings.Get(IsFullscreen ? "nowPlaying.leaveFullscreen" : "nowPlaying.fullscreen");
+
+    /// <summary>Fullscreen's title and artist, over the visualizer: when a track
+    /// starts, and with the controls. Not while the artwork and title show.</summary>
+    public bool IsTitleCardShown =>
+        IsFullscreen && !IsIdentityShown && Player.ShownTrack is not null && (IsChromeShown || IsTitleFresh);
+
+    /// <summary>The header's windowed buttons: the stage toggle and collapse.
+    /// Fullscreen always shows the stage, and Esc or its own button leaves it.</summary>
+    public bool IsWindowed => !IsFullscreen;
+
     /// <summary>The lyrics overlay: something is playing and the pane is on.</summary>
     public bool IsLyricsPaneVisible => ShowLyrics && Lyrics.IsShown;
 
@@ -70,8 +116,9 @@ public partial class NowPlayingViewModel : ViewModelBase
     /// the chosen one (bars for a preset while advanced mode is off).</summary>
     public VisualizerStyle DrawnStyle => _cycler.Current ?? Appearance.ShownStyle;
 
-    /// <summary>The stage: something is playing and its toggle is on.</summary>
-    public bool IsStageShown => ShowStage && Player.NowPlaying is not null;
+    /// <summary>The stage: something is playing, and its toggle is on or the
+    /// visualizer is fullscreen.</summary>
+    public bool IsStageShown => (ShowStage || IsFullscreen) && Player.NowPlaying is not null;
 
     /// <summary>The radial style draws around the artwork, and only there: with
     /// the lyrics pane open, or the stage on, there is no artwork on screen, and
@@ -107,8 +154,9 @@ public partial class NowPlayingViewModel : ViewModelBase
 
     public bool IsStageActive => IsOpen && IsStageVisualizerShown;
 
-    /// <summary>The artwork and title, which the stage replaces.</summary>
-    public bool IsIdentityShown => !IsStageShown;
+    /// <summary>The artwork and title, which the stage replaces. Fullscreen
+    /// under reduced motion keeps them, so the screen at rest isn't empty.</summary>
+    public bool IsIdentityShown => !IsStageShown || (IsFullscreen && Appearance.ReduceMotion);
 
     /// <summary>Lyrics over the stage: the visualizer dims, so the lines stay
     /// readable over it.</summary>
@@ -187,6 +235,7 @@ public partial class NowPlayingViewModel : ViewModelBase
             vm.OnPropertyChanged(nameof(LyricsToggleTip));
             vm.OnPropertyChanged(nameof(LyricsButtonTip));
             vm.OnPropertyChanged(nameof(StageToggleTip));
+            vm.OnPropertyChanged(nameof(FullscreenTip));
         });
     }
 
@@ -221,6 +270,7 @@ public partial class NowPlayingViewModel : ViewModelBase
         OnPropertyChanged(nameof(StageOpacity));
         OnPropertyChanged(nameof(IsPresetDrawn));
         OnPropertyChanged(nameof(ShowsSoftwareNote));
+        OnPropertyChanged(nameof(IsTitleCardShown));
         UpdateCycleTimer();
     }
 
@@ -268,13 +318,102 @@ public partial class NowPlayingViewModel : ViewModelBase
             return;
         var first = _lastTrackId is null;
         _lastTrackId = id;
+        if (IsFullscreen)
+            FreshenTitle();
         // The first track of a session keeps the chosen style.
         if (!first && Appearance.VisualizerCycle == VisualizerCycle.TrackChange
             && _cycler.Next(CycleChoices(), DrawnStyle))
             OnVisualizerChanged();
     }
 
-    partial void OnIsOpenChanged(bool value) => OnVisualizerChanged();
+    partial void OnIsOpenChanged(bool value)
+    {
+        // Fullscreen is this pane: closing it leaves fullscreen too.
+        if (!value)
+            IsFullscreen = false;
+        OnVisualizerChanged();
+    }
+
+    partial void OnIsFullscreenChanged(bool value)
+    {
+        if (value)
+        {
+            IsOpen = true;
+            // The way out shows first, with what is playing.
+            ShowChrome();
+            FreshenTitle();
+        }
+        else
+        {
+            _isChromeHeld = false;
+            IsChromeShown = false;
+            IsTitleFresh = false;
+            UpdateFullscreenTimer();
+        }
+        OnVisualizerChanged();
+    }
+
+    /// <summary>Input in fullscreen: the pointer moved, or a key or a click
+    /// came. Shows the controls and starts their wait again.</summary>
+    public void ShowChrome()
+    {
+        if (!IsFullscreen)
+            return;
+        _chromeIdle = TimeSpan.Zero;
+        IsChromeShown = true;
+        UpdateFullscreenTimer();
+    }
+
+    /// <summary>The pointer is over the controls, or the keyboard focus is in
+    /// them: they stay until that ends, and their wait starts again then.</summary>
+    public void HoldChrome(bool held)
+    {
+        _isChromeHeld = held;
+        if (held)
+            ShowChrome();
+        else
+            _chromeIdle = TimeSpan.Zero;
+    }
+
+    private void FreshenTitle()
+    {
+        _titleAge = TimeSpan.Zero;
+        IsTitleFresh = true;
+        UpdateFullscreenTimer();
+    }
+
+    /// <summary>Runs only while something in fullscreen waits to hide.</summary>
+    private void UpdateFullscreenTimer()
+    {
+        var run = IsFullscreen && (IsChromeShown || IsTitleFresh);
+        if (run && _fullscreenTimer is null)
+        {
+            _fullscreenTimer = _every(FullscreenTick, () => AdvanceFullscreen(FullscreenTick));
+        }
+        else if (!run && _fullscreenTimer is not null)
+        {
+            _fullscreenTimer.Dispose();
+            _fullscreenTimer = null;
+        }
+    }
+
+    /// <summary>A tick of the fullscreen timer.</summary>
+    internal void AdvanceFullscreen(TimeSpan elapsed)
+    {
+        if (IsChromeShown && !_isChromeHeld)
+        {
+            _chromeIdle += elapsed;
+            if (_chromeIdle >= ChromeDelay)
+                IsChromeShown = false;
+        }
+        if (IsTitleFresh)
+        {
+            _titleAge += elapsed;
+            if (_titleAge >= TitleCardTime)
+                IsTitleFresh = false;
+        }
+        UpdateFullscreenTimer();
+    }
 
     partial void OnShowLyricsChanged(bool value)
     {
@@ -302,6 +441,9 @@ public partial class NowPlayingViewModel : ViewModelBase
 
     [RelayCommand]
     private void ToggleStage() => ShowStage = !ShowStage;
+
+    [RelayCommand]
+    private void ToggleFullscreen() => IsFullscreen = !IsFullscreen;
 
     /// <summary>The player bar's lyrics button: opens Now Playing with its lyrics
     /// pane on, and closes it again when that is what's on screen. Turning the
