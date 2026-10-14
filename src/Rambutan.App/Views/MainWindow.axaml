@@ -107,6 +107,11 @@
                 ToolTip.Tip="{Binding IsSidebarOpen, Converter={x:Static vm:Converters.SidebarToggleTip}}">
           <PathIcon Data="{StaticResource Icon.Sidebar}" Width="18" Height="18" />
         </Button>
+        <!-- Into the mini player: the window shrinks to the player bar. -->
+        <Button Classes="icon subtle small" Command="{Binding ToggleMiniPlayerCommand}"
+                ToolTip.Tip="{Binding MiniPlayerTip}">
+          <PathIcon Data="{StaticResource Icon.MiniPlayer}" Width="18" Height="18" />
+        </Button>
         <Button Classes="icon subtle small" Command="{Binding Navigation.BackCommand}"
                 IsEnabled="{Binding Navigation.CanGoBack}"
                 ToolTip.Tip="{l:T nav.back}" AutomationProperties.Name="{l:T nav.back}">
@@ -116,11 +121,6 @@
                 IsEnabled="{Binding Navigation.CanGoForward}"
                 ToolTip.Tip="{l:T nav.forward}" AutomationProperties.Name="{l:T nav.forward}">
           <PathIcon Data="{StaticResource Icon.ArrowForward}" Width="18" Height="18" />
-        </Button>
-        <!-- Into the mini player: the window shrinks to the player bar. -->
-        <Button Classes="icon subtle small" Command="{Binding ToggleMiniPlayerCommand}"
-                ToolTip.Tip="{Binding MiniPlayerTip}">
-          <PathIcon Data="{StaticResource Icon.MiniPlayer}" Width="18" Height="18" />
         </Button>
       </StackPanel>
     </Border>
