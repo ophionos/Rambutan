@@ -72,6 +72,31 @@ public partial class MainViewModel : ViewModelBase
     private bool _isSidebarOpen = true;
     [ObservableProperty] private bool _isQueueOpen;
 
+    /// <summary>The window is the mini player: the player bar only. The window
+    /// itself changes shape (MainWindow), and leaving puts back the page, the
+    /// panels and the full window's bounds as they were.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MiniPlayerTip))]
+    private bool _isMiniPlayer;
+
+    /// <summary>The mini player stays on top of other windows.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PinTip), nameof(IsPinnedOnTop))]
+    private bool _isPinned;
+
+    /// <summary>Whether the window system lets a window stay on top. Native
+    /// Wayland doesn't, so there the pin is shown disabled with the reason.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PinTip), nameof(IsPinnedOnTop))]
+    private bool _canPin = true;
+
+    /// <summary>What the window's Topmost follows: pinned, in the mini player, where pinning works.</summary>
+    public bool IsPinnedOnTop => IsMiniPlayer && IsPinned && CanPin;
+
+    public string MiniPlayerTip => Strings.Get(IsMiniPlayer ? "player.fullWindow" : "player.miniPlayer");
+
+    public string PinTip => Strings.Get(!CanPin ? "player.pinUnavailable" : IsPinned ? "player.unpin" : "player.pin");
+
     /// <summary>Shared with the settings page, so the ambient background follows
     /// the toggle on the frame it changes rather than on the next navigation.</summary>
     public AppearanceSettings Appearance { get; }
@@ -123,6 +148,34 @@ public partial class MainViewModel : ViewModelBase
         NowPlaying = new NowPlayingViewModel(Player) { IsOpen = false };
         QueuePanel = new QueueViewModel();
         Session = new SessionViewModel();
+        FollowNavigation();
+    }
+
+    /// <summary>
+    /// Now Playing overlays the content region, so navigating behind it looks
+    /// like a dead click. Hanging this off Current rather than the individual
+    /// Go* commands covers every route into a page — sidebar, drill-downs, and
+    /// the queue's "Go to artist", which is reachable while the overlay is up.
+    /// A page opened from the mini player (its title and artist links, a
+    /// rambutan:// link, Ctrl+F) has nowhere to show, so it brings the full
+    /// window back. Not the first page: the app may start in the mini player.
+    /// </summary>
+    private void FollowNavigation()
+    {
+        var hadPage = false;
+        Navigation.PropertyChanging += (_, e) =>
+        {
+            if (e.PropertyName == nameof(NavigationService.Current))
+                hadPage = Navigation.Current is not null;
+        };
+        Navigation.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(NavigationService.Current))
+                return;
+            NowPlaying.IsOpen = false;
+            if (hadPage)
+                IsMiniPlayer = false;
+        };
     }
 
     public MainViewModel(
@@ -164,6 +217,8 @@ public partial class MainViewModel : ViewModelBase
         // to write; restoring the stored value back onto itself is a no-op.
         IsSidebarOpen = !settings.SidebarCollapsed;
         IsQueueOpen = !settings.QueueCollapsed;
+        IsPinned = settings.MiniPlayerPinned;
+        IsMiniPlayer = settings.MiniPlayer;
 
         // Property, not ctor arg: NavigationService already depends on Actions.
         actions.OpenArtist = navigation.OpenArtist;
@@ -171,20 +226,17 @@ public partial class MainViewModel : ViewModelBase
         if (downloads is not null)
             navigation.GoDownloads = GoDownloads;
 
-        // Now Playing overlays the content region, so navigating behind it looks
-        // like a dead click. Hanging this off Current rather than the individual
-        // Go* commands covers every route into a page — sidebar, drill-downs, and
-        // the queue's "Go to artist", which is reachable while the overlay is up.
-        navigation.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName == nameof(NavigationService.Current))
-                nowPlaying.IsOpen = false;
-        };
+        FollowNavigation();
 
         TrackWaitingForNetwork = coordinator.TrackWaitingForNetwork;
         coordinator.NetworkWaitChanged += track =>
             Dispatcher.UIThread.Post(() => TrackWaitingForNetwork = track);
-        Strings.WhenChanged(this, static vm => vm.OnPropertyChanged(nameof(NetworkWaitText)));
+        Strings.WhenChanged(this, static vm =>
+        {
+            vm.OnPropertyChanged(nameof(NetworkWaitText));
+            vm.OnPropertyChanged(nameof(MiniPlayerTip));
+            vm.OnPropertyChanged(nameof(PinTip));
+        });
         coordinator.Notification += notice =>
             Dispatcher.UIThread.Post(() => Toasts.Show(NoticeText.For(notice)));
         vault.Warning += message =>
@@ -258,6 +310,43 @@ public partial class MainViewModel : ViewModelBase
     {
         if (_settings is not null)
             _settings.QueueCollapsed = !value;
+    }
+
+    partial void OnIsMiniPlayerChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsPinnedOnTop));
+        if (_settings is not null)
+            _settings.MiniPlayer = value;
+    }
+
+    partial void OnIsPinnedChanged(bool value)
+    {
+        if (_settings is not null)
+            _settings.MiniPlayerPinned = value;
+    }
+
+    [RelayCommand]
+    private void ToggleMiniPlayer() => IsMiniPlayer = !IsMiniPlayer;
+
+    [RelayCommand(CanExecute = nameof(CanPin))]
+    private void TogglePin() => IsPinned = !IsPinned;
+
+    partial void OnCanPinChanged(bool value) => TogglePinCommand.NotifyCanExecuteChanged();
+
+    /// <summary>The bar's artwork: Now Playing open or closed. The mini player
+    /// has no room for it, so there it brings the full window back with Now Playing open.</summary>
+    [RelayCommand]
+    private void ToggleNowPlaying()
+    {
+        if (IsMiniPlayer)
+        {
+            IsMiniPlayer = false;
+            NowPlaying.IsOpen = true;
+        }
+        else
+        {
+            NowPlaying.IsOpen = !NowPlaying.IsOpen;
+        }
     }
 
     [RelayCommand]

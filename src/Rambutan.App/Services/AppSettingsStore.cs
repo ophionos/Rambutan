@@ -126,6 +126,19 @@ public sealed class AppSettings
     public int? WindowX { get; set; }
     public int? WindowY { get; set; }
     public bool WindowMaximized { get; set; }
+
+    /// <summary>The window is the mini player: the player bar only. The bounds
+    /// above stay the full window's; the mini player keeps its own below.</summary>
+    public bool MiniPlayer { get; set; }
+
+    /// <summary>The mini player stays on top of other windows. Has no effect on
+    /// native Wayland, which has no way to ask for it.</summary>
+    public bool MiniPlayerPinned { get; set; }
+
+    // The mini player's own bounds; its height follows its content.
+    public double? MiniWindowWidth { get; set; }
+    public int? MiniWindowX { get; set; }
+    public int? MiniWindowY { get; set; }
 }
 
 /// <summary>One equalizer band as stored: its centre and its gain in dB.</summary>
