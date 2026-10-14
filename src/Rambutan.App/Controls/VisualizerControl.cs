@@ -314,6 +314,7 @@ public sealed class VisualizerControl : Control
         private readonly float[] _mono = new float[FftAnalyzer.WaveformLength];
         private readonly OnsetDetector _onsets = new();
         private float _activity;
+        private readonly SKPaint _layerPaint = new();
 
         /// <summary>The primitives path's 0.55-opacity white, as one colour.</summary>
         private static readonly SKColor DefaultPeak = new(0xFF, 0xFF, 0xFF, 140);
@@ -325,6 +326,7 @@ public sealed class VisualizerControl : Control
         private int _traceFrames;
         private int _traceDraws;
         private long _traceAllocated;
+        private float _traceScale; // 0 until a style draws through Skia
         private TimeSpan _traceStartedAt;
 
         /// <summary>Whether the full-size style draws: not the compact meter, not
@@ -356,6 +358,7 @@ public sealed class VisualizerControl : Control
                 _running = false;
                 _renderer?.Dispose();
                 _renderer = null;
+                _layerPaint.Dispose();
             }
             else if (message is Style style)
             {
@@ -577,6 +580,7 @@ public sealed class VisualizerControl : Control
             // offset); its scale is what a style sizes pixel surfaces by.
             var matrix = canvas.TotalMatrix;
             var scale = MathF.Sqrt(matrix.ScaleX * matrix.ScaleX + matrix.SkewY * matrix.SkewY);
+            _traceScale = scale;
 
             var inputs = _renderer!.Inputs;
             var waveform = (inputs & VisualizerInputs.Waveform) != 0;
@@ -599,6 +603,15 @@ public sealed class VisualizerControl : Control
             };
 
             var saved = canvas.Save();
+            // Avalonia applies its controls' opacity to its own paints, not to
+            // the canvas, so a raw Skia draw would ignore a translucent parent.
+            // One layer for the whole style covers paints, shaders and surfaces.
+            var opacity = lease.CurrentOpacity;
+            if (opacity < 1)
+            {
+                _layerPaint.Color = new SKColor(0, 0, 0, (byte)Math.Round(Math.Clamp(opacity, 0, 1) * 255));
+                canvas.SaveLayer(new SKRect(0, 0, (float)size.X, (float)size.Y), _layerPaint);
+            }
             _renderer.Render(canvas, new SKSize((float)size.X, (float)size.Y), scale, in frame);
             canvas.RestoreToCount(saved);
         }
@@ -631,7 +644,7 @@ public sealed class VisualizerControl : Control
             {
                 AppLog.Write("viz", string.Create(
                     System.Globalization.CultureInfo.InvariantCulture,
-                    $"{_traceFrames / elapsed:F1} fps avg, {_traceDraws / elapsed:F1} draws/s, worst frame {_traceWorstMs:F1} ms, {_traceAllocated / (double)_traceFrames:F0} B allocated per frame"));
+                    $"{_traceFrames / elapsed:F1} fps avg, {_traceDraws / elapsed:F1} draws/s, worst frame {_traceWorstMs:F1} ms, {_traceAllocated / (double)_traceFrames:F0} B allocated per frame{(_traceScale > 0 ? $", Skia at {_traceScale:F2}x" : "")}"));
                 _traceFrames = 0;
                 _traceDraws = 0;
                 _traceWorstMs = 0;
