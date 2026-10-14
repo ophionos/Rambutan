@@ -134,15 +134,22 @@ file sink), never to files directly.
   first in the fallback chain (`Program.cs`). Album art is blurred **once** into a
   page-background layer with translucent panels above it (Avalonia has no
   backdrop blur).
-- Visualizer: `FftAnalyzer` emits raw bands; smoothing and peaks live in
+- Visualizer: `FftAnalyzer` emits raw bands, and a decimated stereo waveform
+  for the styles that draw one; smoothing and peaks live in
   `Controls/VisualizerControl`, which draws on the composition thread. Keep it
-  that way: the OBS overlay smooths the raw bands itself. The overlay style
+  that way: the OBS overlay smooths the raw bands itself. The Now Playing band
+  draws through an `IVisualizerRenderer` on Skia's canvas (Avalonia's Skia
+  lease), which asks only for the inputs it uses; beats come from
+  `Core/Visualizer/OnsetDetector`. The compact meter and the overlay
+  preview draw with Avalonia's primitives. The overlay style
   editor's native preview reuses the control with `OverlayBars`, which groups
   bands as the overlay page does. Each redraw costs a compositor frame, so the
   control redraws only through `VisualizerRedrawGate` (visible change only, at
   most `MaxFrameRate` a second); the meter and Now Playing follow the user's
-  "Visualizer frame rate" setting, 30 fps by default. The analyzer runs only
-  while a reader calls `CopyLatest` within its `ReadLease`, so a reader that
+  "Visualizer frame rate" setting, 30 fps by default. A style that moves on its
+  own (`IsAnimated`) draws at that cap instead, until the feed stops and it
+  comes to rest. Each analyzer output runs only while a reader calls it
+  (`CopyLatest`, `CopyWaveform`) within its `ReadLease`, so a reader that
   isn't seen stops reading: the control stops while it is inactive or its
   window is minimized or hidden.
 - Native Wayland: `App/Services/WaylandFramePacing` (frame pacing) and

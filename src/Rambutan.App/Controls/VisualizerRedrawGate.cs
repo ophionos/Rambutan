@@ -10,6 +10,8 @@ namespace Rambutan.App.Controls;
 /// <see cref="MinInterval"/>.
 /// The comparison is against what was last drawn, not the previous frame, so a
 /// slow decay that moves less than a step per frame still adds up to a redraw.
+/// An animated style moves on its own, so <see cref="ShouldDrawAnimated"/> draws
+/// it at the cap until it comes to rest instead.
 /// Render thread only.
 /// </summary>
 internal sealed class VisualizerRedrawGate
@@ -19,6 +21,7 @@ internal sealed class VisualizerRedrawGate
 
     private int[] _drawn = [];
     private bool _force = true;
+    private bool _restDrawn;
     private TimeSpan _dueAt;
 
     /// <summary>Zero redraws at the display rate.</summary>
@@ -58,6 +61,29 @@ internal sealed class VisualizerRedrawGate
 
         if (!changed)
             return false;
+        Drew(now);
+        return true;
+    }
+
+    /// <summary>
+    /// For a style that moves on its own: true at every <see cref="MinInterval"/>
+    /// while it isn't <paramref name="resting"/>; once it is, true once more for
+    /// the resting picture, then false until it moves again or
+    /// <see cref="Reset"/>.
+    /// </summary>
+    public bool ShouldDrawAnimated(TimeSpan now, bool resting)
+    {
+        if (resting && _restDrawn && !_force)
+            return false;
+        if (!_force && now < _dueAt)
+            return false;
+        _restDrawn = resting;
+        Drew(now);
+        return true;
+    }
+
+    private void Drew(TimeSpan now)
+    {
         // Due a whole interval after the last due time, not after this frame:
         // frames rarely land on the interval, and counting from the frame would
         // round every gap up (30 a second at 100 Hz would draw 25). After a pause
@@ -66,6 +92,5 @@ internal sealed class VisualizerRedrawGate
         if (_dueAt <= now)
             _dueAt = now + MinInterval;
         _force = false;
-        return true;
     }
 }
