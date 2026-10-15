@@ -153,7 +153,7 @@
     <Setter Property="Foreground" Value="{StaticResource Token.Brush.Accent}" />
   </Style>
 
-  <Style Selector="Button.nav.active TextBlock">
+  <Style Selector="Button.nav.active > StackPanel > TextBlock">
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
@@ -317,7 +317,9 @@
        when collapsed, so navigation and the account stay one click away. The
        title bar's sidebar button and Ctrl+B switch between them. In the rail the
        labels hide and each nav button's tooltip names it instead; the account
-       chip keeps only its avatar, whose menu holds Sign in. -->
+       chip keeps only its avatar, whose menu holds Sign in. The label selectors
+       name the button's own content: a tooltip's text is a TextBlock whose
+       logical parent is the button, so "Button.nav TextBlock" hides it too. -->
   <Style Selector="Border#Sidebar">
     <Setter Property="Width" Value="220" />
   </Style>
@@ -330,7 +332,7 @@
   <Style Selector="Border#Sidebar.rail Button.nav">
     <Setter Property="ToolTip.ServiceEnabled" Value="True" />
   </Style>
-  <Style Selector="Border#Sidebar.rail Button.nav TextBlock,
+  <Style Selector="Border#Sidebar.rail Button.nav > StackPanel > TextBlock,
                    Border#Sidebar.rail Button.account StackPanel,
                    Border#Sidebar.rail Button.account PathIcon.chevron,
                    Border#Sidebar.rail Button.signin">
