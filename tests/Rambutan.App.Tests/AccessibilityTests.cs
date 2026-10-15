@@ -586,6 +586,17 @@ public class AccessibilityTests
         Assert.True(ToolTip.GetServiceEnabled(home));
         Assert.Empty(Unnamed(window));
 
+        // The tooltip's text is a TextBlock whose logical parent is the button,
+        // so a rail style that hides the label must not reach it too.
+        ToolTip.SetIsOpen(home, true);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var tip = OpenToolTip(home);
+        tip.UpdateLayout();
+        var tipText = Assert.Single(tip.GetVisualDescendants().OfType<TextBlock>());
+        Assert.Equal("Home", tipText.Text);
+        Assert.True(tipText.IsEffectivelyVisible);
+        ToolTip.SetIsOpen(home, false);
+
         vm.ToggleSidebarCommand.Execute(null);
         window.UpdateLayout();
         Assert.Equal(220, sidebar.Bounds.Width);
@@ -680,6 +691,17 @@ public class AccessibilityTests
             .Where(b => string.IsNullOrEmpty(AutomationProperties.GetName(b)) && b.Content is not (string or TextBlock))
             .Select(b => $"{b.Name ?? "?"} [{string.Join(",", b.Classes)}]")
             .ToArray();
+
+    /// <summary>The ToolTip control Avalonia made for a string tip. It lives in a
+    /// popup outside the window's visual tree and is reachable only through the
+    /// internal attached property that holds it.</summary>
+    private static ToolTip OpenToolTip(Control owner)
+    {
+        var property = (AvaloniaProperty)typeof(ToolTip)
+            .GetField("ToolTipProperty", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(null)!;
+        return Assert.IsType<ToolTip>(owner.GetValue(property));
+    }
 
     /// <summary>Controls a screen reader reaches but can't name, read from the
     /// automation tree itself, so template parts count too.</summary>
