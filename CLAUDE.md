@@ -198,7 +198,9 @@ file sink), never to files directly.
   (`NowPlayingViewModel.IsFullscreen`) gives it to the visualizer: the
   `stagefull` class hides the `frame` (title bar, sidebar, player bar, queue)
   and `MainWindow.ApplyStageFullscreen` sets the window state. Its controls
-  fade out with the pointer without input. Esc and F11 leave either mode, and
+  fade out after 3 s without input, and the pointer with them, but only
+  while the window is active: over an inactive window (a dialog has the
+  focus) the pointer stays. Esc and F11 leave either mode, and
   leaving the window's fullscreen from outside ends the visualizer's too.
   Neither mode is saved (`WindowStatePersistence` writes only Normal or
   Maximized), and fullscreen and the mini player end each other. A gradient

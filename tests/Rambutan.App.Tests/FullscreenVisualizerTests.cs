@@ -368,6 +368,65 @@ public class FullscreenVisualizerTests
     });
 
     [Fact]
+    public void ThePointer_HidesWithTheControls_OnlyWhileTheWindowIsActive()
+    {
+        var (vm, _, _, timers) = NowPlaying();
+        vm.IsFullscreen = true;
+        timers.Pass(NowPlayingViewModel.ChromeDelay);
+        Assert.True(vm.IsChromeHidden);
+        Assert.True(vm.IsPointerHidden);
+
+        // A dialog takes the focus: the controls stay hidden, the pointer shows.
+        vm.IsWindowActive = false;
+        Assert.True(vm.IsChromeHidden);
+        Assert.False(vm.IsPointerHidden);
+
+        vm.IsWindowActive = true;
+        Assert.True(vm.IsPointerHidden);
+    }
+
+    [Fact]
+    public void ADialogOverFullscreen_ShowsThePointer_AndLeavesTheControlsHidden() => Headless.Run(() =>
+    {
+        var (vm, _, _, timers) = NowPlaying();
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+        var view = new NowPlayingView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+        window.Activate();
+        vm.IsFullscreen = true;
+        Settle(window);
+        timers.Pass(NowPlayingViewModel.ChromeDelay);
+        Assert.True(window.IsActive);
+        Assert.Equal(StandardCursorType.None, CursorType(view));
+
+        // A headless window doesn't lose the focus to another one, so this is
+        // what the platform reports when a dialog takes it.
+        Report(window, "Deactivated");
+        Settle(window);
+        Assert.False(window.IsActive);
+        Assert.True(vm.IsChromeHidden);
+        Assert.Null(view.Cursor);
+
+        Report(window, "Activated");
+        Settle(window);
+        Assert.Equal(StandardCursorType.None, CursorType(view));
+    });
+
+    /// <summary>Raises the platform window's activation callback, which is
+    /// internal to Avalonia.</summary>
+    private static void Report(Window window, string callback)
+    {
+        var property = typeof(Avalonia.Platform.IWindowBaseImpl).GetProperty(callback,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)!;
+        ((Action)property.GetValue(window.PlatformImpl)!)();
+    }
+
+    private static StandardCursorType? CursorType(Control control) =>
+        control.Cursor?.ToString() is { } name && Enum.TryParse<StandardCursorType>(name, out var type) ? type : null;
+
+    [Fact]
     public void TheFullscreenButtons_HaveNames() => Headless.Run(() =>
     {
         var vm = new MainViewModel();
