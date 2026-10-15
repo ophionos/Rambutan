@@ -31,13 +31,13 @@ public class VisualizerStyleSettingTests
             Assert.Equal(style, AppearanceSettings.ParseStyle(AppearanceSettings.FormatStyle(style)));
         foreach (var source in Enum.GetValues<VisualizerColorSource>())
             Assert.Equal(source, AppearanceSettings.ParseColorSource(AppearanceSettings.FormatColorSource(source)));
-        Assert.Equal(Enum.GetValues<VisualizerStyle>().Length, AppearanceSettings.StyleChoices.Distinct().Count());
+        Assert.Equal(Enum.GetValues<VisualizerStyle>().Length, AppearanceSettings.AllStyleChoices.Distinct().Count());
     }
 
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("plasma")]
+    [InlineData("starfield")]
     [InlineData("Bars")]
     public void AnUnknownStyle_ReadsAsBars(string? saved) =>
         Assert.Equal(VisualizerStyle.Bars, AppearanceSettings.ParseStyle(saved));

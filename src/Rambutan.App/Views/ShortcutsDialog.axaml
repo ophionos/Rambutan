@@ -11,7 +11,7 @@
   <StackPanel Margin="20" Spacing="14">
     <TextBlock Text="{l:T shortcuts.title}" FontSize="16" FontWeight="SemiBold" />
 
-    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
+    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto"
           Margin="0,2,0,0">
       <Grid.Styles>
         <Style Selector="TextBlock">
@@ -52,12 +52,14 @@
       <TextBlock Grid.Row="8" Grid.Column="1" Classes="what" Text="{l:T shortcuts.nowPlaying}" />
       <TextBlock Grid.Row="9" Classes="key" Text="{l:T shortcuts.key.ctrlM}" />
       <TextBlock Grid.Row="9" Grid.Column="1" Classes="what" Text="{l:T shortcuts.miniPlayer}" />
-      <TextBlock Grid.Row="10" Classes="key" Text="{l:T shortcuts.key.altUpDown}" />
-      <TextBlock Grid.Row="10" Grid.Column="1" Classes="what" Text="{l:T shortcuts.moveQueueTrack}" />
-      <TextBlock Grid.Row="11" Classes="key" Text="{l:T shortcuts.key.f1}" />
-      <TextBlock Grid.Row="11" Grid.Column="1" Classes="what" Text="{l:T shortcuts.thisSheet}" />
-      <TextBlock Grid.Row="12" Classes="key" Text="{l:T shortcuts.key.media}" />
-      <TextBlock Grid.Row="12" Grid.Column="1" Classes="what" Text="{l:T shortcuts.mediaKeys}" />
+      <TextBlock Grid.Row="10" Classes="key" Text="{l:T shortcuts.key.f11Esc}" />
+      <TextBlock Grid.Row="10" Grid.Column="1" Classes="what" Text="{l:T shortcuts.fullscreen}" />
+      <TextBlock Grid.Row="11" Classes="key" Text="{l:T shortcuts.key.altUpDown}" />
+      <TextBlock Grid.Row="11" Grid.Column="1" Classes="what" Text="{l:T shortcuts.moveQueueTrack}" />
+      <TextBlock Grid.Row="12" Classes="key" Text="{l:T shortcuts.key.f1}" />
+      <TextBlock Grid.Row="12" Grid.Column="1" Classes="what" Text="{l:T shortcuts.thisSheet}" />
+      <TextBlock Grid.Row="13" Classes="key" Text="{l:T shortcuts.key.media}" />
+      <TextBlock Grid.Row="13" Grid.Column="1" Classes="what" Text="{l:T shortcuts.mediaKeys}" />
     </Grid>
 
     <Button Content="{l:T common.close}" HorizontalAlignment="Right" IsCancel="True" Click="OnClose" />

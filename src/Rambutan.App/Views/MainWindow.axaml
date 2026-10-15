@@ -16,6 +16,7 @@
         Title="Rambutan"
         Classes.reducedmotion="{Binding Appearance.ReduceMotion}"
         Classes.mini="{Binding IsMiniPlayer}"
+        Classes.stagefull="{Binding NowPlaying.IsFullscreen}"
         Topmost="{Binding IsPinnedOnTop}"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaTitleBarHeightHint="40">
@@ -94,7 +95,7 @@
          with Back and Forward at the same spot on every page, root or
          drill-down. The window
          decorations draw the caption buttons on the right: keep clear of them. -->
-    <Border DockPanel.Dock="Top" x:Name="TitleBar" Classes="fullOnly" Height="40" Background="Transparent"
+    <Border DockPanel.Dock="Top" x:Name="TitleBar" Classes="fullOnly frame" Height="40" Background="Transparent"
             KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="0">
       <StackPanel Orientation="Horizontal" Spacing="4" Margin="16,0,150,0" VerticalAlignment="Center">
         <StackPanel Orientation="Horizontal" Spacing="8" Width="172" VerticalAlignment="Center">
@@ -127,7 +128,7 @@
 
     <!-- Player bar: identity | transport over the seek line | lyrics, queue,
          volume. It sits on the ground like the title bar. -->
-    <Border x:Name="PlayerBar" DockPanel.Dock="Bottom" Height="88" Background="Transparent"
+    <Border x:Name="PlayerBar" DockPanel.Dock="Bottom" Classes="frame" Height="88" Background="Transparent"
             KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="3">
 
         <!-- Three zones: identity left, transport centred, modes
@@ -560,7 +561,7 @@
 
     <!-- Sidebar: full, or collapsed to a rail of icons (styles in
          Controls.axaml). The title bar's toggle and Ctrl+B switch it. -->
-    <Border x:Name="Sidebar" DockPanel.Dock="Left" Classes="fullOnly" Margin="8,0,0,0"
+    <Border x:Name="Sidebar" DockPanel.Dock="Left" Classes="fullOnly frame" Margin="8,0,0,0"
             Classes.rail="{Binding !IsSidebarOpen}"
             Background="{StaticResource Token.Brush.Surface.Panel}"
             CornerRadius="{StaticResource Token.Radius.Panel}" Padding="12"
@@ -701,6 +702,7 @@
         <MultiBinding Converter="{x:Static BoolConverters.And}">
           <Binding Path="IsQueueOpen" />
           <Binding Path="!IsMiniPlayer" />
+          <Binding Path="!NowPlaying.IsFullscreen" />
         </MultiBinding>
       </Border.IsVisible>
       <DockPanel>
@@ -818,7 +820,7 @@
          (sidebar and queue stay put — the docked panels are the app's frame,
          the overlay replaces its page). ClipToBounds keeps scrolled content
          inside the rounded corners. -->
-    <Border Classes="fullOnly" Margin="8,0" Background="{StaticResource Token.Brush.Surface.Panel}"
+    <Border x:Name="ContentPanel" Classes="fullOnly" Margin="8,0" Background="{StaticResource Token.Brush.Surface.Panel}"
             CornerRadius="{StaticResource Token.Radius.Panel}" ClipToBounds="True">
     <Panel KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="1">
       <!-- Hidden (not detached, so scroll and selection survive) while Now

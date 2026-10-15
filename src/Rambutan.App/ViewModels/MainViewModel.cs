@@ -149,7 +149,17 @@ public partial class MainViewModel : ViewModelBase
         QueuePanel = new QueueViewModel();
         Session = new SessionViewModel();
         FollowNavigation();
+        FollowFullscreen();
     }
+
+    /// <summary>The fullscreen visualizer and the mini player reshape the same
+    /// window: one at a time (the other way round in OnIsMiniPlayerChanged).</summary>
+    private void FollowFullscreen() =>
+        NowPlaying.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(NowPlayingViewModel.IsFullscreen) && NowPlaying.IsFullscreen)
+                IsMiniPlayer = false;
+        };
 
     /// <summary>
     /// Now Playing overlays the content region, so navigating behind it looks
@@ -227,6 +237,7 @@ public partial class MainViewModel : ViewModelBase
             navigation.GoDownloads = GoDownloads;
 
         FollowNavigation();
+        FollowFullscreen();
 
         TrackWaitingForNetwork = coordinator.TrackWaitingForNetwork;
         coordinator.NetworkWaitChanged += track =>
@@ -314,6 +325,9 @@ public partial class MainViewModel : ViewModelBase
 
     partial void OnIsMiniPlayerChanged(bool value)
     {
+        // The two reshape the same window: one at a time.
+        if (value)
+            NowPlaying.IsFullscreen = false;
         OnPropertyChanged(nameof(IsPinnedOnTop));
         if (_settings is not null)
             _settings.MiniPlayer = value;

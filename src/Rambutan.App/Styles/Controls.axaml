@@ -562,6 +562,12 @@
     <Setter Property="IsVisible" Value="False" />
   </Style>
 
+  <!-- The fullscreen visualizer (MainWindow): Now Playing is the whole
+       window, without the title bar, sidebar and player bar around it. -->
+  <Style Selector="Window.stagefull :is(Control).frame">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+
   <!-- The compact player bar's flyouts: a column as wide as the button they open
        from, on the raised surface Search's drop-down uses. -->
   <Style Selector="FlyoutPresenter.barColumn">

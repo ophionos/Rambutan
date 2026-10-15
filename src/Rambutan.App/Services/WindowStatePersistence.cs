@@ -65,10 +65,11 @@ public sealed class WindowStatePersistence
 
         window.PropertyChanged += (_, e) =>
         {
-            // Minimize is transient; only Normal/Maximized are worth restoring.
-            // The mini player is never maximized, so it leaves the full window's state alone.
+            // Minimize and fullscreen are transient; only Normal/Maximized are
+            // worth restoring. The mini player is never maximized, so it leaves
+            // the full window's state alone.
             if (e.Property == Window.WindowStateProperty && !persistence.Paused && !persistence.IsMini &&
-                e.NewValue is WindowState state && state != WindowState.Minimized)
+                e.NewValue is WindowState state and (WindowState.Normal or WindowState.Maximized))
             {
                 settings.WindowMaximized = state == WindowState.Maximized;
             }

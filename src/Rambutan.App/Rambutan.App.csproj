@@ -24,6 +24,8 @@
     <AvaloniaResource Include="Assets\**" />
     <!-- String tables, read by Localization/Strings.cs. -->
     <EmbeddedResource Include="Locales\*.json" LogicalName="Rambutan.App.Locales.%(Filename)%(Extension)" />
+    <!-- The animated presets' SkSL, read by Controls/ShaderRenderer.cs. -->
+    <EmbeddedResource Include="Visualizer\*.sksl" LogicalName="Rambutan.App.Visualizer.%(Filename)%(Extension)" />
     <InternalsVisibleTo Include="Rambutan.App.Tests" />
   </ItemGroup>
 

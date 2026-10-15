@@ -120,6 +120,20 @@ public sealed class VisualizerControl : Control
         set => SetValue(VisualizerStyleProperty, value);
     }
 
+    /// <summary>True once the style has drawn through Skia without a GPU: the
+    /// full-area styles then draw at a lower resolution, and the view says so.
+    /// Set on the UI thread, after the frame that found out.</summary>
+    public static readonly DirectProperty<VisualizerControl, bool> IsDrawnInSoftwareProperty =
+        AvaloniaProperty.RegisterDirect<VisualizerControl, bool>(nameof(IsDrawnInSoftware), o => o.IsDrawnInSoftware);
+
+    private bool _isDrawnInSoftware;
+
+    public bool IsDrawnInSoftware
+    {
+        get => _isDrawnInSoftware;
+        private set => SetAndRaise(IsDrawnInSoftwareProperty, ref _isDrawnInSoftware, value);
+    }
+
     /// <summary>Whether the feed has nothing to show: it stopped, or every band
     /// is at the floor. An animated style winds down while it is idle.</summary>
     internal static bool IsIdle(bool stale, ReadOnlySpan<float> bands)
@@ -215,6 +229,8 @@ public sealed class VisualizerControl : Control
         _visual.SendHandlerMessage(new BarsHandler.Overlay(OverlayBars, ShowPeaks));
         _visual.SendHandlerMessage(new BarsHandler.Pacing(MaxFrameRate));
         _visual.SendHandlerMessage(new BarsHandler.Style(VisualizerRenderers.Create(VisualizerStyle)));
+        _visual.SendHandlerMessage(new BarsHandler.Reporter(software =>
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => IsDrawnInSoftware = software)));
         _polling = false;
         UpdatePolling();
     }
@@ -302,6 +318,9 @@ public sealed class VisualizerControl : Control
         /// <summary>The full-size style, built on the UI thread; the handler owns
         /// it from then on and disposes it.</summary>
         public sealed record Style(IVisualizerRenderer Renderer);
+        /// <summary>Called on the render thread when drawing moves to or from
+        /// software (no GPU context in the lease).</summary>
+        public sealed record Reporter(Action<bool> SoftwareChanged);
 
         private const double CompactBarGap = 3;
 
@@ -344,6 +363,8 @@ public sealed class VisualizerControl : Control
         private readonly OnsetDetector _onsets = new();
         private float _activity;
         private readonly SKPaint _layerPaint = new();
+        private Action<bool>? _softwareChanged;
+        private bool? _software;
 
         /// <summary>The primitives path's 0.55-opacity white, as one colour.</summary>
         private static readonly SKColor DefaultPeak = new(0xFF, 0xFF, 0xFF, 140);
@@ -395,6 +416,10 @@ public sealed class VisualizerControl : Control
                 _renderer = style.Renderer;
                 _gate.Reset();
                 Invalidate();
+            }
+            else if (message is Reporter reporter)
+            {
+                _softwareChanged = reporter.SoftwareChanged;
             }
             else if (message is Palette palette)
             {
@@ -610,6 +635,12 @@ public sealed class VisualizerControl : Control
         {
             using var lease = skia.Lease();
             var canvas = lease.SkCanvas;
+            var gpu = lease.GrContext;
+            if (_software != (gpu is null))
+            {
+                _software = gpu is null;
+                _softwareChanged?.Invoke(gpu is null);
+            }
             // The canvas maps DIPs to device pixels (and carries the visual's
             // offset); its scale is what a style sizes pixel surfaces by.
             var matrix = canvas.TotalMatrix;
@@ -634,6 +665,7 @@ public sealed class VisualizerControl : Control
                 Activity = _activity,
                 Time = (CompositionNow - _startedAt).TotalSeconds,
                 Palette = _palette,
+                Gpu = gpu,
             };
 
             var saved = canvas.Save();

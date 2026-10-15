@@ -8,8 +8,16 @@ namespace Rambutan.App.Services;
 public enum MotionPreference { System, Reduced, Full }
 
 /// <summary>How the Now Playing visualizer draws. <see cref="Radial"/> draws
-/// around the artwork, and the band shows bars while it does.</summary>
-public enum VisualizerStyle { Bars, MirroredBars, Led, Line, Area, Radial, Oscilloscope, Vectorscope }
+/// around the artwork, and the band shows bars while it does. From
+/// <see cref="Feedback"/> on, the animated presets, offered only in advanced mode.</summary>
+public enum VisualizerStyle
+{
+    Bars, MirroredBars, Led, Line, Area, Radial, Oscilloscope, Vectorscope,
+    Feedback, Plasma, Tunnel, Kaleidoscope,
+}
+
+/// <summary>Whether the visualizer changes style on its own, as Winamp's did.</summary>
+public enum VisualizerCycle { Off, Random, TrackChange }
 
 /// <summary>Where the Now Playing visualizer's colour comes from.</summary>
 public enum VisualizerColorSource { Accent, Artwork, Custom }
@@ -56,7 +64,9 @@ public sealed partial class AppearanceSettings : ObservableObject
     /// <summary>The Now Playing visualizer's style. Bars by default, as it drew
     /// before there was a choice. The meter over the player bar's artwork is
     /// always bars.</summary>
-    [ObservableProperty] private VisualizerStyle _visualizerStyle = VisualizerStyle.Bars;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShownStyle))]
+    private VisualizerStyle _visualizerStyle = VisualizerStyle.Bars;
 
     [ObservableProperty] private VisualizerColorSource _visualizerColorSource = VisualizerColorSource.Accent;
 
@@ -73,6 +83,44 @@ public sealed partial class AppearanceSettings : ObservableObject
         VisualizerStyle.Area, VisualizerStyle.Radial, VisualizerStyle.Oscilloscope, VisualizerStyle.Vectorscope,
     ];
 
+    /// <summary>The animated presets, in the settings page's order after
+    /// <see cref="StyleChoices"/>.</summary>
+    public static readonly VisualizerStyle[] PresetChoices =
+    [
+        VisualizerStyle.Feedback, VisualizerStyle.Plasma, VisualizerStyle.Tunnel, VisualizerStyle.Kaleidoscope,
+    ];
+
+    /// <summary>Everything the settings page lists, the presets last.</summary>
+    public static readonly VisualizerStyle[] AllStyleChoices = [.. StyleChoices, .. PresetChoices];
+
+    public static bool IsPreset(VisualizerStyle style) => Array.IndexOf(PresetChoices, style) >= 0;
+
+    /// <summary>The animated presets: they move all the time while anything
+    /// plays and cost more of the graphics card than the basic styles, so they
+    /// are offered only while this is on. Off by default. Reduced motion still
+    /// stops them.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShownStyle))]
+    private bool _visualizerAdvanced;
+
+    /// <summary>Off by default: the visualizer stays on the chosen style.</summary>
+    [ObservableProperty] private VisualizerCycle _visualizerCycle = VisualizerCycle.Off;
+
+    /// <summary>How long random cycling stays on a style while it plays. The
+    /// maintainer chose 30 seconds.</summary>
+    public static readonly TimeSpan CycleInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>What the chosen style draws as: itself, or bars when it is a
+    /// preset and advanced mode is off. The choice itself is kept, so turning
+    /// advanced mode back on finds it.</summary>
+    public VisualizerStyle ShownStyle => Available(VisualizerStyle, VisualizerAdvanced);
+
+    public static VisualizerStyle Available(VisualizerStyle style, bool advanced) =>
+        IsPreset(style) && !advanced ? VisualizerStyle.Bars : style;
+
+    /// <summary>The styles the picker offers, and so the ones cycling picks from.</summary>
+    public static VisualizerStyle[] Offered(bool advanced) => advanced ? AllStyleChoices : StyleChoices;
+
     /// <summary>The style as persisted. Unknown words (hand-edited, or a style
     /// from a newer build) read as bars.</summary>
     public static VisualizerStyle ParseStyle(string? value) => value switch
@@ -84,6 +132,10 @@ public sealed partial class AppearanceSettings : ObservableObject
         "radial" => VisualizerStyle.Radial,
         "oscilloscope" => VisualizerStyle.Oscilloscope,
         "vectorscope" => VisualizerStyle.Vectorscope,
+        "feedback" => VisualizerStyle.Feedback,
+        "plasma" => VisualizerStyle.Plasma,
+        "tunnel" => VisualizerStyle.Tunnel,
+        "kaleidoscope" => VisualizerStyle.Kaleidoscope,
         _ => VisualizerStyle.Bars,
     };
 
@@ -96,7 +148,27 @@ public sealed partial class AppearanceSettings : ObservableObject
         VisualizerStyle.Radial => "radial",
         VisualizerStyle.Oscilloscope => "oscilloscope",
         VisualizerStyle.Vectorscope => "vectorscope",
+        VisualizerStyle.Feedback => "feedback",
+        VisualizerStyle.Plasma => "plasma",
+        VisualizerStyle.Tunnel => "tunnel",
+        VisualizerStyle.Kaleidoscope => "kaleidoscope",
         _ => "bars",
+    };
+
+    /// <summary>The cycle mode as persisted: "off", "random" or "track";
+    /// unknown words read as off.</summary>
+    public static VisualizerCycle ParseCycle(string? value) => value switch
+    {
+        "random" => VisualizerCycle.Random,
+        "track" => VisualizerCycle.TrackChange,
+        _ => VisualizerCycle.Off,
+    };
+
+    public static string FormatCycle(VisualizerCycle value) => value switch
+    {
+        VisualizerCycle.Random => "random",
+        VisualizerCycle.TrackChange => "track",
+        _ => "off",
     };
 
     /// <summary>The colour source as persisted: "accent", "artwork" or "custom";

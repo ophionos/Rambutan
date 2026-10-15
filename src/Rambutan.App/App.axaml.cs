@@ -244,6 +244,8 @@ public partial class App : Application
             ArtworkMeter = settings.ArtworkMeter,
             VisualizerFrameRate = AppearanceSettings.ParseFrameRate(settings.VisualizerFrameRate),
             VisualizerStyle = AppearanceSettings.ParseStyle(settings.VisualizerStyle),
+            VisualizerAdvanced = settings.VisualizerAdvanced,
+            VisualizerCycle = AppearanceSettings.ParseCycle(settings.VisualizerCycle),
             VisualizerColorSource = AppearanceSettings.ParseColorSource(settings.VisualizerColor),
             VisualizerCustomColor = AppearanceSettings.ParseCustomColor(settings.VisualizerCustomColor),
             Motion = AppearanceSettings.ParseMotion(settings.Motion),
@@ -668,6 +670,8 @@ public partial class App : Application
         settings.ArtworkMeter = appearance.ArtworkMeter;
         settings.VisualizerFrameRate = appearance.VisualizerFrameRate;
         settings.VisualizerStyle = AppearanceSettings.FormatStyle(appearance.VisualizerStyle);
+        settings.VisualizerAdvanced = appearance.VisualizerAdvanced;
+        settings.VisualizerCycle = AppearanceSettings.FormatCycle(appearance.VisualizerCycle);
         settings.VisualizerColor = AppearanceSettings.FormatColorSource(appearance.VisualizerColorSource);
         settings.VisualizerCustomColor = AppearanceSettings.ParseCustomColor(appearance.VisualizerCustomColor);
         settings.Motion = AppearanceSettings.FormatMotion(appearance.Motion);
