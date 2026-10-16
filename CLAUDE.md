@@ -203,11 +203,7 @@ file sink), never to files directly.
   focus) the pointer stays. Esc and F11 leave either mode, and
   leaving the window's fullscreen from outside ends the visualizer's too.
   Neither mode is saved (`WindowStatePersistence` writes only Normal or
-  Maximized), and fullscreen and the mini player end each other. A gradient
-  drawn over a shader preset's feathered edge can show stray white lines
-  (seen along the bottom; the top shade showed none), so the transport sits
-  on a flat backdrop. Check the presets with the controls up after changing
-  what draws over the visualizer.
+  Maximized), and fullscreen and the mini player end each other.
 - Lyrics degrade in explicit states: word-synced → line-synced → plain → "no
   lyrics found". Imported custom lyrics always win over providers.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.
