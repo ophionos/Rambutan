@@ -13,6 +13,7 @@ namespace Rambutan.InnerTube;
 public sealed class InnerTubeSession
 {
     private const string Origin = "https://music.youtube.com";
+    internal const string MusicHost = "music.youtube.com";
 
     // One per sign-in, shared by every refreshed copy of it.
     private readonly object _signIn;
@@ -38,7 +39,7 @@ public sealed class InnerTubeSession
         if (string.IsNullOrWhiteSpace(raw))
             return null;
 
-        var pairs = Parse(CookieText.ExtractCookieHeader(raw));
+        var pairs = CookiePairs.Parse(CookieText.ExtractCookieHeader(raw));
         return Create(pairs, new object());
     }
 
@@ -59,47 +60,16 @@ public sealed class InnerTubeSession
     /// </summary>
     public InnerTubeSession? WithSetCookies(IEnumerable<string> setCookieHeaders, string responseHost, DateTimeOffset now)
     {
-        var pairs = Parse(CookieHeader);
-        var changed = false;
-        foreach (var header in setCookieHeaders)
-        {
-            if (SetCookie.Parse(header, responseHost, now) is not { } cookie)
-                continue;
-            var index = pairs.FindIndex(p => p.Name == cookie.Name);
-            if (cookie.Expired)
-            {
-                if (index >= 0)
-                {
-                    pairs.RemoveAt(index);
-                    changed = true;
-                }
-            }
-            else if (index < 0)
-            {
-                pairs.Add((cookie.Name, cookie.Value));
-                changed = true;
-            }
-            else if (pairs[index].Value != cookie.Value)
-            {
-                pairs[index] = (cookie.Name, cookie.Value);
-                changed = true;
-            }
-        }
-
-        return changed ? Create(pairs, _signIn) : this;
+        var pairs = CookiePairs.Parse(CookieHeader);
+        return CookiePairs.Merge(pairs, setCookieHeaders, MusicHost, responseHost, now) ? Create(pairs, _signIn) : this;
     }
 
-    private static List<(string Name, string Value)> Parse(string cookieHeader)
-    {
-        var pairs = new List<(string Name, string Value)>();
-        foreach (var part in cookieHeader.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-        {
-            var eq = part.IndexOf('=');
-            if (eq > 0)
-                pairs.Add((part[..eq], part[(eq + 1)..]));
-        }
-        return pairs;
-    }
+    /// <summary>
+    /// A session of the same sign-in made of <paramref name="cookies"/> alone:
+    /// what Google issued when it renewed the sign-in. Null when they can't
+    /// authenticate (no SAPISID).
+    /// </summary>
+    internal InnerTubeSession? Reissued(List<(string Name, string Value)> cookies) => Create(cookies, _signIn);
 
     private static InnerTubeSession? Create(List<(string Name, string Value)> pairs, object signIn)
     {
@@ -112,7 +82,7 @@ public sealed class InnerTubeSession
 
         return sapisid is null
             ? null
-            : new InnerTubeSession(string.Join("; ", pairs.Select(p => $"{p.Name}={p.Value}")), sapisid, signIn);
+            : new InnerTubeSession(CookiePairs.Join(pairs), sapisid, signIn);
     }
 
     /// <summary>Authorization header value: SAPISIDHASH {ts}_{SHA1("{ts} {SAPISID} {origin}")}.</summary>
@@ -125,11 +95,11 @@ public sealed class InnerTubeSession
 }
 
 /// <summary>One Set-Cookie header, reduced to what a stored session needs.</summary>
-internal sealed record SetCookie(string Name, string Value, bool Expired)
+internal sealed record SetCookie(string Name, string Value, bool Expired, string? Domain)
 {
-    /// <summary>Null for a malformed header, or one a music.youtube.com request
-    /// wouldn't send back (another domain, or host-only on another host).</summary>
-    public static SetCookie? Parse(string header, string responseHost, DateTimeOffset now)
+    /// <summary>Null for a malformed header. <see cref="Domain"/> is null for a
+    /// host-only cookie.</summary>
+    public static SetCookie? Parse(string header, DateTimeOffset now)
     {
         var parts = header.Split(';', StringSplitOptions.TrimEntries);
         var eq = parts[0].IndexOf('=');
@@ -155,10 +125,73 @@ internal sealed record SetCookie(string Name, string Value, bool Expired)
                 expired = true;
         }
 
-        var applies = domain is null
-            ? responseHost.Equals("music.youtube.com", StringComparison.OrdinalIgnoreCase)
-            : domain.Equals("youtube.com", StringComparison.OrdinalIgnoreCase);
-        return applies ? new SetCookie(parts[0][..eq].Trim(), parts[0][(eq + 1)..].Trim(), expired) : null;
+        return new SetCookie(parts[0][..eq].Trim(), parts[0][(eq + 1)..].Trim(), expired, domain);
+    }
+
+    /// <summary>Whether a request to <paramref name="host"/> sends this cookie
+    /// back, given the host whose response set it.</summary>
+    public bool AppliesTo(string host, string responseHost) => Domain is null
+        ? host.Equals(responseHost, StringComparison.OrdinalIgnoreCase)
+        : host.Equals(Domain, StringComparison.OrdinalIgnoreCase) ||
+          host.EndsWith("." + Domain, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>A Cookie header as name/value pairs in order: the cookies a browser
+/// sends to one host.</summary>
+internal static class CookiePairs
+{
+    public static List<(string Name, string Value)> Parse(string cookieHeader)
+    {
+        var pairs = new List<(string Name, string Value)>();
+        foreach (var part in cookieHeader.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            var eq = part.IndexOf('=');
+            if (eq > 0)
+                pairs.Add((part[..eq], part[(eq + 1)..]));
+        }
+        return pairs;
+    }
+
+    public static string Join(List<(string Name, string Value)> pairs) =>
+        string.Join("; ", pairs.Select(p => $"{p.Name}={p.Value}"));
+
+    /// <summary>
+    /// Applies what a response from <paramref name="responseHost"/> set to the
+    /// cookies a request to <paramref name="host"/> carries, as a browser would:
+    /// a new value replaces the old one, a new cookie is added, and an expired
+    /// one (Max-Age=0 or a past Expires) is removed. A cookie that host doesn't
+    /// receive is ignored. True when anything changed.
+    /// </summary>
+    public static bool Merge(
+        List<(string Name, string Value)> pairs, IEnumerable<string> setCookieHeaders,
+        string host, string responseHost, DateTimeOffset now)
+    {
+        var changed = false;
+        foreach (var header in setCookieHeaders)
+        {
+            if (SetCookie.Parse(header, now) is not { } cookie || !cookie.AppliesTo(host, responseHost))
+                continue;
+            var index = pairs.FindIndex(p => p.Name == cookie.Name);
+            if (cookie.Expired)
+            {
+                if (index >= 0)
+                {
+                    pairs.RemoveAt(index);
+                    changed = true;
+                }
+            }
+            else if (index < 0)
+            {
+                pairs.Add((cookie.Name, cookie.Value));
+                changed = true;
+            }
+            else if (pairs[index].Value != cookie.Value)
+            {
+                pairs[index] = (cookie.Name, cookie.Value);
+                changed = true;
+            }
+        }
+        return changed;
     }
 }
 

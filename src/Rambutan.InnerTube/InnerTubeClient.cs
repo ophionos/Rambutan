@@ -28,10 +28,28 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
     };
 
     private readonly HttpClient _http;
+    // The sign-in redirects set cookies on each hop, which a handler that follows
+    // redirects itself would drop. A client that was passed in is used as it is.
+    private readonly HttpClient _navigation;
     private readonly bool _ownsHttp;
     private const string RotateCookiesUrl = "https://accounts.youtube.com/RotateCookies";
 
+    // The link behind YouTube's own "Sign in" button. passive=true has Google
+    // answer from the sign-in it already has, never with a form.
+    private static readonly Uri ReissueUri = new(
+        "https://accounts.google.com/ServiceLogin?service=youtube&passive=true&continue=" +
+        Uri.EscapeDataString("https://www.youtube.com/signin?action_handle_signin=true&app=desktop&hl=en&next=" +
+            Uri.EscapeDataString("https://music.youtube.com/")));
+
+    // The hosts Google's sign-in redirects pass through on the way to music.
+    private static readonly HashSet<string> ReissueHosts =
+        [GoogleSignIn.Host, "accounts.youtube.com", "www.youtube.com"];
+
+    // Three hops in practice (accounts.google.com, SetSID, youtube.com/signin).
+    private const int MaxReissueHops = 8;
+
     private volatile InnerTubeSession? _session;
+    private volatile GoogleSignIn? _google;
     // Serializes read-merge-write of _session, so two responses that both set
     // cookies can't lose one update.
     private readonly Lock _sessionLock = new();
@@ -48,6 +66,15 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         _http = http ?? new HttpClient(new SocketsHttpHandler { UseCookies = false });
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         _http.DefaultRequestHeaders.Add("Origin", "https://music.youtube.com");
+        if (_ownsHttp)
+        {
+            _navigation = new HttpClient(new SocketsHttpHandler { UseCookies = false, AllowAutoRedirect = false });
+            _navigation.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+        }
+        else
+        {
+            _navigation = _http;
+        }
     }
 
     public InnerTubeSession? Session => _session;
@@ -57,6 +84,23 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         lock (_sessionLock)
             _session = session;
     }
+
+    /// <summary>The Google sign-in that <see cref="ReissueSessionAsync"/> renews
+    /// the session from; null when the user didn't give one.</summary>
+    public GoogleSignIn? GoogleSignIn => _google;
+
+    public void SetGoogleSignIn(GoogleSignIn? google)
+    {
+        lock (_sessionLock)
+            _google = google;
+    }
+
+    /// <summary>
+    /// The Google sign-in's own cookies changed during <see cref="ReissueSessionAsync"/>.
+    /// Carries the new copy, which is already the client's. Raised on the thread
+    /// that made the request.
+    /// </summary>
+    public event Action<GoogleSignIn>? GoogleSignInUpdated;
 
     /// <summary>
     /// A response set cookies that changed the current session: Google rotated
@@ -101,6 +145,102 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         {
             AppLog.Write("session", $"rotate: unreachable ({e.GetType().Name}: {e.Message})");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Has Google issue the session new youtube.com cookies from the
+    /// <see cref="GoogleSignIn"/>, as it does when a browser whose YouTube cookies
+    /// have expired opens YouTube: accounts.google.com redirects through
+    /// accounts.youtube.com and www.youtube.com back to music, and each hop sets
+    /// cookies. Only accounts.google.com gets the Google cookies; the youtube.com
+    /// hops get none, so every youtube.com cookie of the result comes from Google.
+    /// The new cookies become the session (the same sign-in, reported by
+    /// <see cref="SessionUpdated"/>), unless it was signed out or replaced
+    /// meanwhile. True when Google issued them; false when it asked for a sign-in
+    /// instead, couldn't be reached, or there is no session or Google sign-in.
+    /// </summary>
+    public async Task<bool> ReissueSessionAsync(CancellationToken ct = default)
+    {
+        if (_session is not { } session || _google is not { } started)
+            return false;
+
+        var google = started;
+        var cookies = new List<(string Name, string Value)>();
+        var url = ReissueUri;
+        try
+        {
+            for (var hop = 0; hop < MaxReissueHops; hop++)
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Accept.ParseAdd("text/html,application/xhtml+xml,*/*;q=0.8");
+                if (url.Host == GoogleSignIn.Host)
+                    request.Headers.TryAddWithoutValidation("Cookie", google.CookieHeader);
+
+                using var response = await _navigation.SendAsync(request, ct);
+                if (response.Headers.TryGetValues("Set-Cookie", out var headers))
+                {
+                    var now = DateTimeOffset.UtcNow;
+                    google = google.WithSetCookies(headers, url.Host, now);
+                    CookiePairs.Merge(cookies, headers, InnerTubeSession.MusicHost, url.Host, now);
+                }
+
+                // On Linux a relative "/path" parses as an absolute file: URI.
+                var next = response.Headers.Location is { } location
+                    ? location.IsAbsoluteUri && !location.IsFile ? location : new Uri(url, location.OriginalString)
+                    : null;
+                if ((int)response.StatusCode is < 300 or > 399 || next is null ||
+                    (next.Host != InnerTubeSession.MusicHost && !ReissueHosts.Contains(next.Host)))
+                {
+                    // Signed out, Google sends the browser to a sign-in page
+                    // (/v3/signin/identifier) instead. Path only: the query carries tokens.
+                    var to = next is null ? "" : $" -> {next.Host}{next.AbsolutePath}";
+                    AppLog.Write("session", $"reissue: refused ({url.Host}{url.AbsolutePath} {(int)response.StatusCode}{to})");
+                    return Finish(null);
+                }
+                if (next.Host == InnerTubeSession.MusicHost)
+                {
+                    if (session.Reissued(cookies) is { } issued)
+                        return Finish(issued);
+                    AppLog.Write("session", "reissue: refused (no SAPISID among the cookies Google set)");
+                    return Finish(null);
+                }
+                url = next;
+            }
+
+            AppLog.Write("session", "reissue: refused (too many redirects)");
+            return Finish(null);
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
+        {
+            AppLog.Write("session", $"reissue: unreachable ({e.GetType().Name}: {e.Message})");
+            return Finish(null);
+        }
+
+        bool Finish(InnerTubeSession? issued)
+        {
+            InnerTubeSession? updated = null;
+            var googleChanged = false;
+            lock (_sessionLock)
+            {
+                // Google may refresh its own cookies even when it issues nothing;
+                // they're kept unless the sign-in was replaced meanwhile.
+                if (ReferenceEquals(_google, started) && !ReferenceEquals(google, started))
+                {
+                    _google = google;
+                    googleChanged = true;
+                }
+                if (issued is not null && _session is { } current && InnerTubeSession.IsSameSignIn(current, session))
+                    _session = updated = issued;
+            }
+
+            if (googleChanged)
+                GoogleSignInUpdated?.Invoke(google);
+            if (updated is null)
+                return false;
+            AppLog.Write("session", "reissue: new session issued");
+            SessionUpdated?.Invoke(updated);
+            return true;
         }
     }
 
@@ -685,6 +825,9 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
     public void Dispose()
     {
         if (_ownsHttp)
+        {
             _http.Dispose();
+            _navigation.Dispose();
+        }
     }
 }

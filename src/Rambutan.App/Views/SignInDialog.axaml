@@ -87,6 +87,42 @@
                  IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
     </StackPanel>
 
+    <!-- Optional, and closed until wanted, so a sign-in without it reads as
+         complete and the dialog fits a small screen. What these cookies give
+         access to is said inside, before the box. -->
+    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+              IsExpanded="{Binding IsGoogleStepOpen}"
+              AutomationProperties.Name="{l:T dialog.signIn.renew.heading}">
+      <!-- Fluent centres the header; the steps above read from the left. -->
+      <Expander.Styles>
+        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
+          <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+      </Expander.Styles>
+      <Expander.Header>
+        <TextBlock FontSize="12" FontWeight="SemiBold" Text="{l:T dialog.signIn.renew.heading}" />
+      </Expander.Header>
+      <StackPanel Spacing="6">
+        <TextBlock FontSize="12" TextWrapping="Wrap" Opacity="0.75" Text="{l:T dialog.signIn.renew.intro}" />
+        <TextBlock FontSize="12" TextWrapping="Wrap" Text="{l:T dialog.signIn.renew.step}" />
+        <TextBlock FontSize="12" TextWrapping="Wrap" Text="{l:T dialog.signIn.renew.plain}"
+                   IsVisible="{Binding !IsStorageEncrypted}" />
+        <TextBox x:Name="GoogleBox" Height="64" AcceptsReturn="True" TextWrapping="Wrap"
+                 FontSize="11" FontFamily="Consolas,monospace"
+                 AutomationProperties.Name="{l:T dialog.signIn.renew.boxName}"
+                 IsEnabled="{Binding !IsChecking}"
+                 Text="{Binding GoogleText}"
+                 PlaceholderText="{l:T dialog.signIn.renew.placeholder}" />
+        <TextBlock Text="{Binding GoogleClipboardNote}" FontSize="12" TextWrapping="Wrap" Opacity="0.85"
+                   IsVisible="{Binding GoogleClipboardNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <TextBlock Text="{Binding GoogleError}" FontSize="12" TextWrapping="Wrap"
+                   Foreground="{StaticResource Token.Brush.Error}"
+                   IsVisible="{Binding GoogleError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </StackPanel>
+    </Expander>
+
+    <TextBlock FontSize="12" TextWrapping="Wrap" Text="{l:T dialog.signIn.closeWindow}" />
+
     <TextBlock Text="{Binding StorageNote}" TextWrapping="Wrap" Opacity="0.6" FontSize="12"
                IsVisible="{Binding IsStorageEncrypted}" />
 

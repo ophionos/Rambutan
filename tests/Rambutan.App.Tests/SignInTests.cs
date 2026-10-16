@@ -105,7 +105,7 @@ public class SignInDialogTests
         _answer = () => Task.FromResult(new SessionInfo(state, null));
         var dialog = Dialog();
         var succeeded = false;
-        dialog.Succeeded += (_, _) => succeeded = true;
+        dialog.Succeeded += (_, _, _) => succeeded = true;
         dialog.CookieText = Copied;
 
         await dialog.SignInCommand.ExecuteAsync(null);
@@ -123,7 +123,7 @@ public class SignInDialogTests
     {
         var dialog = Dialog();
         (InnerTubeSession Session, SessionInfo Info)? result = null;
-        dialog.Succeeded += (s, i) => result = (s, i);
+        dialog.Succeeded += (s, _, i) => result = (s, i);
         dialog.CookieText = Copied;
 
         await dialog.SignInCommand.ExecuteAsync(null);
@@ -134,6 +134,79 @@ public class SignInDialogTests
         Assert.Equal("", dialog.Error);
     }
 
+    private const string CopiedGoogle =
+        "curl 'https://accounts.google.com/' -b 'SID=g; LSID=l; __Host-GAPS=p; SAPISID=s'";
+
+    [Fact]
+    public void Clipboard_WithTheGoogleCopy_FillsTheSecondBox_NotTheFirst()
+    {
+        var dialog = Dialog();
+        Assert.False(dialog.IsGoogleStepOpen);
+
+        Assert.True(dialog.OfferClipboard(CopiedGoogle));
+
+        Assert.True(dialog.IsGoogleStepOpen);
+        Assert.Equal(CopiedGoogle, dialog.GoogleText);
+        Assert.Equal("", dialog.CookieText);
+        Assert.Equal(Strings.Get(SignInDialogViewModel.GoogleClipboardFoundKey), dialog.GoogleClipboardNote);
+        Assert.False(dialog.OfferClipboard(CopiedGoogle));
+        // The YouTube copy still goes where it belongs.
+        Assert.True(dialog.OfferClipboard(Copied));
+        Assert.Equal(Copied, dialog.CookieText);
+        Assert.Equal(CopiedGoogle, dialog.GoogleText);
+    }
+
+    [Fact]
+    public async Task TheGoogleCopy_InTheFirstBox_IsExplained_WithoutAskingYouTube()
+    {
+        var dialog = Dialog();
+        dialog.CookieText = CopiedGoogle;
+
+        await dialog.SignInCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Get(SignInDialogViewModel.GoogleInFirstBoxKey), dialog.Error);
+        Assert.Empty(_verified);
+    }
+
+    [Fact]
+    public async Task ASecondBoxWithoutAGoogleSignIn_IsExplained_WithoutAskingYouTube()
+    {
+        var dialog = Dialog();
+        dialog.CookieText = Copied;
+        dialog.GoogleText = Copied;
+
+        await dialog.SignInCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.Get(SignInDialogViewModel.NoGoogleSignInKey), dialog.GoogleError);
+        Assert.True(dialog.IsGoogleStepOpen);
+        Assert.Equal("", dialog.Error);
+        Assert.Empty(_verified);
+
+        dialog.GoogleText = "";
+        Assert.Equal("", dialog.GoogleError);
+    }
+
+    [Fact]
+    public async Task AGoodCheck_HandsOverTheGoogleSignIn_WhenOneWasGiven()
+    {
+        var dialog = Dialog();
+        GoogleSignIn? google = null;
+        var succeeded = 0;
+        dialog.Succeeded += (_, g, _) => (google, succeeded) = (g, succeeded + 1);
+        dialog.CookieText = Copied;
+        dialog.GoogleText = CopiedGoogle;
+
+        await dialog.SignInCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, succeeded);
+        Assert.Equal("SID=g; LSID=l; __Host-GAPS=p; SAPISID=s", google!.CookieHeader);
+
+        dialog.GoogleText = "";
+        await dialog.SignInCommand.ExecuteAsync(null);
+        Assert.Equal(2, succeeded);
+        Assert.Null(google);
+    }
+
     [Fact]
     public async Task WhileChecking_SignInIsDisabled_AndCancelDropsTheAnswer()
     {
@@ -141,7 +214,7 @@ public class SignInDialogTests
         _answer = () => pending.Task;
         var dialog = Dialog();
         var succeeded = false;
-        dialog.Succeeded += (_, _) => succeeded = true;
+        dialog.Succeeded += (_, _, _) => succeeded = true;
         dialog.CookieText = Copied;
 
         var run = dialog.SignInCommand.ExecuteAsync(null);
@@ -178,11 +251,22 @@ public sealed class SessionViewModelTests : IDisposable
         /// <summary>Refuse account checks until a rotation has happened: only the
         /// rotating cookies went stale.</summary>
         public bool StaleUntilRotated { get; set; }
+        /// <summary>Refuse account checks unless they carry the cookies Google's
+        /// sign-in redirects issue: YouTube no longer accepts the stored ones.</summary>
+        public bool ExpiredUntilReissued { get; set; }
+        /// <summary>Whether accounts.google.com accepts the Google sign-in, or sends
+        /// the request to its sign-in form.</summary>
+        public bool GoogleSignedIn { get; set; } = true;
+        public int Reissues { get; private set; }
+        /// <summary>Each sign-in redirect's host, with the Cookie header it carried.</summary>
+        public List<(string Host, string? Cookie)> SignInHops { get; } = [];
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             if (Offline)
                 throw new HttpRequestException("offline");
+            if (SignInRedirect(request) is { } redirect)
+                return Task.FromResult(redirect);
             var isAccount = request.RequestUri!.AbsolutePath.EndsWith("account/account_menu", StringComparison.Ordinal);
             var isRotate = request.RequestUri.AbsolutePath == "/RotateCookies";
             if (isAccount)
@@ -190,6 +274,11 @@ public sealed class SessionViewModelTests : IDisposable
             if (isRotate)
                 Rotations++;
             var status = StaleUntilRotated && isAccount && Rotations == 0 ? HttpStatusCode.Unauthorized : Status;
+            if (ExpiredUntilReissued && isAccount &&
+                !(request.Headers.TryGetValues("Cookie", out var sent) && string.Concat(sent).Contains("SAPISID=issued")))
+            {
+                status = HttpStatusCode.Unauthorized;
+            }
             var response = new HttpResponseMessage(status)
             {
                 Content = new StringContent(
@@ -199,6 +288,39 @@ public sealed class SessionViewModelTests : IDisposable
             foreach (var cookie in isRotate ? RotatedCookies : isAccount ? AccountCookies : [])
                 response.Headers.TryAddWithoutValidation("Set-Cookie", cookie);
             return Task.FromResult(response);
+        }
+
+        /// <summary>The three hops of Google's sign-in, as recorded live.</summary>
+        private HttpResponseMessage? SignInRedirect(HttpRequestMessage request)
+        {
+            var uri = request.RequestUri!;
+            (string Location, string[] Cookies)? hop = (uri.Host, uri.AbsolutePath) switch
+            {
+                ("accounts.google.com", "/ServiceLogin") => GoogleSignedIn
+                    ? ("https://accounts.youtube.com/accounts/SetSID?ssdc=1", ["SIDCC=g2; Domain=.google.com"])
+                    : ("https://accounts.google.com/v3/signin/identifier?flowName=x", []),
+                ("accounts.youtube.com", "/accounts/SetSID") => ("https://www.youtube.com/signin?next=x",
+                    ["SAPISID=issued; Domain=.youtube.com", "__Secure-1PSIDTS=issued; Domain=.youtube.com"]),
+                ("www.youtube.com", "/signin") => ("https://music.youtube.com/", ["LOGIN_INFO=issued; Domain=.youtube.com"]),
+                ("accounts.google.com", _) => ("", []),
+                _ => null,
+            };
+            if (hop is not { } answer)
+                return null;
+
+            if (uri.AbsolutePath == "/ServiceLogin")
+                Reissues++;
+            SignInHops.Add((uri.Host, request.Headers.TryGetValues("Cookie", out var c) ? string.Concat(c) : null));
+            var response = new HttpResponseMessage(answer.Location == "" ? HttpStatusCode.OK : HttpStatusCode.Found)
+            {
+                Content = new StringContent("<html></html>", Encoding.UTF8, "text/html"),
+                RequestMessage = request,
+            };
+            if (answer.Location != "")
+                response.Headers.Location = new Uri(answer.Location);
+            foreach (var cookie in answer.Cookies)
+                response.Headers.TryAddWithoutValidation("Set-Cookie", cookie);
+            return response;
         }
     }
 
@@ -450,6 +572,9 @@ public sealed class SessionViewModelTests : IDisposable
         Assert.Equal(1, _server.Rotations);
         Assert.Equal(2, _server.AccountChecks);
         Assert.Equal("SAPISID=stored; __Secure-1PSIDTS=rotated", _vault.Load());
+        // What loaded with the stale cookies reloads with the rotated ones.
+        Assert.Equal(1, _signIns);
+        Assert.Same(_client.Session, _sessionAtSignIn);
     }
 
     [Fact]
@@ -543,6 +668,94 @@ public sealed class SessionViewModelTests : IDisposable
         Assert.Equal(1, _server.Rotations);
         Assert.Null(_vault.Load());
         Assert.Null(_client.Session);
+    }
+
+    private const string Google = "SID=g; LSID=l";
+
+    [Fact]
+    public async Task AnExpiredSession_IsRenewedFromTheGoogleSignIn_AndStored()
+    {
+        _server.ExpiredUntilReissued = true;
+        await _vault.Save("SAPISID=stored", Google);
+
+        await _session.RestoreAsync();
+
+        Assert.Equal(SessionState.Valid, _session.State);
+        Assert.Equal(1, _server.Reissues);
+        Assert.Equal("SAPISID=issued; __Secure-1PSIDTS=issued; LOGIN_INFO=issued", _client.Session!.CookieHeader);
+        Assert.Equal(_client.Session.CookieHeader, await _vault.LoadAsync());
+        Assert.Equal("SID=g; LSID=l; SIDCC=g2", await _vault.LoadGoogleAsync());
+        // The Google cookies go to accounts.google.com and nowhere else.
+        Assert.Equal(
+            [("accounts.google.com", Google), ("accounts.youtube.com", null), ("www.youtube.com", null)],
+            _server.SignInHops);
+        // Pages loaded before the renewal went out with the refused cookies, which
+        // YouTube Music answers as signed out: they reload, with the new cookies.
+        Assert.Equal(1, _signIns);
+        Assert.Same(_client.Session, _sessionAtSignIn);
+        Assert.StartsWith("Signed in with cookies from your browser. When YouTube stops accepting them", _session.StatusDetail);
+    }
+
+    [Fact]
+    public async Task ASignInGoogleWontRenew_IsExpired_AfterOneTry()
+    {
+        _server.ExpiredUntilReissued = true;
+        _server.GoogleSignedIn = false;
+        await _vault.Save("SAPISID=stored", Google);
+
+        await _session.RestoreAsync();
+
+        Assert.Equal(SessionState.Expired, _session.State);
+        Assert.Equal(1, _server.Reissues);
+        Assert.Equal(1, _server.AccountChecks);
+        Assert.Equal("SAPISID=stored", await _vault.LoadAsync());
+        Assert.Equal(Google, await _vault.LoadGoogleAsync());
+    }
+
+    [Fact]
+    public async Task WithoutAGoogleSignIn_NothingAsksGoogle()
+    {
+        _server.ExpiredUntilReissued = true;
+        await _vault.Save("SAPISID=stored");
+
+        await _session.RestoreAsync();
+
+        Assert.Equal(SessionState.Expired, _session.State);
+        Assert.Empty(_server.SignInHops);
+    }
+
+    [Fact]
+    public async Task SigningIn_WithTheGoogleCopy_StoresBoth_AndWithoutIt_ForgetsTheOldOne()
+    {
+        var dialog = _session.CreateSignInDialog();
+        dialog.CookieText = "SAPISID=pasted";
+        dialog.GoogleText = "curl 'https://accounts.google.com/' -b 'SID=g; LSID=l'";
+        await dialog.SignInCommand.ExecuteAsync(null);
+
+        Assert.Equal(Google, _client.GoogleSignIn!.CookieHeader);
+        Assert.Equal(Google, await _vault.LoadGoogleAsync());
+        Assert.StartsWith("Signed in with cookies from your browser. When YouTube stops accepting them", _session.StatusDetail);
+
+        dialog = _session.CreateSignInDialog();
+        dialog.CookieText = "SAPISID=again";
+        await dialog.SignInCommand.ExecuteAsync(null);
+
+        Assert.Null(_client.GoogleSignIn);
+        Assert.Null(await _vault.LoadGoogleAsync());
+        Assert.StartsWith("Signed in with cookies from your browser. Last checked", _session.StatusDetail);
+    }
+
+    [Fact]
+    public async Task SignOut_ForgetsTheGoogleSignInToo()
+    {
+        await _vault.Save("SAPISID=stored", Google);
+        await _session.RestoreAsync();
+        Assert.NotNull(_client.GoogleSignIn);
+
+        _session.SignOutCommand.Execute(null);
+
+        Assert.Null(_client.GoogleSignIn);
+        Assert.Null(await _vault.LoadGoogleAsync());
     }
 
     [Theory]
