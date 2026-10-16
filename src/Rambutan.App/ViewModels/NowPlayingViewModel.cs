@@ -70,18 +70,28 @@ public partial class NowPlayingViewModel : ViewModelBase
     /// only this pane in it (MainWindow), and the stage shows whatever its own
     /// toggle says. Not remembered: a start in fullscreen would surprise.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FullscreenTip), nameof(IsWindowed), nameof(IsChromeHidden))]
+    [NotifyPropertyChangedFor(nameof(FullscreenTip), nameof(IsWindowed), nameof(IsChromeHidden), nameof(IsPointerHidden))]
     private bool _isFullscreen;
 
     /// <summary>Fullscreen's controls show: after input, until
     /// <see cref="ChromeDelay"/> passes without any, and while held.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsTitleCardShown), nameof(IsChromeHidden))]
+    [NotifyPropertyChangedFor(nameof(IsTitleCardShown), nameof(IsChromeHidden), nameof(IsPointerHidden))]
     private bool _isChromeShown;
 
-    /// <summary>Fullscreen without input for a while: the controls and the
-    /// pointer are hidden. The controls stay focusable, and a key shows them.</summary>
+    /// <summary>Fullscreen without input for a while: the controls are hidden. The controls stay focusable, and a key shows them.</summary>
     public bool IsChromeHidden => IsFullscreen && !IsChromeShown;
+
+    /// <summary>Whether the window holding the view has the focus. The view
+    /// sets it; true when nothing has.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPointerHidden))]
+    private bool _isWindowActive = true;
+
+    /// <summary>The pointer hides with the controls, but only while the window
+    /// is active: over an inactive window (a dialog has the focus, or another
+    /// app) a moving pointer brings nothing back, so it would stay hidden.</summary>
+    public bool IsPointerHidden => IsChromeHidden && IsWindowActive;
 
     /// <summary>A track started in fullscreen less than <see cref="TitleCardTime"/> ago.</summary>
     [ObservableProperty]

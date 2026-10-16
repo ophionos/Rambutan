@@ -58,13 +58,30 @@ public partial class NowPlayingView : UserControl
         base.OnAttachedToVisualTree(e);
         _topLevel = TopLevel.GetTopLevel(this);
         _topLevel?.AddHandler(KeyDownEvent, OnAnyKey, RoutingStrategies.Tunnel, handledEventsToo: true);
+        if (_topLevel is WindowBase window)
+            window.PropertyChanged += OnWindowPropertyChanged;
+        ApplyWindowActive();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _topLevel?.RemoveHandler(KeyDownEvent, OnAnyKey);
+        if (_topLevel is WindowBase window)
+            window.PropertyChanged -= OnWindowPropertyChanged;
         _topLevel = null;
         base.OnDetachedFromVisualTree(e);
+    }
+
+    private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == WindowBase.IsActiveProperty)
+            ApplyWindowActive();
+    }
+
+    private void ApplyWindowActive()
+    {
+        if (_vm is not null)
+            _vm.IsWindowActive = _topLevel is not WindowBase window || window.IsActive;
     }
 
     private void OnAnyKey(object? sender, KeyEventArgs e) => _vm?.ShowChrome();
@@ -93,7 +110,7 @@ public partial class NowPlayingView : UserControl
         Body.Margin = fullscreen
             ? new Thickness(_bodyMargin.Left, _bodyMargin.Top, _bodyMargin.Right, FullscreenBodyBottom)
             : _bodyMargin;
-        Cursor = _vm?.IsChromeHidden == true ? NoCursor : null;
+        Cursor = _vm?.IsPointerHidden == true ? NoCursor : null;
         if (!fullscreen)
             _lastPointer = null;
     }
@@ -118,6 +135,7 @@ public partial class NowPlayingView : UserControl
             _vm.PropertyChanged += OnViewModelChanged;
 
         base.OnDataContextChanged(e);
+        ApplyWindowActive();
         ApplyLayout();
         ApplyFullscreen();
     }
@@ -126,7 +144,7 @@ public partial class NowPlayingView : UserControl
     {
         if (e.PropertyName is nameof(NowPlayingViewModel.IsLyricsPaneVisible) or nameof(NowPlayingViewModel.ShowsRing))
             ApplyLayout();
-        else if (e.PropertyName is nameof(NowPlayingViewModel.IsFullscreen) or nameof(NowPlayingViewModel.IsChromeHidden))
+        else if (e.PropertyName is nameof(NowPlayingViewModel.IsFullscreen) or nameof(NowPlayingViewModel.IsPointerHidden))
             ApplyFullscreen();
     }
 
