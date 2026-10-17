@@ -22,6 +22,10 @@ public enum VisualizerCycle { Off, Random, TrackChange }
 /// <summary>Where the Now Playing visualizer's colour comes from.</summary>
 public enum VisualizerColorSource { Accent, Artwork, Custom }
 
+/// <summary>Where the app's accent comes from: its own red, the playing
+/// track's cover, or a colour of the user's.</summary>
+public enum AccentSource { Default, Artwork, Custom }
+
 /// <summary>
 /// Appearance state shared live between the shell and the settings page — the
 /// same arrangement <see cref="Rambutan.Core.Settings.PlaybackSettings"/> has for
@@ -75,6 +79,17 @@ public sealed partial class AppearanceSettings : ObservableObject
     [ObservableProperty] private string _visualizerCustomColor = DefaultCustomColor;
 
     public const string DefaultCustomColor = "#4FC3F7";
+
+    /// <summary>The app's accent. The default red unless the user chooses
+    /// otherwise; the palette derived from it is <see cref="Core.Appearance.AccentPalette"/>.</summary>
+    [ObservableProperty] private AccentSource _accentSource = AccentSource.Default;
+
+    /// <summary>The colour for <see cref="AccentSource.Custom"/>, as #RRGGBB.
+    /// Starts as the default red, so choosing Custom changes nothing until a
+    /// colour is picked. Kept while another source is chosen.</summary>
+    [ObservableProperty] private string _accentCustomColor = DefaultAccentColor;
+
+    public const string DefaultAccentColor = "#FF4E45";
 
     /// <summary>The settings page's style choices, in its order.</summary>
     public static readonly VisualizerStyle[] StyleChoices =
@@ -187,12 +202,29 @@ public sealed partial class AppearanceSettings : ObservableObject
         _ => "accent",
     };
 
-    /// <summary>A saved custom colour as #RRGGBB, or the default when it isn't
-    /// one. An alpha is dropped: the visualizer's colour is always solid.</summary>
-    public static string ParseCustomColor(string? value) =>
+    /// <summary>A saved custom colour as #RRGGBB, or <paramref name="fallback"/>
+    /// when it isn't one. An alpha is dropped: the visualizer's colour and the
+    /// accent are always solid.</summary>
+    public static string ParseCustomColor(string? value, string fallback = DefaultCustomColor) =>
         CssHexColor.TryParse(CssHexColor.Normalize(value), out var color)
             ? CssHexColor.Format(Avalonia.Media.Color.FromRgb(color.R, color.G, color.B))
-            : DefaultCustomColor;
+            : fallback;
+
+    /// <summary>The accent source as persisted: "default", "artwork" or
+    /// "custom"; unknown words read as default.</summary>
+    public static AccentSource ParseAccentSource(string? value) => value switch
+    {
+        "artwork" => AccentSource.Artwork,
+        "custom" => AccentSource.Custom,
+        _ => AccentSource.Default,
+    };
+
+    public static string FormatAccentSource(AccentSource value) => value switch
+    {
+        AccentSource.Artwork => "artwork",
+        AccentSource.Custom => "custom",
+        _ => "default",
+    };
 
     /// <summary>The user's choice; System by default, so an OS-wide setting is
     /// honoured without anyone visiting Settings.</summary>

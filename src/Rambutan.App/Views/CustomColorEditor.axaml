@@ -1,0 +1,58 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             x:Class="Rambutan.App.Views.CustomColorEditor"
+             x:DataType="vm:CustomColorField">
+  <!-- A custom colour in Settings: the colour in use (its swatch opens the
+       overlay editor's picker) and its hex, then ready-made swatches. Solid
+       colours only. -->
+  <StackPanel Spacing="6">
+    <StackPanel Orientation="Horizontal">
+      <Button Classes="swatch"
+              AutomationProperties.Name="{Binding PickName}"
+              ToolTip.Tip="{Binding PickName}">
+        <Border CornerRadius="4" Background="{Binding Swatch}" />
+        <Button.Flyout>
+          <Flyout Placement="BottomEdgeAlignedLeft">
+            <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="12" Margin="4"
+                  KeyboardNavigation.TabNavigation="Cycle">
+              <ColorSlider Orientation="Vertical" Width="20" Height="240" TabIndex="1"
+                           ColorModel="Hsva" ColorComponent="Component3"
+                           IsAlphaVisible="False" IsPerceptive="True"
+                           HsvColor="{Binding #Spectrum.HsvColor, Mode=TwoWay}"
+                           AutomationProperties.Name="{l:T settings.overlay.editor.color.brightness}" />
+              <ColorSpectrum x:Name="Spectrum" Grid.Column="1" Width="240" Height="240" Focusable="True" TabIndex="0"
+                             Components="HueSaturation" Shape="Box" CornerRadius="6"
+                             Color="{Binding Color, Mode=TwoWay}"
+                             AutomationProperties.Name="{l:T settings.overlay.editor.color.spectrum}" />
+            </Grid>
+          </Flyout>
+        </Button.Flyout>
+      </Button>
+      <TextBox Text="{Binding Hex}" FontFamily="Consolas,Menlo,monospace" Width="110"
+               MaxLength="7" VerticalAlignment="Center"
+               AutomationProperties.Name="{Binding HexName}" />
+      <ItemsControl ItemsSource="{Binding Presets}" Margin="20,0,0,0">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ColorPreset">
+            <Button Classes="swatch"
+                    Command="{Binding $parent[UserControl].((vm:CustomColorField)DataContext).UsePresetCommand}"
+                    CommandParameter="{Binding}"
+                    AutomationProperties.Name="{Binding Name}" ToolTip.Tip="{Binding Name}">
+              <Border CornerRadius="4" Background="{Binding Brush}" />
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+    <TextBlock Text="{Binding Error}" FontSize="12" TextWrapping="Wrap"
+               Foreground="{StaticResource Token.Brush.Error}"
+               IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+  </StackPanel>
+</UserControl>

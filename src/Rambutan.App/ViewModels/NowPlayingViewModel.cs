@@ -47,7 +47,7 @@ public partial class NowPlayingViewModel : ViewModelBase
     public AppearanceSettings Appearance { get; }
 
     /// <summary>The visualizer's colour; null draws in the accent.</summary>
-    public VisualizerColors? Colors { get; }
+    public ThemeColors? Colors { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AreLyricsOnScreen), nameof(LyricsButtonTip))]
@@ -200,7 +200,7 @@ public partial class NowPlayingViewModel : ViewModelBase
         LyricsViewModel? lyrics = null,
         AppSettings? settings = null,
         AppearanceSettings? appearance = null,
-        VisualizerColors? colors = null,
+        ThemeColors? colors = null,
         Func<TimeSpan, Action, IDisposable>? every = null,
         Func<int, int>? random = null)
     {

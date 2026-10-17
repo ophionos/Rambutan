@@ -60,37 +60,23 @@ public partial class SettingsPageViewModel : ViewModelBase
 
     public bool IsCustomVisualizerColor => VisualizerColorIndex == (int)VisualizerColorSource.Custom;
 
-    /// <summary>The custom colour's hex box. The visualizer keeps the last
-    /// valid colour while the text isn't one.</summary>
-    [ObservableProperty] private string _customColorHex = AppearanceSettings.DefaultCustomColor;
-    [ObservableProperty] private string? _customColorError;
+    /// <summary>The visualizer's custom colour.</summary>
+    public CustomColorField VisualizerCustom { get; } =
+        new(AppearanceSettings.DefaultCustomColor, null, "settings.appearance.visualizerColor.pick",
+            "settings.appearance.visualizerColor.hexName", "settings.appearance.visualizerColor.invalid");
 
-    /// <summary>Ready-made custom colours, beside the picker.</summary>
-    public IReadOnlyList<ColorPreset> ColorPresets { get; } =
-    [
-        new("#FF4E45", "settings.appearance.visualizerColor.preset.red"),
-        new("#FF9F43", "settings.appearance.visualizerColor.preset.orange"),
-        new("#FFD93D", "settings.appearance.visualizerColor.preset.yellow"),
-        new("#6BCB77", "settings.appearance.visualizerColor.preset.green"),
-        new("#4FC3F7", "settings.appearance.visualizerColor.preset.cyan"),
-        new("#5B8DEF", "settings.appearance.visualizerColor.preset.blue"),
-        new("#B388FF", "settings.appearance.visualizerColor.preset.violet"),
-        new("#F06292", "settings.appearance.visualizerColor.preset.pink"),
-    ];
+    /// <summary>Rambutan red / From the artwork / Custom, in the order of
+    /// <see cref="AccentSource"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCustomAccent))]
+    private int _accentIndex;
 
-    /// <summary>The colour picker's side of <see cref="CustomColorHex"/>.</summary>
-    public Avalonia.Media.Color CustomColor
-    {
-        get => CssHexColor.Parse(_appearance?.VisualizerCustomColor ?? AppearanceSettings.DefaultCustomColor, Avalonia.Media.Colors.White);
-        set
-        {
-            if (value == CustomColor)
-                return;
-            CustomColorHex = CssHexColor.Format(Avalonia.Media.Color.FromRgb(value.R, value.G, value.B));
-        }
-    }
+    public bool IsCustomAccent => AccentIndex == (int)AccentSource.Custom;
 
-    public Avalonia.Media.IBrush CustomColorSwatch => new Avalonia.Media.Immutable.ImmutableSolidColorBrush(CustomColor);
+    /// <summary>The accent's custom colour.</summary>
+    public CustomColorField AccentCustom { get; } =
+        new(AppearanceSettings.DefaultAccentColor, null, "settings.appearance.accent.pick",
+            "settings.appearance.accent.hexName", "settings.appearance.accent.invalid");
 
     /// <summary>The lyrics pane may ask LRCLIB. Written through the
     /// pane's view model, which applies and remembers it.</summary>
@@ -244,7 +230,19 @@ public partial class SettingsPageViewModel : ViewModelBase
         _visualizerAdvanced = appearance.VisualizerAdvanced;
         _visualizerCycleIndex = (int)appearance.VisualizerCycle;
         _visualizerColorIndex = (int)appearance.VisualizerColorSource;
-        _customColorHex = appearance.VisualizerCustomColor;
+        VisualizerCustom = new(appearance.VisualizerCustomColor, hex =>
+        {
+            appearance.VisualizerCustomColor = hex;
+            _persist?.Invoke();
+        }, "settings.appearance.visualizerColor.pick",
+            "settings.appearance.visualizerColor.hexName", "settings.appearance.visualizerColor.invalid");
+        _accentIndex = (int)appearance.AccentSource;
+        AccentCustom = new(appearance.AccentCustomColor, hex =>
+        {
+            appearance.AccentCustomColor = hex;
+            _persist?.Invoke();
+        }, "settings.appearance.accent.pick",
+            "settings.appearance.accent.hexName", "settings.appearance.accent.invalid");
         _systemMotionNote = MotionNote(appearance.SystemReducesMotion);
         appearance.PropertyChanged += (_, e) =>
         {
@@ -665,25 +663,13 @@ public partial class SettingsPageViewModel : ViewModelBase
         _persist?.Invoke();
     }
 
-    partial void OnCustomColorHexChanged(string value)
+    partial void OnAccentIndexChanged(int value)
     {
-        // Solid colours only: the visualizer draws its own translucency.
-        if (CssHexColor.Normalize(value) is not { Length: 4 or 7 } normalized)
-        {
-            CustomColorError = Strings.Get("settings.appearance.visualizerColor.invalid");
+        if (_appearance is null || value is < 0 or > (int)AccentSource.Custom)
             return;
-        }
-        CustomColorError = null;
-        if (_appearance is null)
-            return;
-        _appearance.VisualizerCustomColor = AppearanceSettings.ParseCustomColor(normalized);
-        OnPropertyChanged(nameof(CustomColor));
-        OnPropertyChanged(nameof(CustomColorSwatch));
+        _appearance.AccentSource = (AccentSource)value;
         _persist?.Invoke();
     }
-
-    [RelayCommand]
-    private void UseColorPreset(ColorPreset preset) => CustomColorHex = preset.Hex;
 
     partial void OnMotionIndexChanged(int value)
     {

@@ -67,6 +67,14 @@ public sealed class AppSettings
     /// <summary>The colour "custom" uses, as #RRGGBB.</summary>
     public string VisualizerCustomColor { get; set; } = AppearanceSettings.DefaultCustomColor;
 
+    /// <summary>The app's accent: "default" (Rambutan's red), "artwork" (picked
+    /// from the playing track's cover) or "custom". An unknown value reads as
+    /// "default".</summary>
+    public string AccentColor { get; set; } = "default";
+
+    /// <summary>The accent for "custom", as #RRGGBB.</summary>
+    public string AccentCustomColor { get; set; } = AppearanceSettings.DefaultAccentColor;
+
     /// <summary>"system" (follow the OS's reduce-motion setting), "reduced" or
     /// "full". A string rather than an enum number so the file
     /// stays readable and an unknown value degrades to "system".</summary>

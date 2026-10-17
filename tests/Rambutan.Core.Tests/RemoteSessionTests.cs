@@ -56,6 +56,22 @@ public class RemoteSessionTests
     }
 
     [Fact]
+    public void TheAccent_GoesOutWithTheState_AndOnlyAChangePublishes()
+    {
+        using var coordinator = CreateCoordinator();
+        using var session = CreateSession(coordinator);
+        var changes = 0;
+        session.Changed += () => changes++;
+        Assert.Equal(RemoteState.DefaultAccent, session.Current.Accent);
+
+        session.Accent = "#5B8DEF";
+        session.Accent = "#5B8DEF";
+
+        Assert.Equal("#5B8DEF", session.Current.Accent);
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
     public async Task Artwork_IsWhatTheHostSays()
     {
         using var coordinator = CreateCoordinator();

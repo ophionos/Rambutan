@@ -40,6 +40,7 @@ public sealed partial class RemoteSession : IRemotePlayer, IDisposable
     private double _volume;
     private bool _waiting;
     private long _queueVersion;
+    private string _accent = RemoteState.DefaultAccent;
 
     private RemoteState _current;
     private TimeSpan _publishedAt;
@@ -82,6 +83,14 @@ public sealed partial class RemoteSession : IRemotePlayer, IDisposable
     }
 
     public event Action? Changed;
+
+    /// <summary>The app's accent as #RRGGBB, for the state's
+    /// <see cref="RemoteState.Accent"/>. Set from any thread.</summary>
+    public string Accent
+    {
+        get { lock (_sync) return _accent; }
+        set => Update(() => _accent = value);
+    }
 
     public void Execute(RemoteCommand command) => _dispatch(() =>
     {
@@ -177,7 +186,8 @@ public sealed partial class RemoteSession : IRemotePlayer, IDisposable
         Milliseconds(_duration),
         Math.Round(_volume, 3),
         _waiting,
-        _queueVersion);
+        _queueVersion,
+        _accent);
 
     private static long? Milliseconds(TimeSpan? value) =>
         value is { } v ? (long)v.TotalMilliseconds : null;

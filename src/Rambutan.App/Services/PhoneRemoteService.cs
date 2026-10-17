@@ -39,6 +39,7 @@ public sealed class PhoneRemoteService
     private RemoteSession? _session;
     private LocalApiHost? _host;
     private volatile string? _token;
+    private volatile string _accent = RemoteState.DefaultAccent;
 
     /// <param name="dispatch">Where phone commands run; the app passes its UI thread.</param>
     /// <param name="covers">Where covers come from.</param>
@@ -77,6 +78,19 @@ public sealed class PhoneRemoteService
     public IReadOnlyList<IPAddress> Addresses { get; private set; } = [];
 
     public int ConnectedClients => _host?.ConnectedClients ?? 0;
+
+    /// <summary>The app's accent as #RRGGBB; the remote's page takes it with
+    /// the player's state. Kept while the remote is off, for its next start.</summary>
+    public string Accent
+    {
+        get => _accent;
+        set
+        {
+            _accent = value;
+            if (_session is { } session)
+                session.Accent = value;
+        }
+    }
 
     /// <summary>Raised on any thread when anything above changes.</summary>
     public event Action? Changed;
@@ -133,7 +147,10 @@ public sealed class PhoneRemoteService
         _token ??= await Task.Run(_vault.LoadOrCreate).ConfigureAwait(false);
         // A cheap field check: the session asks this under the coordinator's lock.
         _session = new RemoteSession(
-            _coordinator, _dispatch, track => track.ThumbnailUrl is not null, searchSongs: _searchSongs);
+            _coordinator, _dispatch, track => track.ThumbnailUrl is not null, searchSongs: _searchSongs)
+        {
+            Accent = _accent,
+        };
         var result = await LocalApiHost.StartAsync(new LocalApiOptions
         {
             Address = _listenAddress,

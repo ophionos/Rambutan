@@ -218,6 +218,7 @@ public sealed class VisualizerControl : Control
         _window = TopLevel.GetTopLevel(this) as Window;
         if (_window is not null)
             _window.PropertyChanged += OnWindowPropertyChanged;
+        ResourcesChanged += OnResourcesChanged;
         if (ElementComposition.GetElementVisual(this) is not { } elementVisual)
             return;
 
@@ -240,11 +241,19 @@ public sealed class VisualizerControl : Control
         if (_window is not null)
             _window.PropertyChanged -= OnWindowPropertyChanged;
         _window = null;
+        ResourcesChanged -= OnResourcesChanged;
         _visual?.SendHandlerMessage(BarsHandler.ReleaseMessage);
         _polling = false;
         ElementComposition.SetElementChildVisual(this, null);
         _visual = null;
         base.OnDetachedFromVisualTree(e);
+    }
+
+    /// <summary>The accent is a resource the user can change while this draws.</summary>
+    private void OnResourcesChanged(object? sender, ResourcesChangedEventArgs e)
+    {
+        if (BarColor is null)
+            _visual?.SendHandlerMessage(CurrentPalette());
     }
 
     private void OnWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)

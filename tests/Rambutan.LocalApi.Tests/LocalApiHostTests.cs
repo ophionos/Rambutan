@@ -153,7 +153,8 @@ public sealed class LocalApiHostTests : IAsyncLifetime
     public async Task State_IsTheTrackAndPlayback()
     {
         _player.Current = new RemoteState(
-            "playing", new RemoteTrack("v1", "Song", "Artist", "Album", 200_000, true), 1500, 200_000, 0.5, false);
+            "playing", new RemoteTrack("v1", "Song", "Artist", "Album", 200_000, true), 1500, 200_000, 0.5, false,
+            Accent: "#5B8DEF");
 
         var response = await _http.SendAsync(Request(HttpMethod.Get, "/api/v1/state"));
         var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
@@ -163,6 +164,8 @@ public sealed class LocalApiHostTests : IAsyncLifetime
         Assert.Equal("Song", json.GetProperty("track").GetProperty("title").GetString());
         Assert.Equal(1500, json.GetProperty("positionMs").GetInt64());
         Assert.Equal(0.5, json.GetProperty("volume").GetDouble());
+        // The remote page reads state.accent by this name.
+        Assert.Equal("#5B8DEF", json.GetProperty("accent").GetString());
     }
 
     [Fact]
