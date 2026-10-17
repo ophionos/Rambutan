@@ -102,6 +102,26 @@ public class DiscordPresenceServiceTests
     }
 
     [Fact]
+    public async Task TurningItOff_WhileAnActivityIsStillFlushing_StillClearsIt()
+    {
+        // The frame reaches Discord before the send that wrote it returns, so
+        // an off that cancels the send then must still count it as shown.
+        var (discord, service) = await ConnectedAsync();
+        using (service)
+        {
+            discord.HoldNextFlush();
+            service.OnNowPlayingChanged(Track());
+            service.OnStateChanged(PlaybackState.Playing);
+            Assert.NotNull(await discord.NextActivityAsync());
+
+            service.Configure(false, new DiscordPresenceOptions());
+
+            Assert.Null(await discord.NextActivityAsync());
+            Assert.Equal(DiscordOpcode.Close, (await discord.NextAsync()).Opcode);
+        }
+    }
+
+    [Fact]
     public async Task TurningItOff_OverARealSocket_StillSaysGoodbye()
     {
         // Seen in demo mode against a fake Discord socket: turning presence off
@@ -264,9 +284,16 @@ public class DiscordPresenceServiceTests
     {
         private readonly Pipe _toDiscord = new();
         private readonly Pipe _toApp = new();
+        private int _holdFlush;
 
         public Task<Stream?> ConnectAsync(CancellationToken ct) =>
-            Task.FromResult<Stream?>(new Duplex(_toApp.Reader.AsStream(), _toDiscord.Writer.AsStream()));
+            Task.FromResult<Stream?>(new Duplex(_toApp.Reader.AsStream(), _toDiscord.Writer.AsStream(), TakeHold));
+
+        /// <summary>The next flush delivers its frame, then waits until it is
+        /// cancelled; the flushes after it don't wait.</summary>
+        public void HoldNextFlush() => Volatile.Write(ref _holdFlush, 1);
+
+        private bool TakeHold() => Interlocked.Exchange(ref _holdFlush, 0) == 1;
 
         public async Task<(DiscordOpcode Opcode, JsonElement Json)> NextAsync()
         {
@@ -291,7 +318,7 @@ public class DiscordPresenceServiceTests
         }
     }
 
-    private sealed class Duplex(Stream read, Stream write) : Stream
+    private sealed class Duplex(Stream read, Stream write, Func<bool>? holdFlush = null) : Stream
     {
         public override bool CanRead => true;
         public override bool CanWrite => true;
@@ -299,7 +326,13 @@ public class DiscordPresenceServiceTests
         public override long Length => throw new NotSupportedException();
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
         public override void Flush() => write.Flush();
-        public override Task FlushAsync(CancellationToken ct) => write.FlushAsync(ct);
+        public override async Task FlushAsync(CancellationToken ct)
+        {
+            await write.FlushAsync(ct);
+            if (holdFlush?.Invoke() == true)
+                await Task.Delay(Timeout.Infinite, ct);
+        }
+
         public override int Read(byte[] buffer, int offset, int count) => read.Read(buffer, offset, count);
         public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) => read.ReadAsync(buffer, ct);
         public override void Write(byte[] buffer, int offset, int count) => write.Write(buffer, offset, count);

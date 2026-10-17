@@ -260,6 +260,9 @@ public sealed class DiscordPresenceService : IPlaybackListener, IDisposable
         var reader = ReadLoopAsync(stream, writeLock, stopReading.Token);
         var budget = new DiscordSendBudget();
         DiscordActivity? shown = null; // a fresh connection shows nothing of ours
+        // A frame can reach Discord before the cancelled send that wrote it
+        // returns, so the goodbye treats the one in flight as shown too.
+        DiscordActivity? sending = null;
 
         try
         {
@@ -283,7 +286,9 @@ public sealed class DiscordPresenceService : IPlaybackListener, IDisposable
                     var slot = budget.WaitBefore(now);
                     if (slot == TimeSpan.Zero)
                     {
+                        sending = desired;
                         await SendActivityAsync(stream, writeLock, desired, ct);
+                        sending = null;
                         budget.Record(now);
                         shown = desired;
                         continue;
@@ -303,7 +308,7 @@ public sealed class DiscordPresenceService : IPlaybackListener, IDisposable
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            await GoodbyeAsync(stream, writeLock, shown is not null);
+            await GoodbyeAsync(stream, writeLock, shown is not null || sending is not null);
             return null;
         }
         catch (Exception ex)
