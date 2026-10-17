@@ -122,11 +122,12 @@ public sealed class AppSettings
     /// computer only while this is on. Off by default.</summary>
     public bool OverlayEnabled { get; set; }
 
-    // Sidebar / queue panel collapse state. A fresh install opens the sidebar
-    // and closes the queue: an empty queue panel only says "Nothing up next".
-    // Saved files carry their own value, so this changes new
-    // installs only.
-    public bool SidebarCollapsed { get; set; }
+    // Sidebar / queue panel collapse state. A fresh install collapses the
+    // sidebar to its icons, which the maintainer judged clear enough on their
+    // own, and closes the queue: an empty queue panel only says "Nothing up
+    // next". Saved files carry their own value, so this changes new installs
+    // only.
+    public bool SidebarCollapsed { get; set; } = true;
     public bool QueueCollapsed { get; set; } = true;
 
     /// <summary>Now Playing shows the lyrics overlay.

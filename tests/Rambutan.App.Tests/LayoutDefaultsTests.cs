@@ -15,11 +15,11 @@ public sealed class LayoutDefaultsTests : IDisposable
     }
 
     [Fact]
-    public void AFreshInstall_OpensTheSidebar_AndClosesTheQueue()
+    public void AFreshInstall_CollapsesTheSidebar_AndClosesTheQueue()
     {
         var settings = new AppSettingsStore(_dir).Load();
 
-        Assert.False(settings.SidebarCollapsed);
+        Assert.True(settings.SidebarCollapsed);
         Assert.True(settings.QueueCollapsed);
     }
 
@@ -32,5 +32,16 @@ public sealed class LayoutDefaultsTests : IDisposable
         store.Save(settings);
 
         Assert.False(new AppSettingsStore(_dir).Load().QueueCollapsed);
+    }
+
+    [Fact]
+    public void ASavedOpenSidebar_StaysOpen()
+    {
+        var store = new AppSettingsStore(_dir);
+        var settings = store.Load();
+        settings.SidebarCollapsed = false;
+        store.Save(settings);
+
+        Assert.False(new AppSettingsStore(_dir).Load().SidebarCollapsed);
     }
 }
