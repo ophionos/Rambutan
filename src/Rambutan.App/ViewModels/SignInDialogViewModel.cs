@@ -15,6 +15,11 @@ namespace Rambutan.App.ViewModels;
 /// comes back, and checks the cookies with YouTube Music before closing. A
 /// problem is shown in the dialog, next to the text that caused it, instead of on
 /// the status strip after the dialog has gone.
+/// <para>
+/// A second, optional copy from accounts.google.com gives the Google sign-in,
+/// from which Rambutan renews the session when it expires
+/// (<see cref="InnerTubeClient.ReissueSessionAsync"/>).
+/// </para>
 /// </summary>
 public partial class SignInDialogViewModel : ViewModelBase
 {
@@ -26,6 +31,9 @@ public partial class SignInDialogViewModel : ViewModelBase
     public const string RejectedKey = "dialog.signIn.error.rejected";
     public const string UnreachableKey = "dialog.signIn.error.unreachable";
     public const string ClipboardFoundKey = "dialog.signIn.clipboardFound";
+    public const string GoogleInFirstBoxKey = "dialog.signIn.error.googleInFirstBox";
+    public const string NoGoogleSignInKey = "dialog.signIn.error.noGoogleSignIn";
+    public const string GoogleClipboardFoundKey = "dialog.signIn.renew.clipboardFound";
 
     private readonly Func<InnerTubeSession, CancellationToken, Task<SessionInfo>>? _verify;
     private CancellationTokenSource? _checking;
@@ -33,6 +41,9 @@ public partial class SignInDialogViewModel : ViewModelBase
     /// <summary>The last clipboard text put into the box, so the same copy isn't
     /// offered twice and anything the listener typed is never overwritten.</summary>
     private string? _offered;
+
+    /// <summary>The same, for the Google copy's box.</summary>
+    private string? _offeredGoogle;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SignInCommand))]
@@ -44,6 +55,19 @@ public partial class SignInDialogViewModel : ViewModelBase
 
     [ObservableProperty] private string _error = "";
     [ObservableProperty] private string _clipboardNote = "";
+
+    /// <summary>The optional accounts.google.com copy. Empty signs in without it.</summary>
+    [ObservableProperty] private string _googleText = "";
+    [ObservableProperty] private string _googleError = "";
+    [ObservableProperty] private string _googleClipboardNote = "";
+
+    /// <summary>Whether the optional Google step is shown. It opens by itself
+    /// when it has something to show: a copy picked up, or a problem.</summary>
+    [ObservableProperty] private bool _isGoogleStepOpen;
+
+    partial void OnGoogleClipboardNoteChanged(string value) => IsGoogleStepOpen |= value != "";
+
+    partial void OnGoogleErrorChanged(string value) => IsGoogleStepOpen |= value != "";
 
     /// <summary>Where the cookies will be kept (<see cref="CookieVault.Storage"/>),
     /// or null while the keyring search started at launch is still running.</summary>
@@ -60,9 +84,9 @@ public partial class SignInDialogViewModel : ViewModelBase
     /// before the listener signs in, instead of a footnote.</summary>
     public bool IsStorageEncrypted => Storage is not CredentialStorage.PlainFile;
 
-    /// <summary>The cookies checked out. The owner makes them the session; the
-    /// view closes the dialog.</summary>
-    public event Action<InnerTubeSession, SessionInfo>? Succeeded;
+    /// <summary>The cookies checked out. The owner makes them the session, with
+    /// the Google sign-in when one was given; the view closes the dialog.</summary>
+    public event Action<InnerTubeSession, GoogleSignIn?, SessionInfo>? Succeeded;
 
     // Design-time
     public SignInDialogViewModel() { }
@@ -98,17 +122,35 @@ public partial class SignInDialogViewModel : ViewModelBase
             ClipboardNote = "";
     }
 
+    partial void OnGoogleTextChanged(string value)
+    {
+        GoogleError = "";
+        if (value != _offeredGoogle)
+            GoogleClipboardNote = "";
+    }
+
     /// <summary>
     /// Offers the clipboard's text, read when the dialog opens or the listener
     /// switches back to it from the browser. It goes into the box only when it
     /// holds a YouTube sign-in, is a copy not offered before, and the box is empty
-    /// or still holds the previous offer.
+    /// or still holds the previous offer. A copy from accounts.google.com goes
+    /// into the Google box by the same rules.
     /// </summary>
     /// <returns>Whether the text was taken.</returns>
     public bool OfferClipboard(string? text)
     {
-        if (IsChecking || string.IsNullOrWhiteSpace(text) || text == _offered)
+        if (IsChecking || string.IsNullOrWhiteSpace(text) || text == _offered || text == _offeredGoogle)
             return false;
+        // First: a Google copy holds SAPISID too, so it would pass for a YouTube one.
+        if (GoogleSignIn.FromCookieString(text) is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(GoogleText) && GoogleText != _offeredGoogle)
+                return false;
+            _offeredGoogle = text;
+            GoogleText = text;
+            GoogleClipboardNote = Strings.Get(GoogleClipboardFoundKey);
+            return true;
+        }
         if (!string.IsNullOrWhiteSpace(CookieText) && CookieText != _offered)
             return false;
         if (InnerTubeSession.FromCookieString(text) is null)
@@ -126,9 +168,21 @@ public partial class SignInDialogViewModel : ViewModelBase
     private async Task SignInAsync()
     {
         Error = "";
+        GoogleError = "";
+        if (GoogleSignIn.FromCookieString(CookieText) is not null)
+        {
+            Error = Strings.Get(GoogleInFirstBoxKey);
+            return;
+        }
         if (InnerTubeSession.FromCookieString(CookieText) is not { } session)
         {
             Error = Strings.Get(NoSignInKey);
+            return;
+        }
+        GoogleSignIn? google = null;
+        if (!string.IsNullOrWhiteSpace(GoogleText) && (google = GoogleSignIn.FromCookieString(GoogleText)) is null)
+        {
+            GoogleError = Strings.Get(NoGoogleSignInKey);
             return;
         }
         if (_verify is null)
@@ -145,7 +199,7 @@ public partial class SignInDialogViewModel : ViewModelBase
             switch (info.State)
             {
                 case SessionState.Valid:
-                    Succeeded?.Invoke(session, info);
+                    Succeeded?.Invoke(session, google, info);
                     break;
                 case SessionState.Unreachable:
                     Error = Strings.Get(UnreachableKey);

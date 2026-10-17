@@ -62,6 +62,13 @@ in to music.youtube.com in a private browser window, open the developer
 tools, and copy one request as cURL. Rambutan picks it up from the clipboard.
 Then close the private window without signing out.
 
+YouTube stops accepting a copied sign-in a day or two after Rambutan last ran.
+To have Rambutan renew it by itself, also copy the request to
+accounts.google.com from the same private window (the sign-in screen has an
+optional step for it). Those cookies give access to your whole Google account,
+not only YouTube; Rambutan sends them only to accounts.google.com and keeps
+them the same way as the YouTube cookies.
+
 **Updates:** the app checks this repository for new builds and offers them in
 the status strip at the bottom of the window.
 

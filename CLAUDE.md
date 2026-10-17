@@ -120,6 +120,11 @@ file sink), never to files directly.
   (`Integrations/Linux/SecretServiceStore`, D-Bus via Tmds.DBus.Protocol, no
   native libsecret), items keyed by the data folder. **With no keyring running,
   Linux falls back to an unencrypted 0600 file**, and the sign-in screen says so.
+  `CookieVault` also keeps the optional Google sign-in (`InnerTube/GoogleSignIn`,
+  the accounts.google.com cookies). When a check finds the session refused and
+  rotating fails, `InnerTubeClient.ReissueSessionAsync` replays Google's sign-in
+  redirects with it to get new youtube.com cookies. Those cookies open the whole
+  Google account: they go to accounts.google.com and nowhere else.
 - Profiles: `App/Services/Profiles.cs`. A profile is a data folder:
   `default` is the root data folder itself, others are `profiles/<id>` (the
   folder comes from the id, never from the file), listed in the versioned

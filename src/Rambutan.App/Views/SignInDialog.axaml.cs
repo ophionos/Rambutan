@@ -30,7 +30,7 @@ public partial class SignInDialog : Window
         };
     }
 
-    private void OnSucceeded(InnerTubeSession session, SessionInfo info) => Close(true);
+    private void OnSucceeded(InnerTubeSession session, GoogleSignIn? google, SessionInfo info) => Close(true);
 
     private async System.Threading.Tasks.Task<string?> ReadClipboardAsync()
     {

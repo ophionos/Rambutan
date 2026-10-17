@@ -5,7 +5,8 @@ using Rambutan.App.Localization;
 namespace Rambutan.App.Services;
 
 /// <summary>
-/// The YouTube Music cookies, kept the best way this run can
+/// The YouTube Music cookies, and the Google sign-in that can renew them when
+/// the user gave one, kept the best way this run can
 /// (<see cref="StoredCredential"/>): DPAPI on Windows, the system keyring on
 /// Linux, and an owner-only plaintext file on Linux when no keyring is running,
 /// which the sign-in dialog and a toast say. Every problem becomes a
@@ -22,6 +23,10 @@ public sealed class CookieVault(string dataDirectory, SystemKeyring? keyring = n
     private readonly StoredCredential _credential = new(
         dataDirectory, "session.bin", "youtube-cookies",
         static () => Strings.Get("keyring.label.cookies"), keyring ?? SystemKeyring.None);
+
+    private readonly StoredCredential _google = new(
+        dataDirectory, "google-session.bin", "google-cookies",
+        static () => Strings.Get("keyring.label.googleCookies"), keyring ?? SystemKeyring.None);
 
     private readonly object _gate = new();
     private Task _tail = Task.CompletedTask;
@@ -64,11 +69,22 @@ public sealed class CookieVault(string dataDirectory, SystemKeyring? keyring = n
     /// <summary>Blocks until the stored cookies are read; for callers off the UI thread.</summary>
     public string? Load() => LoadAsync().GetAwaiter().GetResult();
 
-    public Task Save(string cookieString) => Enqueue(() =>
+    /// <summary>The stored Google sign-in, or null when there is none or it can't
+    /// be read. Quiet: <see cref="LoadAsync"/> already warns about the keyring,
+    /// and without it the session still works until it expires.</summary>
+    public Task<string?> LoadGoogleAsync() => Enqueue(() => _google.Read().Value);
+
+    /// <summary>Stores a new sign-in. A null <paramref name="googleCookies"/>
+    /// removes the stored Google sign-in, which belongs to the sign-in replaced.</summary>
+    public Task Save(string cookieString, string? googleCookies = null) => Enqueue(() =>
     {
         if (Storage is CredentialStorage.PlainFile)
             Warning?.Invoke(Strings.Get("toast.signIn.unencrypted"));
         WarnIfNotKept(_credential.Write(cookieString));
+        if (googleCookies is null)
+            _google.Delete();
+        else
+            WarnIfNotKept(_google.Write(googleCookies));
         return true;
     });
 
@@ -78,11 +94,15 @@ public sealed class CookieVault(string dataDirectory, SystemKeyring? keyring = n
     /// copy saved at sign-in is still there.</summary>
     public Task Update(string cookieString) => Enqueue(() => _credential.Write(cookieString));
 
+    /// <summary>Stores the Google sign-in's refreshed cookies, as <see cref="Update"/> does.</summary>
+    public Task UpdateGoogle(string googleCookies) => Enqueue(() => _google.Write(googleCookies));
+
     public Task Clear() => Enqueue(() =>
     {
         // Sign-out must not crash on a locked/inaccessible vault; stale cookies
         // only mean the next launch restores the session again.
-        if (!_credential.Delete())
+        var deleted = _credential.Delete();
+        if (!_google.Delete() || !deleted)
             Warning?.Invoke(Strings.Get("toast.signOut.cookiesStuck"));
         return true;
     });

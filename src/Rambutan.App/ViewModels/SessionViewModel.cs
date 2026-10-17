@@ -24,6 +24,11 @@ namespace Rambutan.App.ViewModels;
 /// old values, so a pasted copy that is never refreshed expires within days.
 /// The session asks for fresh values at startup and then at most once per
 /// <see cref="RotateEvery"/>, and stores whatever cookies YouTube refreshes.
+///
+/// Renewal: rotation needs the app running. A session left alone for a day or
+/// two is refused, and rotating it no longer helps; when the user also gave the
+/// Google sign-in, Google issues the session new cookies from it before the
+/// session is called expired.
 /// </summary>
 public partial class SessionViewModel : ViewModelBase
 {
@@ -123,6 +128,7 @@ public partial class SessionViewModel : ViewModelBase
         _ui = SynchronizationContext.Current;
         innerTube.SessionRejected += OnSessionRejected;
         innerTube.SessionUpdated += OnSessionUpdated;
+        innerTube.GoogleSignInUpdated += OnGoogleSignInUpdated;
         Strings.WhenChanged(this, static vm => vm.ApplyText());
     }
 
@@ -153,6 +159,10 @@ public partial class SessionViewModel : ViewModelBase
         {
             _cookiesLoaded.TrySetResult();
         }
+        // After CookiesLoaded: pages need only the session, and the check is the
+        // first thing that can use the Google sign-in.
+        if (await _vault.LoadGoogleAsync() is { } google && GoogleSignIn.FromCookieString(google) is { } signIn)
+            _innerTube.SetGoogleSignIn(signIn);
         await CheckAsync(announce: false);
         await RotateIfDueAsync();
         _rotateTimer ??= _time.CreateTimer(
@@ -194,6 +204,14 @@ public partial class SessionViewModel : ViewModelBase
             _vault?.Update(updated.CookieHeader);
     });
 
+    /// <summary>Google refreshed its own sign-in's cookies while renewing the
+    /// session. Stored, as <see cref="OnSessionUpdated"/> stores the session's.</summary>
+    private void OnGoogleSignInUpdated(GoogleSignIn updated) => OnUi(() =>
+    {
+        if (ReferenceEquals(_innerTube?.GoogleSignIn, updated))
+            _vault?.UpdateGoogle(updated.CookieHeader);
+    });
+
     /// <summary>
     /// The window came back to the foreground. Re-checks a signed-in session
     /// that hasn't been checked for a while; does nothing otherwise.
@@ -208,7 +226,8 @@ public partial class SessionViewModel : ViewModelBase
     }
 
     /// <summary>Probes the current session and applies the answer. A refused
-    /// session gets one rotation and one more probe first. Concurrent calls
+    /// session gets one rotation and one more probe first, and then, with a
+    /// Google sign-in, one renewal and one more probe. Concurrent calls
     /// coalesce: a check already running answers for all of them.</summary>
     private async Task CheckAsync(bool announce)
     {
@@ -219,20 +238,39 @@ public partial class SessionViewModel : ViewModelBase
         {
             var session = _innerTube.Session;
             var info = await _innerTube.GetSessionInfoAsync();
+            var refused = info.State is SessionState.Expired;
             // Refused: perhaps only the rotating cookies went stale while the app
             // was closed. One rotation, then one more look, before giving up.
-            if (info.State is SessionState.Expired && session is not null &&
+            if (refused && session is not null &&
                 InnerTubeSession.IsSameSignIn(session, _innerTube.Session))
             {
                 _lastRotated = _time.GetUtcNow();
                 if (await _innerTube.RotateCookiesAsync() && !ReferenceEquals(session, _innerTube.Session))
                     info = await _innerTube.GetSessionInfoAsync();
+                // Rotation can't bring back a sign-in YouTube has stopped accepting;
+                // Google can issue it again from its own.
+                if (info.State is SessionState.Expired &&
+                    InnerTubeSession.IsSameSignIn(session, _innerTube.Session) &&
+                    await _innerTube.ReissueSessionAsync())
+                {
+                    info = await _innerTube.GetSessionInfoAsync();
+                }
             }
             // Signed out, or signed in again, while the probe was out: its answer
             // is about a session that's gone. Rotated cookies are still the same
             // sign-in (the probe's own response may have rotated them).
-            if (InnerTubeSession.IsSameSignIn(session, _innerTube.Session))
-                OnUi(() => Apply(info, announce));
+            if (!InnerTubeSession.IsSameSignIn(session, _innerTube.Session))
+                return;
+            // Rescued: the pages loaded meanwhile went out with the refused cookies,
+            // and YouTube Music answers those as if signed out, without an error.
+            // They reload, as for a new sign-in, though it is the same one.
+            var rescued = refused && info.State is not SessionState.Expired;
+            OnUi(() =>
+            {
+                if (rescued)
+                    _pagesSignIn = null;
+                Apply(info, announce, forceChanged: rescued);
+            });
         }
         finally
         {
@@ -269,10 +307,12 @@ public partial class SessionViewModel : ViewModelBase
         return dialog;
     }
 
-    private void Accept(InnerTubeSession session, SessionInfo info)
+    private void Accept(InnerTubeSession session, GoogleSignIn? google, SessionInfo info)
     {
         _innerTube?.SetSession(session);
-        _vault?.Save(session.CookieHeader);
+        // Without one, the previous sign-in's must not renew this one.
+        _innerTube?.SetGoogleSignIn(google);
+        _vault?.Save(session.CookieHeader, google?.CookieHeader);
         // New cookies can be a different account even when the name reads the same.
         Apply(info, announce: true, forceChanged: true);
         // Freshly pasted cookies are as fresh as they get; the timer takes it from here.
@@ -288,6 +328,7 @@ public partial class SessionViewModel : ViewModelBase
     private void SignOut()
     {
         _innerTube?.SetSession(null);
+        _innerTube?.SetGoogleSignIn(null);
         _vault?.Clear();
         _lastChecked = null;
         Apply(new SessionInfo(SessionState.Anonymous, null), announce: false);
@@ -353,7 +394,7 @@ public partial class SessionViewModel : ViewModelBase
         {
             SessionState.Valid => (
                 _accountName ?? Strings.Get("account.signedIn"), "",
-                Strings.Format("session.detail.valid", time)),
+                Strings.Format(_innerTube?.GoogleSignIn is null ? "session.detail.valid" : "session.detail.validRenews", time)),
             SessionState.Expired => (
                 Strings.Get("account.expired"), Strings.Get("session.expiredNotice"),
                 Strings.Format("session.detail.expired", time)),
