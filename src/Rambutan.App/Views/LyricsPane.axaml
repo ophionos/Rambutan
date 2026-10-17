@@ -3,6 +3,7 @@
              xmlns:l="using:Rambutan.App.Localization"
              xmlns:vm="using:Rambutan.App.ViewModels"
              xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:views="using:Rambutan.App.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="520"
@@ -120,7 +121,9 @@
               <GradientStop Offset="1" Color="#00000000" />
             </LinearGradientBrush>
           </ScrollViewer.OpacityMask>
-          <Panel>
+          <!-- The lines keep to a column; the scroller spans the pane, so its
+               bar sits at the pane's edge rather than beside the column. -->
+          <Panel x:Name="Column" MaxWidth="{x:Static views:LyricsPane.ColumnMaxWidth}">
             <ItemsControl x:Name="LinesList" ItemsSource="{Binding Lines}"
                           IsVisible="{Binding IsSynced}"
                           controls:RovingFocus.IsEnabled="True">

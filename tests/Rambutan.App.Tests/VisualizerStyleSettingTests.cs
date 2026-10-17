@@ -71,25 +71,46 @@ public class VisualizerStyleSettingTests
     }
 
     [Fact]
-    public void Radial_DrawsAroundTheArtwork_AndTheBandGivesWay()
+    public void Radial_DrawsAroundTheArtwork_InPlaceOfTheStage()
     {
         var (vm, _) = NowPlaying(VisualizerStyle.Radial);
 
         Assert.True(vm.ShowsRing);
         Assert.True(vm.IsRingActive);
-        Assert.False(vm.IsBandShown);
-        Assert.False(vm.IsBandActive);
+        Assert.False(vm.IsStageVisualizerShown);
+        Assert.False(vm.IsStageActive);
     }
 
     [Fact]
-    public void Radial_WithoutArtwork_FallsBackToBarsInTheBand()
+    public void Radial_StaysAroundTheArtwork_WithTheLyricsBesideIt()
+    {
+        var (vm, _) = NowPlaying(VisualizerStyle.Radial, lyrics: true);
+        vm.Lyrics.OnTrackChanged(Track);
+
+        Assert.True(vm.IsLyricsPaneVisible);
+        Assert.True(vm.ShowsRing);
+        Assert.False(vm.IsStageActive);
+    }
+
+    [Fact]
+    public void Radial_WithoutArtwork_FallsBackToBarsOnTheStage()
     {
         var (vm, _) = NowPlaying(VisualizerStyle.Radial, artwork: false);
 
         Assert.False(vm.ShowsRing);
-        Assert.True(vm.IsBandShown);
-        Assert.True(vm.IsBandActive);
-        Assert.Equal(VisualizerStyle.Bars, vm.BandStyle);
+        Assert.True(vm.IsStageActive);
+        Assert.Equal(VisualizerStyle.Bars, vm.StageStyle);
+    }
+
+    [Fact]
+    public void Radial_WithTheArtworkHidden_FallsBackToBarsOnTheStage()
+    {
+        var (vm, _) = NowPlaying(VisualizerStyle.Radial);
+        vm.ToggleArtworkCommand.Execute(null);
+
+        Assert.False(vm.ShowsRing);
+        Assert.True(vm.IsStageActive);
+        Assert.Equal(VisualizerStyle.Bars, vm.StageStyle);
     }
 
     [Fact]
@@ -103,46 +124,47 @@ public class VisualizerStyleSettingTests
 
         Assert.False(vm.ShowsRing);
         Assert.Contains(nameof(NowPlayingViewModel.ShowsRing), changed);
-        Assert.Contains(nameof(NowPlayingViewModel.IsBandShown), changed);
+        Assert.Contains(nameof(NowPlayingViewModel.IsArtworkShown), changed);
+        Assert.Contains(nameof(NowPlayingViewModel.IsStageActive), changed);
     }
 
     [Fact]
-    public void Radial_UnderReducedMotion_LeavesTheBandsNoteInView()
+    public void Radial_UnderReducedMotion_LeavesTheNoteInView()
     {
         var (vm, appearance) = NowPlaying(VisualizerStyle.Radial);
         appearance.Motion = MotionPreference.Reduced;
 
         Assert.False(vm.ShowsRing);
         Assert.False(vm.IsRingActive);
-        Assert.True(vm.IsBandShown);
-        Assert.False(vm.IsBandActive);
+        Assert.False(vm.IsStageActive);
+        Assert.True(vm.IsPausedNoteShown);
     }
 
     [Fact]
     public void AClosedNowPlaying_PollsNeither()
     {
         var (ring, _) = NowPlaying(VisualizerStyle.Radial);
-        var (band, _) = NowPlaying(VisualizerStyle.Led);
+        var (stage, _) = NowPlaying(VisualizerStyle.Led);
         ring.IsOpen = false;
-        band.IsOpen = false;
+        stage.IsOpen = false;
 
         Assert.False(ring.IsRingActive);
-        Assert.False(band.IsBandActive);
+        Assert.False(stage.IsStageActive);
     }
 
     [Fact]
-    public void TheBand_DrawsTheChosenStyle()
+    public void TheStage_DrawsTheChosenStyle()
     {
         var (vm, appearance) = NowPlaying(VisualizerStyle.Oscilloscope);
-        Assert.Equal(VisualizerStyle.Oscilloscope, vm.BandStyle);
+        Assert.Equal(VisualizerStyle.Oscilloscope, vm.StageStyle);
         Assert.False(vm.ShowsRing);
 
         var changed = new List<string?>();
         vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
         appearance.VisualizerStyle = VisualizerStyle.Area;
 
-        Assert.Equal(VisualizerStyle.Area, vm.BandStyle);
-        Assert.Contains(nameof(NowPlayingViewModel.BandStyle), changed);
+        Assert.Equal(VisualizerStyle.Area, vm.StageStyle);
+        Assert.Contains(nameof(NowPlayingViewModel.StageStyle), changed);
     }
 
     private static byte[] Png(SKColor color)

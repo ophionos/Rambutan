@@ -75,14 +75,13 @@ public class VisualizerFrameRateSettingTests
 
         var meter = window.GetVisualDescendants().OfType<Panel>().Single(p => p.Name == "BarVisualizer")
             .GetVisualDescendants().OfType<VisualizerControl>().Single();
-        var band = window.GetVisualDescendants().OfType<Panel>().Single(p => p.Name == "VisualizerBand")
-            .GetVisualDescendants().OfType<VisualizerControl>().Single();
+        var stage = window.GetVisualDescendants().OfType<VisualizerControl>().Single(c => c.Name == "StageVisualizer");
         Assert.Equal(30, meter.MaxFrameRate);
-        Assert.Equal(30, band.MaxFrameRate);
+        Assert.Equal(30, stage.MaxFrameRate);
 
         vm.Appearance.VisualizerFrameRate = 0;
         Assert.Equal(0, meter.MaxFrameRate);
-        Assert.Equal(0, band.MaxFrameRate);
+        Assert.Equal(0, stage.MaxFrameRate);
         window.Close();
     });
 }
