@@ -75,6 +75,46 @@ public class AccentColorTests
     }
 
     [Fact]
+    public async Task WhileTheNextCoverIsRead_TheLastCoversAccentStays()
+    {
+        var appearance = new AppearanceSettings { AccentSource = AccentSource.Artwork };
+        var player = new PlayerBarViewModel { ArtworkUrl = "blue" };
+        var green = new TaskCompletionSource<byte[]>();
+        var failing = new TaskCompletionSource<byte[]>();
+        var colors = new ThemeColors(appearance, player, (url, _) => url switch
+        {
+            "blue" => Task.FromResult(Png(SKColors.Blue)),
+            "green" => green.Task,
+            _ => failing.Task,
+        });
+        await colors.Pending;
+        var blue = colors.Accent;
+        Assert.NotEqual(AccentPalette.Default.Base, blue);
+
+        // A track change starts a read: the app keeps the blue meanwhile,
+        // rather than flashing to the default red.
+        player.ArtworkUrl = "green";
+        Assert.Equal(blue, colors.Accent);
+        green.SetResult(Png(SKColors.Green));
+        await colors.Pending;
+        Assert.True(colors.Accent.G > 0xC0 && colors.Accent.B < 0x60, colors.Accent.ToString());
+
+        // A cover that can't be read gives the default, once the read ends.
+        var greenAccent = colors.Accent;
+        player.ArtworkUrl = "broken";
+        Assert.Equal(greenAccent, colors.Accent);
+        failing.SetException(new HttpRequestException("gone"));
+        await colors.Pending;
+        Assert.Equal(AccentPalette.Default.Base, colors.Accent);
+
+        // No cover at all: the default straight away.
+        player.ArtworkUrl = "blue";
+        await colors.Pending;
+        player.ArtworkUrl = null;
+        Assert.Equal(AccentPalette.Default.Base, colors.Accent);
+    }
+
+    [Fact]
     public async Task AGreyCover_LeavesTheDefaultAccent_ButGivesTheVisualizerItsNeutral()
     {
         var appearance = new AppearanceSettings
@@ -113,6 +153,9 @@ public class AccentColorTests
             Assert.Equal(Color.FromRgb(0xFF, 0xD9, 0x3D), (Color)Find("SystemAccentColor"));
             Assert.Equal(Color.FromRgb(0x0A, 0x0A, 0x0C), ((SolidColorBrush)Find("Token.Brush.OnAccent")).Color);
             Assert.Equal(Color.FromRgb(0x0A, 0x0A, 0x0C), ((SolidColorBrush)Find("AccentButtonForeground")).Color);
+            // The disabled fill is the accent faded over a dark panel, so its
+            // text stays white even when the enabled one turns dark.
+            Assert.Equal(Color.FromArgb(0x8C, 0xFF, 0xFF, 0xFF), ((SolidColorBrush)Find("AccentButtonForegroundDisabled")).Color);
 
             // A Fluent control reads the ramp through DynamicResource: its
             // switched-on track takes a colour from the new ramp.
@@ -161,6 +204,6 @@ public class AccentColorTests
         Assert.Equal(C(d.Base, 0x59), Of("AccentButtonBackgroundDisabled"));
         Assert.Equal(C(d.OnAccent), Of("Token.Brush.OnAccent"));
         Assert.Equal(C(d.OnAccent), Of("AccentButtonForeground"));
-        Assert.Equal(C(d.OnAccent, 0x8C), Of("AccentButtonForegroundDisabled"));
+        Assert.Equal(C(AccentPalette.White, 0x8C), Of("AccentButtonForegroundDisabled"));
     });
 }

@@ -30,6 +30,7 @@ public sealed partial class ThemeColors : ObservableObject
     private string? _readingUrl;
     private string? _pickedUrl;
     private Color? _picked;
+    private Rgb? _coverAccent;
 
     /// <summary>The colour to draw in; null for the theme's accent. With the
     /// artwork source, the accent until the cover has been read, and when it
@@ -40,7 +41,8 @@ public sealed partial class ThemeColors : ObservableObject
     /// makes it readable. With the artwork source, the default red until the
     /// cover has been read, when it can't be, and when the cover has no vivid
     /// colour: a grey accent would make the playing track's marker look like
-    /// plain text.</summary>
+    /// plain text. While a new cover is read, the last cover's accent stays,
+    /// so a track change doesn't flash the whole app red.</summary>
     [ObservableProperty] private Rgb _accent = AccentPalette.Default.Base;
 
     /// <summary>The cover read in progress, for tests to wait on.</summary>
@@ -80,8 +82,12 @@ public sealed partial class ThemeColors : ObservableObject
             || _appearance.AccentSource == AccentSource.Artwork;
         var url = _player.ArtworkUrl;
         Color? cover = null;
+        var keepAccent = false;
         if (!wantsCover)
+        {
             Cancel();
+            _coverAccent = null;
+        }
         else if (url is not null && url == _pickedUrl)
         {
             Cancel();
@@ -90,15 +96,19 @@ public sealed partial class ThemeColors : ObservableObject
         else if (_readingUrl != url || _reading is null)
         {
             // The last cover's colour would be wrong for this one: the
-            // defaults show until this one is read.
+            // visualizer's default shows until this one is read. The accent
+            // repaints the whole app, so it keeps the last cover's meanwhile.
             Cancel();
             if (url is not null && _loadBytes is not null)
+            {
                 Pending = ReadAsync(url);
+                keepAccent = true;
+            }
         }
-        Apply(cover);
+        Apply(cover, keepAccent);
     }
 
-    private void Apply(Color? cover)
+    private void Apply(Color? cover, bool keepAccent = false)
     {
         Color = _appearance.VisualizerColorSource switch
         {
@@ -114,8 +124,12 @@ public sealed partial class ThemeColors : ObservableObject
                 ? new Rgb(custom.R, custom.G, custom.B)
                 : AccentPalette.Default.Base,
             AccentSource.Artwork when cover is { } c && !IsNeutral(c) => new Rgb(c.R, c.G, c.B),
+            AccentSource.Artwork when keepAccent && _coverAccent is { } last => last,
             _ => AccentPalette.Default.Base,
         };
+        _coverAccent = _appearance.AccentSource == AccentSource.Artwork && Accent != AccentPalette.Default.Base
+            ? Accent
+            : null;
     }
 
     private static bool IsNeutral(Color c) =>

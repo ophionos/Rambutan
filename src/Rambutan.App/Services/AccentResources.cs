@@ -39,7 +39,9 @@ public static class AccentResources
         Paint(resources, "AccentButtonForeground", ToColor(palette.OnAccent));
         Paint(resources, "AccentButtonForegroundPointerOver", ToColor(palette.OnAccent));
         Paint(resources, "AccentButtonForegroundPressed", ToColor(palette.OnAccent));
-        Paint(resources, "AccentButtonForegroundDisabled", ToColor(palette.OnAccent, DisabledTextAlpha));
+        // The disabled fill is the accent faded over the dark panels, so it is
+        // always dark: white text reads on it whatever the accent.
+        Paint(resources, "AccentButtonForegroundDisabled", ToColor(AccentPalette.White, DisabledTextAlpha));
     }
 
     private static void Paint(IResourceDictionary resources, string key, Color color)
