@@ -27,6 +27,19 @@ public partial class LyricsPane : UserControl
     /// <summary>Where the active line's centre sits, as a fraction of the pane's height.</summary>
     public const double AnchorFraction = 0.4;
 
+    /// <summary>Where it sits when the pane shows only a few lines: in the
+    /// middle, between the lines before and after it.</summary>
+    public const double FewLinesAnchor = 0.5;
+
+    /// <summary>The widest the lines get: wider, a line is hard to follow from
+    /// one end to the other. The pane itself can be wider, so its scrollbar
+    /// sits at the edge of the space it is given.</summary>
+    public const double ColumnMaxWidth = 760;
+
+    /// <summary>The height of a synced line on one row, for
+    /// <see cref="LinesShown"/>.</summary>
+    public const double LineHeight = 46;
+
     private static readonly TimeSpan ScrollDuration = TimeSpan.FromMilliseconds(350);
 
     private readonly DispatcherTimer _resumeTimer;
@@ -35,6 +48,7 @@ public partial class LyricsPane : UserControl
     private double _animationFrom;
     private double _animationTo;
     private bool _animating;
+    private int? _linesShown;
 
     public LyricsPane()
     {
@@ -55,23 +69,47 @@ public partial class LyricsPane : UserControl
         Scroller.AddHandler(KeyDownEvent, OnKeyDown,
             RoutingStrategies.Tunnel, handledEventsToo: true);
 
-        Scroller.SizeChanged += (_, e) =>
-        {
-            // Room below the last line, so it too can rise to the anchor.
-            LinesList.Margin = new Thickness(0, 20, 0, e.NewSize.Height * (1 - AnchorFraction));
-            ScrollToActive(animate: false);
-        };
+        Scroller.SizeChanged += (_, _) => ApplyLinesMargin();
     }
 
     /// <summary>False while the listener has scrolled away from the playing line.</summary>
     public bool IsFollowing { get; private set; } = true;
 
+    /// <summary>How many lines the pane shows, under the artwork when it has
+    /// little room; null fills the height it is given. The other states
+    /// (loading, none, not looked up) keep their own height.</summary>
+    public int? LinesShown
+    {
+        get => _linesShown;
+        set
+        {
+            if (_linesShown == value)
+                return;
+            _linesShown = value;
+            Scroller.MaxHeight = value is { } lines ? lines * LineHeight : double.PositiveInfinity;
+            ApplyLinesMargin();
+        }
+    }
+
+    private double Anchor => _linesShown is null ? AnchorFraction : FewLinesAnchor;
+
+    /// <summary>Room below the last line, so it too can rise to the anchor; and
+    /// above the first, except when only a few lines show, where it would push
+    /// the last of them out of view.</summary>
+    private void ApplyLinesMargin()
+    {
+        var top = _linesShown is null ? 20 : 0;
+        LinesList.Margin = new Thickness(0, top, 0, Scroller.Bounds.Height * (1 - Anchor));
+        ScrollToActive(animate: false);
+    }
+
     /// <summary>
-    /// The scroll offset that puts a line's centre at <see cref="AnchorFraction"/>
+    /// The scroll offset that puts a line's centre at <paramref name="anchor"/>
     /// of the viewport, clamped to what the content can scroll to.
     /// </summary>
-    public static double TargetOffset(double lineTop, double lineHeight, double viewport, double extent) =>
-        Math.Clamp(lineTop + lineHeight / 2 - viewport * AnchorFraction, 0, Math.Max(0, extent - viewport));
+    public static double TargetOffset(double lineTop, double lineHeight, double viewport, double extent,
+        double anchor = AnchorFraction) =>
+        Math.Clamp(lineTop + lineHeight / 2 - viewport * anchor, 0, Math.Max(0, extent - viewport));
 
     protected override void OnDataContextChanged(EventArgs e)
     {
@@ -170,7 +208,7 @@ public partial class LyricsPane : UserControl
             if (Scroller.Content is not Visual content || line.TranslatePoint(default, content) is not { } top)
                 return;
 
-            target = TargetOffset(top.Y, line.Bounds.Height, Scroller.Viewport.Height, Scroller.Extent.Height);
+            target = TargetOffset(top.Y, line.Bounds.Height, Scroller.Viewport.Height, Scroller.Extent.Height, Anchor);
         }
 
         var reduced = TopLevel.GetTopLevel(this)?.Classes.Contains("reducedmotion") ?? true;

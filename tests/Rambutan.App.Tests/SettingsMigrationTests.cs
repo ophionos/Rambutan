@@ -41,7 +41,7 @@ public sealed class SettingsMigrationTests : IDisposable
 
         Assert.Equal(showLyrics, settings.ShowLyrics);
         Assert.Equal(showLyrics, settings.LookUpLyricsOnline);
-        Assert.Equal(2, settings.Version);
+        Assert.Equal(AppSettings.CurrentVersion, settings.Version);
     }
 
     [Fact]
@@ -52,4 +52,31 @@ public sealed class SettingsMigrationTests : IDisposable
         Assert.True(settings.ShowLyrics);
         Assert.False(settings.LookUpLyricsOnline);
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Version2_HidesTheArtworkForWhoeverFilledThePaneWithTheVisualizer(bool stage)
+    {
+        // In version 2 a switch gave the pane to the visualizer, without the
+        // artwork; the visualizer now always fills it.
+        var settings = LoadFile($$"""{ "Version": 2, "ShowVisualizerStage": {{(stage ? "true" : "false")}} }""");
+
+        Assert.Equal(!stage, settings.ShowArtwork);
+        Assert.False(settings.ShowVisualizerStage);
+        Assert.Equal(AppSettings.CurrentVersion, settings.Version);
+    }
+
+    [Fact]
+    public void Version3_IsReadAsSaved_AndDropsTheOldSwitch()
+    {
+        var settings = LoadFile("""{ "Version": 3, "ShowArtwork": false }""");
+        Assert.False(settings.ShowArtwork);
+
+        new AppSettingsStore(_dir).Save(settings);
+        Assert.DoesNotContain("ShowVisualizerStage", File.ReadAllText(Path.Combine(_dir, "settings.json")));
+    }
+
+    [Fact]
+    public void AFreshInstall_ShowsTheArtwork() => Assert.True(new AppSettings().ShowArtwork);
 }

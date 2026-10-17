@@ -53,13 +53,13 @@
       </Border.Background>
     </Border>
 
-    <!-- The stage: the visualizer takes the pane in place of the artwork and
-         title, under the header's buttons. With lyrics on it dims behind
-         their column. Under reduced motion the band's note shows instead. -->
+    <!-- The stage: the visualizer fills the pane, under the header's buttons,
+         and dims behind the artwork and the lyrics. The radial style draws
+         around the artwork instead. Under reduced motion a note shows instead. -->
     <controls:VisualizerControl x:Name="StageVisualizer" Margin="24,60,24,24" IsHitTestVisible="False"
                                 IsVisible="{Binding IsStageVisualizerShown}" IsActive="{Binding IsStageActive}"
                                 Opacity="{Binding StageOpacity}"
-                                VisualizerStyle="{Binding BandStyle}" BarColor="{Binding Colors.Color}"
+                                VisualizerStyle="{Binding StageStyle}" BarColor="{Binding Colors.Color}"
                                 MaxFrameRate="{Binding Appearance.VisualizerFrameRate}" />
 
     <Grid x:Name="Body" RowDefinitions="*,Auto" Margin="48,40">
@@ -80,21 +80,21 @@
         </Button>
       </StackPanel>
 
-      <!-- The stage: track identity alone, centred (lyrics off), or the
-           lyrics overlay: a compact title over a centred lyrics column,
-           on the shell's blurred artwork. The arrangement is set in
-           code-behind (ApplyLayout), since grid definitions can't be styled. -->
+      <!-- Over the stage: the artwork and title, the lyrics, both (side by
+           side, or stacked with a few lines when narrow), or neither. The
+           arrangement is set in code-behind (ApplyLayout), since grid
+           definitions can't be styled. -->
       <Grid x:Name="Stage" Grid.Row="0"
             IsVisible="{Binding Player.ShownTrack, Converter={x:Static ObjectConverters.IsNotNull}}">
 
-      <!-- Track identity, centered in the free space above the visualizer. -->
+      <!-- Track identity: the artwork when it shows, and the title. -->
       <StackPanel x:Name="Identity" VerticalAlignment="Center" HorizontalAlignment="Center"
                   Spacing="0" MaxWidth="560" IsVisible="{Binding IsIdentityShown}">
         <!-- The radial style draws around the artwork, behind it: its control
              reaches RadialRenderer.Margin past the artwork on every side
              (code-behind), and takes no input from it. -->
         <Panel x:Name="ArtSlot" HorizontalAlignment="Center" Margin="0,0,0,28"
-               IsVisible="{Binding Player.ArtworkUrl, Converter={x:Static ObjectConverters.IsNotNull}}">
+               IsVisible="{Binding IsArtworkShown}">
           <controls:VisualizerControl x:Name="Ring" VisualizerStyle="Radial" IsHitTestVisible="False"
                                       IsVisible="{Binding ShowsRing}" IsActive="{Binding IsRingActive}"
                                       BarColor="{Binding Colors.Color}"
@@ -139,24 +139,14 @@
       </StackPanel>
 
       <views:LyricsPane x:Name="LyricsHost" DataContext="{Binding Lyrics}"
-                        MaxWidth="{x:Static views:NowPlayingView.LyricsMaxWidth}"
                         IsVisible="{Binding $parent[UserControl].((vm:NowPlayingViewModel)DataContext).IsLyricsPaneVisible}" />
       </Grid>
 
-      <!-- Visualizer pane. Gives way to the radial style's ring. Hidden with no
-           track — resting floor dots under "Nothing playing" read as debris.
-           Under reduced motion it stops drawing and says so in
-           its place, rather than leaving a blank band. -->
-      <Panel x:Name="VisualizerBand" Grid.Row="1" Height="110" Margin="24,28,24,0"
-             IsVisible="{Binding IsBandShown}">
-        <controls:VisualizerControl x:Name="BandVisualizer"
-            IsVisible="{Binding !Appearance.ReduceMotion}" IsActive="{Binding IsBandActive}"
-            VisualizerStyle="{Binding BandStyle}" BarColor="{Binding Colors.Color}"
-            MaxFrameRate="{Binding Appearance.VisualizerFrameRate}" />
-        <TextBlock Text="{l:T nowPlaying.visualizerPaused}"
-                   FontSize="12" Opacity="0.55" HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                   IsVisible="{Binding Appearance.ReduceMotion}" />
-      </Panel>
+      <!-- Under reduced motion the visualizer stops drawing, and this says
+           so in its place rather than leaving the pane still. -->
+      <TextBlock x:Name="PausedNote" Grid.Row="1" Text="{l:T nowPlaying.visualizerPaused}"
+                 FontSize="12" Opacity="0.55" HorizontalAlignment="Center" Margin="24,16,24,0"
+                 IsVisible="{Binding IsPausedNoteShown}" />
     </Grid>
 
     <!-- Without a GPU, Skia draws on the CPU, and the presets draw at a
@@ -181,23 +171,18 @@
         </Border.Background>
       </Border>
 
-      <!-- Header: the stage, lyrics and fullscreen toggles (the first two
+      <!-- Header: the artwork, lyrics and fullscreen toggles (the first two
            remembered in settings; lit while on), then collapse, mirroring the
-           expand affordance on the player-bar artwork. Fullscreen always shows
-           the stage, and leaves by its own button or Esc. -->
+           expand affordance on the player-bar artwork. Fullscreen leaves by
+           its own button or Esc. -->
       <StackPanel x:Name="Header" Classes="chrome" Orientation="Horizontal" Spacing="4"
                   HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,12,16,0">
-        <Button x:Name="StageToggle" Classes="icon subtle" Classes.active="{Binding ShowStage}"
-                Command="{Binding ToggleStageCommand}"
-                ToolTip.Tip="{Binding StageToggleTip}"
-                AutomationProperties.Name="{Binding StageToggleTip}">
-          <Button.IsVisible>
-            <MultiBinding Converter="{x:Static BoolConverters.And}">
-              <Binding Path="Player.NowPlaying" Converter="{x:Static ObjectConverters.IsNotNull}" />
-              <Binding Path="IsWindowed" />
-            </MultiBinding>
-          </Button.IsVisible>
-          <PathIcon Data="{StaticResource Icon.Visualizer}" Width="20" Height="20" />
+        <Button x:Name="ArtworkToggle" Classes="icon subtle" Classes.active="{Binding ShowArtwork}"
+                Command="{Binding ToggleArtworkCommand}"
+                ToolTip.Tip="{Binding ArtworkToggleTip}"
+                AutomationProperties.Name="{Binding ArtworkToggleTip}"
+                IsVisible="{Binding Player.NowPlaying, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <PathIcon Data="{StaticResource Icon.Artwork}" Width="20" Height="20" />
         </Button>
         <Button x:Name="LyricsToggle" Classes="icon subtle" Classes.active="{Binding ShowLyrics}"
                 Command="{Binding ToggleLyricsCommand}"

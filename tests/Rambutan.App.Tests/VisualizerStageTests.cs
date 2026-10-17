@@ -5,8 +5,9 @@ using Rambutan.Core.Settings;
 
 namespace Rambutan.App.Tests;
 
-/// <summary>The stage, the advanced setting that offers the animated presets,
-/// and cycling: where Now Playing draws what, and when the style changes.</summary>
+/// <summary>The stage, the artwork toggle over it, the advanced setting that
+/// offers the animated presets, and cycling: where Now Playing draws what, and
+/// when the style changes.</summary>
 public class VisualizerStageTests
 {
     private static readonly TrackInfo First = new() { VideoId = "a", Title = "A", Artists = [] };
@@ -40,7 +41,7 @@ public class VisualizerStageTests
     }
 
     private static (NowPlayingViewModel Vm, AppearanceSettings Appearance, AppSettings Saved, FakeTimer Timer) NowPlaying(
-        VisualizerStyle style = VisualizerStyle.Bars, bool advanced = false, bool stage = false,
+        VisualizerStyle style = VisualizerStyle.Bars, bool advanced = false, bool artwork = true,
         VisualizerCycle cycle = VisualizerCycle.Off, Func<int, int>? random = null)
     {
         var appearance = new AppearanceSettings
@@ -52,7 +53,7 @@ public class VisualizerStageTests
         {
             NowPlaying = First, ShownTrack = First, ArtworkUrl = "https://example.com/a.jpg", IsPlaying = true,
         };
-        var saved = new AppSettings { ShowVisualizerStage = stage };
+        var saved = new AppSettings { ShowArtwork = artwork };
         var timer = new FakeTimer();
         var vm = new NowPlayingViewModel(player, settings: saved, appearance: appearance,
             every: timer.Every, random: random ?? (_ => 0)) { IsOpen = true };
@@ -60,12 +61,12 @@ public class VisualizerStageTests
     }
 
     [Fact]
-    public void TheDefaults_AreNoPresetsNoCyclingNoStage()
+    public void TheDefaults_AreNoPresetsNoCycling_AndTheArtworkShown()
     {
         var saved = new AppSettings();
         Assert.False(saved.VisualizerAdvanced);
         Assert.Equal("off", saved.VisualizerCycle);
-        Assert.False(saved.ShowVisualizerStage);
+        Assert.True(saved.ShowArtwork);
         Assert.False(new AppearanceSettings().VisualizerAdvanced);
         Assert.Equal(VisualizerCycle.Off, new AppearanceSettings().VisualizerCycle);
     }
@@ -84,82 +85,101 @@ public class VisualizerStageTests
     {
         var (vm, appearance, _, _) = NowPlaying(VisualizerStyle.Plasma);
 
-        Assert.Equal(VisualizerStyle.Bars, vm.BandStyle);
+        Assert.Equal(VisualizerStyle.Bars, vm.StageStyle);
         Assert.Equal(VisualizerStyle.Plasma, appearance.VisualizerStyle);
 
         appearance.VisualizerAdvanced = true;
-        Assert.Equal(VisualizerStyle.Plasma, vm.BandStyle);
+        Assert.Equal(VisualizerStyle.Plasma, vm.StageStyle);
         Assert.True(vm.IsPresetDrawn);
     }
 
     [Fact]
-    public void TheStage_ReplacesTheArtworkAndTheBand()
+    public void TheStage_FillsThePane_DimmedUnderTheArtwork()
     {
-        var (vm, _, saved, _) = NowPlaying();
-        vm.ShowStage = true;
+        var (vm, _, _, _) = NowPlaying();
 
-        Assert.True(saved.ShowVisualizerStage);
         Assert.True(vm.IsStageShown);
         Assert.True(vm.IsStageActive);
-        Assert.False(vm.IsIdentityShown);
-        Assert.False(vm.IsBandShown);
-        Assert.False(vm.IsBandActive);
-        Assert.Equal(1, vm.StageOpacity);
-    }
-
-    [Fact]
-    public void TheStage_IsRememberedAndToggles()
-    {
-        var (vm, _, saved, _) = NowPlaying(stage: true);
-        Assert.True(vm.ShowStage);
-
-        vm.ToggleStageCommand.Execute(null);
-
-        Assert.False(vm.ShowStage);
-        Assert.False(saved.ShowVisualizerStage);
+        Assert.True(vm.IsArtworkShown);
         Assert.True(vm.IsIdentityShown);
-        Assert.True(vm.IsBandActive);
+        Assert.False(vm.IsPausedNoteShown);
+        Assert.InRange(vm.StageOpacity, 0.5, 0.9);
     }
 
     [Fact]
-    public void TheStage_WithNothingPlaying_IsntShown()
+    public void TheArtworkToggle_IsRemembered_AndLeavesTheStageAlone()
     {
-        var (vm, _, _, _) = NowPlaying(stage: true);
+        var (vm, _, saved, _) = NowPlaying(artwork: false);
+        Assert.False(vm.ShowArtwork);
+        Assert.False(vm.IsArtworkShown);
+        Assert.False(vm.IsIdentityShown);
+        Assert.True(vm.IsStageActive);
+        Assert.Equal(1, vm.StageOpacity);
+        Assert.Equal("Show artwork", vm.ArtworkToggleTip);
+
+        vm.ToggleArtworkCommand.Execute(null);
+
+        Assert.True(vm.ShowArtwork);
+        Assert.True(saved.ShowArtwork);
+        Assert.True(vm.IsArtworkShown);
+        Assert.True(vm.IsIdentityShown);
+        Assert.True(vm.IsStageActive);
+        Assert.Equal("Hide artwork", vm.ArtworkToggleTip);
+    }
+
+    [Fact]
+    public void ATrackWithoutACover_ShowsNoArtwork_WhateverTheToggle()
+    {
+        var (vm, _, _, _) = NowPlaying();
+        vm.Player.ArtworkUrl = null;
+
+        Assert.True(vm.ShowArtwork);
+        Assert.False(vm.IsArtworkShown);
+        Assert.False(vm.IsIdentityShown);
+        Assert.True(vm.IsStageActive);
+    }
+
+    [Fact]
+    public void WithNothingLoaded_TheStageIsntShown_AndTheCoverStays()
+    {
+        var (vm, _, _, _) = NowPlaying(artwork: false);
         vm.Player.NowPlaying = null;
 
         Assert.False(vm.IsStageShown);
         Assert.False(vm.IsStageActive);
+        Assert.True(vm.IsArtworkShown);
         Assert.True(vm.IsIdentityShown);
     }
 
     [Fact]
-    public void TheRing_OnTheStage_IsBars()
+    public void TheRing_WithTheArtworkHidden_IsBars()
     {
-        var (vm, _, _, _) = NowPlaying(VisualizerStyle.Radial, stage: true);
+        var (vm, _, _, _) = NowPlaying(VisualizerStyle.Radial, artwork: false);
 
         Assert.False(vm.ShowsRing);
         Assert.False(vm.IsRingActive);
         Assert.True(vm.IsStageActive);
-        Assert.Equal(VisualizerStyle.Bars, vm.BandStyle);
+        Assert.Equal(VisualizerStyle.Bars, vm.StageStyle);
     }
 
     [Fact]
-    public void TheStage_UnderReducedMotion_ShowsTheBandsNote()
+    public void TheStage_UnderReducedMotion_ShowsTheNote_AndTheTitle()
     {
-        var (vm, appearance, _, _) = NowPlaying(stage: true);
+        var (vm, appearance, _, _) = NowPlaying(artwork: false);
         appearance.Motion = MotionPreference.Reduced;
 
         Assert.False(vm.IsStageVisualizerShown);
         Assert.False(vm.IsStageActive);
-        // The band shows its "paused" note in place of a blank pane.
-        Assert.True(vm.IsBandShown);
-        Assert.False(vm.IsBandActive);
+        // The "paused" note and the title, in place of a still pane.
+        Assert.True(vm.IsPausedNoteShown);
+        Assert.True(vm.IsIdentityShown);
+        Assert.False(vm.IsArtworkShown);
     }
 
     [Fact]
     public void LyricsOverTheStage_DimIt()
     {
-        var (vm, _, _, _) = NowPlaying(stage: true);
+        var (vm, _, _, _) = NowPlaying(artwork: false);
         vm.ShowLyrics = true;
         vm.Lyrics.OnTrackChanged(First);
 
@@ -246,10 +266,10 @@ public class VisualizerStageTests
     }
 
     [Fact]
-    public void Cycling_OnTheStage_LeavesOutTheRing()
+    public void Cycling_WithTheArtworkHidden_LeavesOutTheRing()
     {
         var picks = new List<int>();
-        var (vm, _, _, timer) = NowPlaying(stage: true, cycle: VisualizerCycle.Random, random: n => { picks.Add(n); return 0; });
+        var (vm, _, _, timer) = NowPlaying(artwork: false, cycle: VisualizerCycle.Random, random: n => { picks.Add(n); return 0; });
         for (var i = 0; i < 30; i++)
             timer.Tick!();
 

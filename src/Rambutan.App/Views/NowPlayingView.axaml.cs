@@ -12,13 +12,28 @@ namespace Rambutan.App.Views;
 
 public partial class NowPlayingView : UserControl
 {
-    /// <summary>The widest the lyrics column gets: wider, a line is hard to
-    /// follow from one end to the other.</summary>
-    public const double LyricsMaxWidth = 760;
+    /// <summary>From this stage width the artwork and the lyrics sit side by
+    /// side; narrower, the lyrics go under the artwork.</summary>
+    public const double SideBySideWidth = 840;
 
-    /// <summary>Below this stage width the visualizer band shrinks, so the lyrics
-    /// keep a few more lines.</summary>
-    public const double CompactWidth = 720;
+    /// <summary>The lyrics under the artwork show this many lines.</summary>
+    public const int StackedLines = 3;
+
+    private const double ArtSize = 300;
+
+    /// <summary>The artwork's largest size in fullscreen, where the screen is
+    /// larger; it still fits the height.</summary>
+    private const double FullscreenArtSize = 480;
+    private const double MinArtSize = 120;
+
+    /// <summary>Room the title takes under the artwork, and the stacked lyrics'
+    /// footer under their lines, when the artwork is fitted to the height.</summary>
+    private const double TitleRoom = 100;
+    private const double StackedFooterRoom = 48;
+
+    /// <summary>How far the lyrics reach into the body's side margins, so their
+    /// scrollbar sits near the pane's edge rather than inside the margin.</summary>
+    public const double LyricsReach = 32;
 
     private static readonly Cursor NoCursor = new(StandardCursorType.None);
 
@@ -35,7 +50,6 @@ public partial class NowPlayingView : UserControl
         _bodyMargin = Body.Margin;
         Stage.SizeChanged += (_, _) => ApplyLayout();
         StageVisualizer.PropertyChanged += OnVisualizerPropertyChanged;
-        BandVisualizer.PropertyChanged += OnVisualizerPropertyChanged;
 
         // Fullscreen's controls come back with any input. Tunnelled and
         // handled too: a button or the focus manager takes the event first.
@@ -118,11 +132,11 @@ public partial class NowPlayingView : UserControl
     private void OnVisualizerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
         if (e.Property == VisualizerControl.IsDrawnInSoftwareProperty && _vm is not null)
-            _vm.IsDrawnInSoftware = StageVisualizer.IsDrawnInSoftware || BandVisualizer.IsDrawnInSoftware;
+            _vm.IsDrawnInSoftware = StageVisualizer.IsDrawnInSoftware;
     }
 
     /// <summary>How the stage is arranged now.</summary>
-    public enum StageLayout { ArtOnly, Overlay }
+    public enum StageLayout { ArtOnly, LyricsOnly, SideBySide, Stacked }
 
     public StageLayout CurrentLayout { get; private set; } = StageLayout.ArtOnly;
 
@@ -142,7 +156,10 @@ public partial class NowPlayingView : UserControl
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(NowPlayingViewModel.IsLyricsPaneVisible) or nameof(NowPlayingViewModel.ShowsRing))
+        if (e.PropertyName is nameof(NowPlayingViewModel.IsLyricsPaneVisible) or nameof(NowPlayingViewModel.ShowsRing)
+            or nameof(NowPlayingViewModel.IsArtworkShown))
+            ApplyLayout();
+        if (e.PropertyName is nameof(NowPlayingViewModel.IsFullscreen))
             ApplyLayout();
         else if (e.PropertyName is nameof(NowPlayingViewModel.IsFullscreen) or nameof(NowPlayingViewModel.IsPointerHidden))
             ApplyFullscreen();
@@ -151,55 +168,98 @@ public partial class NowPlayingView : UserControl
     private void ApplyLayout()
     {
         var width = Stage.Bounds.Width;
-        var layout = _vm?.IsLyricsPaneVisible == true ? StageLayout.Overlay : StageLayout.ArtOnly;
+        var height = Stage.Bounds.Height;
+        var lyrics = _vm?.IsLyricsPaneVisible == true;
+        var art = _vm?.IsArtworkShown == true;
+        var layout = !lyrics ? StageLayout.ArtOnly
+            : !art ? StageLayout.LyricsOnly
+            : width >= SideBySideWidth ? StageLayout.SideBySide
+            : StageLayout.Stacked;
         CurrentLayout = layout;
 
+        // Every child back in a cell that exists: a Grid measures hidden
+        // children too, and a stale row or column index throws.
         Stage.RowDefinitions.Clear();
+        Stage.ColumnDefinitions.Clear();
+        Place(Identity, 0);
+        Place(LyricsHost, 0);
+        Identity.VerticalAlignment = VerticalAlignment.Center;
+        Identity.Margin = default;
+        LyricsHost.Margin = new Thickness(-LyricsReach, 0, -LyricsReach, 0);
+        LyricsHost.LinesShown = null;
+        TitleLink.FontSize = 24;
+
         switch (layout)
         {
             case StageLayout.ArtOnly:
-                // Every child back in a cell that exists: a Grid measures hidden
-                // children too, and a stale row index throws.
-                Place(Identity, 0);
-                Place(LyricsHost, 0);
-                Identity.VerticalAlignment = VerticalAlignment.Center;
-                Identity.Margin = default;
-                SetArt(300);
-                TitleLink.FontSize = 24;
+                SetArt(_vm?.IsFullscreen == true ? FitArt(height - TitleRoom) : ArtSize);
                 break;
 
-            case StageLayout.Overlay:
-                // The lyrics take the stage: a centred column over the shell's
-                // blurred artwork, under a compact title. The artwork itself is left
-                // to the backdrop and the player bar rather than drawn a second time.
+            case StageLayout.LyricsOnly:
+                // A compact title over the lyrics column; in fullscreen the
+                // title card stands in for it.
                 Stage.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                 Stage.RowDefinitions.Add(new RowDefinition(1, GridUnitType.Star));
-                Place(Identity, 0);
                 Place(LyricsHost, 1);
                 Identity.VerticalAlignment = VerticalAlignment.Top;
                 Identity.Margin = new Thickness(0, 0, 0, 16);
                 SetArt(0);
                 TitleLink.FontSize = 20;
                 break;
-        }
 
-        // Narrow, the lyrics need the height more than the visualizer does.
-        var compact = layout is StageLayout.Overlay && width > 0 && width < CompactWidth;
-        VisualizerBand.Height = compact ? 64 : 110;
-        VisualizerBand.Margin = new Thickness(24, compact ? 16 : 28, 24, 0);
+            case StageLayout.SideBySide:
+                // The artwork in the left half, the lyrics in the right, reaching
+                // to the pane's edge.
+                Stage.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+                Stage.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
+                Place(LyricsHost, 0, column: 1);
+                Identity.Margin = new Thickness(0, 0, 24, 0);
+                LyricsHost.Margin = new Thickness(0, 0, -LyricsReach, 0);
+                SetArt(FitArt(height - TitleRoom));
+                break;
+
+            case StageLayout.Stacked:
+                // The artwork and title, then a few lines, centred together.
+                Stage.RowDefinitions.Add(new RowDefinition(1, GridUnitType.Star));
+                Stage.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                Stage.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                Stage.RowDefinitions.Add(new RowDefinition(1, GridUnitType.Star));
+                Place(Identity, 1);
+                Place(LyricsHost, 2);
+                Identity.Margin = new Thickness(0, 0, 0, 12);
+                LyricsHost.LinesShown = StackedLines;
+                SetArt(FitArt(height - TitleRoom - StackedLines * LyricsPane.LineHeight - StackedFooterRoom));
+                TitleLink.FontSize = 20;
+                break;
+        }
+    }
+
+    /// <summary>The artwork's size in the height left for it; full size before
+    /// the first layout.</summary>
+    private double FitArt(double room)
+    {
+        if (room <= 0 && Stage.Bounds.Height <= 0)
+            return ArtSize;
+        var ring = _vm?.ShowsRing == true ? 2 * RadialRenderer.Margin : 0;
+        var max = _vm?.IsFullscreen == true ? FullscreenArtSize : ArtSize;
+        return Math.Clamp(room - ring, MinArtSize, max);
     }
 
     /// <summary>Sizes the artwork; zero folds it away. (Its IsVisible stays bound
-    /// to whether there is artwork at all.)</summary>
+    /// to whether the artwork shows at all.)</summary>
     private void SetArt(double size)
     {
         Art.Width = Art.Height = size;
-        // The ring reaches past the artwork; the slot keeps the title, and the
-        // header above, clear of it.
+        // The ring reaches past the artwork; the slot keeps the title, the
+        // header above and the lyrics beside it clear of it.
         var ring = size > 0 && _vm?.ShowsRing == true ? RadialRenderer.Margin : 0;
-        ArtSlot.Margin = size > 0 ? new Thickness(0, ring, 0, 28 + ring) : default;
+        ArtSlot.Margin = size > 0 ? new Thickness(ring, ring, ring, 28 + ring) : default;
         Ring.Margin = new Thickness(-RadialRenderer.Margin);
     }
 
-    private static void Place(Control control, int row) => Grid.SetRow(control, row);
+    private static void Place(Control control, int row, int column = 0)
+    {
+        Grid.SetRow(control, row);
+        Grid.SetColumn(control, column);
+    }
 }

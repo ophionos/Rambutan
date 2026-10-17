@@ -75,6 +75,11 @@ public class LyricsPaneTests
         Assert.Equal(expected, LyricsPane.TargetOffset(top, height, viewport, extent), precision: 6);
 
     [Fact]
+    public void AFewLines_PutTheActiveOneInTheMiddle() =>
+        // Three 46-pixel lines: the third (centre 115) sits in the middle (69).
+        Assert.Equal(46, LyricsPane.TargetOffset(92, 46, 138, 2000, LyricsPane.FewLinesAnchor), precision: 6);
+
+    [Fact]
     public void FollowingPlayback_KeepsTheActiveLineFortyPercentDown() => Headless.Run(() =>
     {
         var (vm, _) = Loaded();
@@ -175,17 +180,22 @@ public class LyricsPaneTests
         window.Close();
     });
 
-    private static (Window Window, NowPlayingView View, NowPlayingViewModel Vm) NowPlaying(double width)
+    private static (Window Window, NowPlayingView View, NowPlayingViewModel Vm) NowPlaying(
+        double width, bool artwork = false, double height = 700)
     {
         AccessibleNames.Install();
         ShellResources.Ensure();
         var (lyrics, _) = Loaded(lines: 8);
-        var player = new PlayerBarViewModel { NowPlaying = Crush, ShownTrack = Crush };
-        var vm = new NowPlayingViewModel(player, lyrics, new Services.AppSettings { ShowLyrics = true });
+        var player = new PlayerBarViewModel
+        {
+            NowPlaying = Crush, ShownTrack = Crush, ArtworkUrl = "https://example.com/crush.jpg",
+        };
+        var vm = new NowPlayingViewModel(player, lyrics,
+            new Services.AppSettings { ShowLyrics = true, ShowArtwork = artwork });
         var view = new NowPlayingView { DataContext = vm };
         var window = new Window
         {
-            Width = width, Height = 700, DataContext = new MainViewModel(), Content = view,
+            Width = width, Height = height, DataContext = new MainViewModel(), Content = view,
         };
         window.Classes.Add("reducedmotion");
         window.Show();
@@ -194,36 +204,121 @@ public class LyricsPaneTests
         return (window, view, vm);
     }
 
+    private static void Relayout(Window window)
+    {
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+    }
+
     [Fact]
-    public void LyricsOn_Overlay_ACentredColumn_Off_ArtOnly() => Headless.Run(() =>
+    public void LyricsAlone_ACentredColumn_WithItsScrollbarAtThePanesEdge() => Headless.Run(() =>
     {
         var (window, view, vm) = NowPlaying(width: 1400);
-        Assert.Equal(NowPlayingView.StageLayout.Overlay, view.CurrentLayout);
+        Assert.Equal(NowPlayingView.StageLayout.LyricsOnly, view.CurrentLayout);
 
-        // The lyrics column is capped and centred on the stage, under the title.
+        // The lines are capped and centred on the stage, under the title; the
+        // scroller reaches past the stage into the margin, near the pane's edge.
         var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
         var stage = view.FindControl<Grid>("Stage")!;
         var identity = view.FindControl<StackPanel>("Identity")!;
-        Assert.Equal(NowPlayingView.LyricsMaxWidth, pane.Bounds.Width, 0.5);
-        Assert.Equal(stage.Bounds.Width / 2, pane.Bounds.Center.X, 1);
+        var column = pane.FindControl<Panel>("Column")!;
+        var scroller = pane.FindControl<ScrollViewer>("Scroller")!;
+        Assert.Equal(LyricsPane.ColumnMaxWidth, column.Bounds.Width, 0.5);
+        Assert.Equal(view.Bounds.Width / 2, column.TranslatePoint(new(column.Bounds.Width / 2, 0), view)!.Value.X, 1);
+        var scrollerRight = scroller.TranslatePoint(new(scroller.Bounds.Width, 0), view)!.Value.X;
+        Assert.Equal(stage.TranslatePoint(new(stage.Bounds.Width, 0), view)!.Value.X + NowPlayingView.LyricsReach,
+            scrollerRight, 1);
         Assert.True(pane.Bounds.Top >= identity.Bounds.Bottom);
-        Assert.False(view.FindControl<Border>("Art")!.Bounds.Height > 0);
+        Assert.False(view.FindControl<Panel>("ArtSlot")!.IsVisible);
 
         // Toggling off (the crash this guards: a stale row index) and back on.
         vm.ToggleLyricsCommand.Execute(null);
-        window.UpdateLayout();
+        Relayout(window);
         Assert.Equal(NowPlayingView.StageLayout.ArtOnly, view.CurrentLayout);
         Assert.False(pane.IsEffectivelyVisible);
         vm.ToggleLyricsCommand.Execute(null);
-        window.UpdateLayout();
-        Assert.Equal(NowPlayingView.StageLayout.Overlay, view.CurrentLayout);
+        Relayout(window);
+        Assert.Equal(NowPlayingView.StageLayout.LyricsOnly, view.CurrentLayout);
 
-        // Narrow, the column takes the whole stage.
+        // Narrow, the column takes the whole width the lyrics have.
         window.Width = 600;
-        window.UpdateLayout();
-        Dispatcher.UIThread.RunJobs();
-        Assert.Equal(NowPlayingView.StageLayout.Overlay, view.CurrentLayout);
-        Assert.Equal(stage.Bounds.Width, pane.Bounds.Width, 0.5);
+        Relayout(window);
+        Assert.Equal(NowPlayingView.StageLayout.LyricsOnly, view.CurrentLayout);
+        Assert.Equal(stage.Bounds.Width + 2 * NowPlayingView.LyricsReach, column.Bounds.Width, 0.5);
+        window.Close();
+    });
+
+    [Fact]
+    public void ArtworkAndLyrics_SitSideBySide_WhenWide() => Headless.Run(() =>
+    {
+        var (window, view, _) = NowPlaying(width: 1400, artwork: true);
+        Assert.Equal(NowPlayingView.StageLayout.SideBySide, view.CurrentLayout);
+
+        var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
+        var art = view.FindControl<Border>("Art")!;
+        var artRight = art.TranslatePoint(new(art.Bounds.Width, 0), view)!.Value.X;
+        var paneLeft = pane.TranslatePoint(default, view)!.Value.X;
+        Assert.True(art.Bounds.Height > 0);
+        Assert.True(artRight <= paneLeft, $"artwork ends at {artRight}, lyrics start at {paneLeft}");
+        Assert.True(artRight < view.Bounds.Width / 2);
+        Assert.Null(pane.LinesShown);
+        window.Close();
+    });
+
+    [Fact]
+    public void ArtworkAndLyrics_Stack_WhenNarrow_WithAFewLinesUnderTheArtwork() => Headless.Run(() =>
+    {
+        var (window, view, vm) = NowPlaying(width: 700, artwork: true);
+        Assert.Equal(NowPlayingView.StageLayout.Stacked, view.CurrentLayout);
+
+        var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
+        var identity = view.FindControl<StackPanel>("Identity")!;
+        var scroller = pane.FindControl<ScrollViewer>("Scroller")!;
+        Assert.Equal(NowPlayingView.StackedLines, pane.LinesShown);
+        Assert.True(scroller.Bounds.Height <= NowPlayingView.StackedLines * LyricsPane.LineHeight + 0.5);
+        Assert.True(pane.Bounds.Top >= identity.Bounds.Bottom);
+        Assert.True(view.FindControl<Border>("Art")!.Bounds.Height > 0);
+
+        // Wider, they go side by side; a stale column index would throw.
+        window.Width = 1400;
+        Relayout(window);
+        Assert.Equal(NowPlayingView.StageLayout.SideBySide, view.CurrentLayout);
+        vm.ToggleArtworkCommand.Execute(null);
+        Relayout(window);
+        Assert.Equal(NowPlayingView.StageLayout.LyricsOnly, view.CurrentLayout);
+        Assert.Null(pane.LinesShown);
+        window.Close();
+    });
+
+    [Fact]
+    public void Stacked_AtTheFirstLine_ShowsThreeWholeLines() => Headless.Run(() =>
+    {
+        var (window, view, vm) = NowPlaying(width: 700, artwork: true);
+        vm.Lyrics.OnPosition(TimeSpan.FromSeconds(4.5)); // line 0
+        Relayout(window);
+
+        var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
+        var scroller = pane.FindControl<ScrollViewer>("Scroller")!;
+        var list = pane.FindControl<ItemsControl>("LinesList")!;
+        Assert.Equal(0, scroller.Offset.Y, 0.5);
+        var third = (Control)list.ContainerFromIndex(2)!;
+        var bottom = third.TranslatePoint(new(0, third.Bounds.Height), scroller)!.Value.Y;
+        Assert.True(bottom <= scroller.Viewport.Height + 0.5, $"third line ends at {bottom} of {scroller.Viewport.Height}");
+        window.Close();
+    });
+
+    [Fact]
+    public void AShortStage_ShrinksTheStackedArtwork_SoTheLinesStayInView() => Headless.Run(() =>
+    {
+        var (window, view, _) = NowPlaying(width: 700, artwork: true, height: 560);
+        Assert.Equal(NowPlayingView.StageLayout.Stacked, view.CurrentLayout);
+
+        var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
+        var stage = view.FindControl<Grid>("Stage")!;
+        Assert.True(view.FindControl<Border>("Art")!.Bounds.Height < 300);
+        Assert.True(pane.Bounds.Bottom <= stage.Bounds.Height + 0.5,
+            $"lyrics end at {pane.Bounds.Bottom}, stage is {stage.Bounds.Height} high");
         window.Close();
     });
 
@@ -232,6 +327,7 @@ public class LyricsPaneTests
     {
         var (window, view, vm) = NowPlaying(width: 1100);
         var toggle = view.FindControl<Button>("LyricsToggle")!;
+        Assert.Equal("Show artwork", AutomationProperties.GetName(view.FindControl<Button>("ArtworkToggle")!));
         Assert.Equal("Hide lyrics", AutomationProperties.GetName(toggle));
         Assert.Contains("active", toggle.Classes);
 

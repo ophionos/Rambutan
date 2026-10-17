@@ -12,8 +12,8 @@ namespace Rambutan.App.ViewModels;
 /// <summary>
 /// The Now Playing surface: expands over the content region from the player bar.
 /// Track state comes from the shared <see cref="PlayerBarViewModel"/>; this VM
-/// owns the open/closed state, whether the lyrics pane and the stage are on,
-/// and which style the visualizer draws.
+/// owns the open/closed state, whether the artwork and the lyrics pane show
+/// over the visualizer, and which style the visualizer draws.
 /// </summary>
 public partial class NowPlayingViewModel : ViewModelBase
 {
@@ -53,22 +53,21 @@ public partial class NowPlayingViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(AreLyricsOnScreen), nameof(LyricsButtonTip))]
     private bool _isOpen;
 
-    /// <summary>The header toggle: the lyrics overlay, or the artwork alone.
-    /// Remembered in <see cref="AppSettings.ShowLyrics"/>.</summary>
+    /// <summary>The header toggle for the lyrics pane. Remembered in
+    /// <see cref="AppSettings.ShowLyrics"/>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LyricsToggleTip), nameof(IsLyricsPaneVisible), nameof(AreLyricsOnScreen), nameof(LyricsButtonTip))]
     private bool _showLyrics;
 
-    /// <summary>The header toggle that gives the pane to the visualizer, in
-    /// place of the artwork and title. Remembered in
-    /// <see cref="AppSettings.ShowVisualizerStage"/>.</summary>
+    /// <summary>The header toggle for the artwork and title over the
+    /// visualizer. Remembered in <see cref="AppSettings.ShowArtwork"/>.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StageToggleTip))]
-    private bool _showStage;
+    [NotifyPropertyChangedFor(nameof(ArtworkToggleTip))]
+    private bool _showArtwork = true;
 
     /// <summary>The visualizer fills the screen: the window goes fullscreen with
-    /// only this pane in it (MainWindow), and the stage shows whatever its own
-    /// toggle says. Not remembered: a start in fullscreen would surprise.</summary>
+    /// only this pane in it (MainWindow), and the artwork and lyrics show as
+    /// their toggles say. Not remembered: a start in fullscreen would surprise.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FullscreenTip), nameof(IsWindowed), nameof(IsChromeHidden), nameof(IsPointerHidden))]
     private bool _isFullscreen;
@@ -105,8 +104,8 @@ public partial class NowPlayingViewModel : ViewModelBase
     public bool IsTitleCardShown =>
         IsFullscreen && !IsIdentityShown && Player.ShownTrack is not null && (IsChromeShown || IsTitleFresh);
 
-    /// <summary>The header's windowed buttons: the stage toggle and collapse.
-    /// Fullscreen always shows the stage, and Esc or its own button leaves it.</summary>
+    /// <summary>The header's windowed button: collapse. Esc or its own button
+    /// leaves fullscreen.</summary>
     public bool IsWindowed => !IsFullscreen;
 
     /// <summary>The lyrics overlay: something is playing and the pane is on.</summary>
@@ -114,7 +113,7 @@ public partial class NowPlayingViewModel : ViewModelBase
 
     public string LyricsToggleTip => Strings.Get(ShowLyrics ? "nowPlaying.hideLyrics" : "nowPlaying.showLyrics");
 
-    public string StageToggleTip => Strings.Get(ShowStage ? "nowPlaying.hideStage" : "nowPlaying.showStage");
+    public string ArtworkToggleTip => Strings.Get(ShowArtwork ? "nowPlaying.hideArtwork" : "nowPlaying.showArtwork");
 
     /// <summary>The player bar's lyrics button is lit: Now Playing is open with
     /// its lyrics pane on.</summary>
@@ -126,55 +125,57 @@ public partial class NowPlayingViewModel : ViewModelBase
     /// the chosen one (bars for a preset while advanced mode is off).</summary>
     public VisualizerStyle DrawnStyle => _cycler.Current ?? Appearance.ShownStyle;
 
-    /// <summary>The stage: something is playing, and its toggle is on or the
-    /// visualizer is fullscreen.</summary>
-    public bool IsStageShown => (ShowStage || IsFullscreen) && Player.NowPlaying is not null;
+    /// <summary>The stage: the visualizer fills the pane while something is
+    /// loaded, under the artwork and lyrics.</summary>
+    public bool IsStageShown => Player.NowPlaying is not null;
 
-    /// <summary>The radial style draws around the artwork, and only there: with
-    /// the lyrics pane open, or the stage on, there is no artwork on screen, and
-    /// then the visualizer shows bars instead. Never under reduced motion, which
-    /// keeps the band's "paused" note in view.</summary>
+    /// <summary>The artwork shows: its toggle is on and the track has a cover.
+    /// With nothing loaded there is no visualizer to take its place, so the
+    /// cover of the track the bar shows stays.</summary>
+    public bool IsArtworkShown =>
+        Player.ShownTrack is not null && Player.ArtworkUrl is not null && (ShowArtwork || !IsStageShown);
+
+    /// <summary>The title, with the artwork when it shows. The lyrics alone
+    /// keep a compact one over them, except in fullscreen, where the title card
+    /// does that. Under reduced motion it also shows in place of an empty pane.</summary>
+    public bool IsIdentityShown =>
+        IsArtworkShown
+        || !IsStageShown
+        || (IsLyricsPaneVisible ? !IsFullscreen : Appearance.ReduceMotion);
+
+    /// <summary>The radial style draws around the artwork, in place of the
+    /// stage's visualizer; without the artwork, the stage draws bars. Never under
+    /// reduced motion, which keeps the "paused" note in view.</summary>
     public bool ShowsRing =>
         DrawnStyle == VisualizerStyle.Radial
         && !Appearance.ReduceMotion
-        && !IsStageShown
-        && !IsLyricsPaneVisible
-        && Player.ShownTrack is not null
-        && Player.ArtworkUrl is not null;
+        && IsArtworkShown;
 
-    /// <summary>The band, under the artwork: one visualizer at a time, so it
-    /// gives way to the ring and the stage. Hidden with no track. Under reduced
-    /// motion it shows the "paused" note, the stage's too.</summary>
-    public bool IsBandShown =>
-        Player.NowPlaying is not null && !ShowsRing && (!IsStageShown || Appearance.ReduceMotion);
-
-    /// <summary>The style the band and the stage draw in: the drawn one, or
-    /// bars when that is the ring.</summary>
-    public VisualizerStyle BandStyle => DrawnStyle == VisualizerStyle.Radial ? VisualizerStyle.Bars : DrawnStyle;
-
-    /// <summary>Whether the band polls the analyzer. A visualizer that isn't
-    /// seen doesn't, so its lease lapses.</summary>
-    public bool IsBandActive => IsOpen && IsBandShown && !Appearance.ReduceMotion;
+    /// <summary>The style the stage draws in: the drawn one, or bars when that
+    /// is the ring.</summary>
+    public VisualizerStyle StageStyle => DrawnStyle == VisualizerStyle.Radial ? VisualizerStyle.Bars : DrawnStyle;
 
     public bool IsRingActive => IsOpen && ShowsRing;
 
-    /// <summary>The stage's visualizer draws: under reduced motion it gives way
-    /// to the band's note.</summary>
-    public bool IsStageVisualizerShown => IsStageShown && !Appearance.ReduceMotion;
+    /// <summary>The stage's visualizer draws: not under reduced motion, nor
+    /// while the ring does.</summary>
+    public bool IsStageVisualizerShown => IsStageShown && !Appearance.ReduceMotion && !ShowsRing;
 
+    /// <summary>Whether the stage polls the analyzer. A visualizer that isn't
+    /// seen doesn't, so its lease lapses.</summary>
     public bool IsStageActive => IsOpen && IsStageVisualizerShown;
 
-    /// <summary>The artwork and title, which the stage replaces. Fullscreen
-    /// under reduced motion keeps them, so the screen at rest isn't empty.</summary>
-    public bool IsIdentityShown => !IsStageShown || (IsFullscreen && Appearance.ReduceMotion);
+    /// <summary>Under reduced motion nothing draws, and the note says why in
+    /// place of the visualizer.</summary>
+    public bool IsPausedNoteShown => IsStageShown && Appearance.ReduceMotion;
 
-    /// <summary>Lyrics over the stage: the visualizer dims, so the lines stay
-    /// readable over it.</summary>
-    public double StageOpacity => IsLyricsPaneVisible ? 0.3 : 1;
+    /// <summary>The stage dims under what shows over it, so that stays readable:
+    /// more under the lyrics, less under the artwork and title.</summary>
+    public double StageOpacity => IsLyricsPaneVisible ? 0.3 : IsIdentityShown ? 0.6 : 1;
 
     /// <summary>An animated preset draws: the one case where drawing in
     /// software costs resolution, which the view then says.</summary>
-    public bool IsPresetDrawn => AppearanceSettings.IsPreset(BandStyle);
+    public bool IsPresetDrawn => AppearanceSettings.IsPreset(StageStyle);
 
     /// <summary>The view found that Skia draws without a GPU.</summary>
     [ObservableProperty]
@@ -183,7 +184,7 @@ public partial class NowPlayingViewModel : ViewModelBase
 
     /// <summary>The note that a preset draws at a lower resolution, because
     /// there is no GPU: only while one draws.</summary>
-    public bool ShowsSoftwareNote => IsDrawnInSoftware && IsPresetDrawn && (IsBandActive || IsStageActive);
+    public bool ShowsSoftwareNote => IsDrawnInSoftware && IsPresetDrawn && IsStageActive;
 
     // Design-time
     public NowPlayingViewModel() : this(new PlayerBarViewModel(), new LyricsViewModel())
@@ -238,13 +239,13 @@ public partial class NowPlayingViewModel : ViewModelBase
         // Assigned after _settings so the change handlers have somewhere to write.
         _settings = settings;
         ShowLyrics = settings?.ShowLyrics ?? false;
-        ShowStage = settings?.ShowVisualizerStage ?? false;
+        ShowArtwork = settings?.ShowArtwork ?? true;
         Lyrics.IsEnabled = ShowLyrics;
         Strings.WhenChanged(this, static vm =>
         {
             vm.OnPropertyChanged(nameof(LyricsToggleTip));
             vm.OnPropertyChanged(nameof(LyricsButtonTip));
-            vm.OnPropertyChanged(nameof(StageToggleTip));
+            vm.OnPropertyChanged(nameof(ArtworkToggleTip));
             vm.OnPropertyChanged(nameof(FullscreenTip));
         });
     }
@@ -269,14 +270,14 @@ public partial class NowPlayingViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(DrawnStyle));
         OnPropertyChanged(nameof(IsStageShown));
+        OnPropertyChanged(nameof(IsArtworkShown));
+        OnPropertyChanged(nameof(IsIdentityShown));
         OnPropertyChanged(nameof(ShowsRing));
-        OnPropertyChanged(nameof(IsBandShown));
-        OnPropertyChanged(nameof(BandStyle));
-        OnPropertyChanged(nameof(IsBandActive));
+        OnPropertyChanged(nameof(StageStyle));
         OnPropertyChanged(nameof(IsRingActive));
         OnPropertyChanged(nameof(IsStageVisualizerShown));
         OnPropertyChanged(nameof(IsStageActive));
-        OnPropertyChanged(nameof(IsIdentityShown));
+        OnPropertyChanged(nameof(IsPausedNoteShown));
         OnPropertyChanged(nameof(StageOpacity));
         OnPropertyChanged(nameof(IsPresetDrawn));
         OnPropertyChanged(nameof(ShowsSoftwareNote));
@@ -285,11 +286,11 @@ public partial class NowPlayingViewModel : ViewModelBase
     }
 
     /// <summary>What cycling picks from: what the picker offers, without the
-    /// ring on the stage, where it would only be bars again.</summary>
+    /// ring while the artwork is hidden, where it would only be bars again.</summary>
     internal IReadOnlyList<VisualizerStyle> CycleChoices()
     {
         var offered = AppearanceSettings.Offered(Appearance.VisualizerAdvanced);
-        if (!IsStageShown)
+        if (IsArtworkShown)
             return offered;
         return Array.FindAll(offered, style => style != VisualizerStyle.Radial);
     }
@@ -299,7 +300,7 @@ public partial class NowPlayingViewModel : ViewModelBase
     private void UpdateCycleTimer()
     {
         var run = Appearance.VisualizerCycle == VisualizerCycle.Random
-            && (IsBandActive || IsRingActive || IsStageActive);
+            && (IsRingActive || IsStageActive);
         if (run && _cycleTimer is null)
         {
             _cycleTimer = _every(CycleTick, () => AdvanceCycle(CycleTick));
@@ -433,11 +434,11 @@ public partial class NowPlayingViewModel : ViewModelBase
             _settings.ShowLyrics = value;
     }
 
-    partial void OnShowStageChanged(bool value)
+    partial void OnShowArtworkChanged(bool value)
     {
         OnVisualizerChanged();
         if (_settings is not null)
-            _settings.ShowVisualizerStage = value;
+            _settings.ShowArtwork = value;
     }
 
     [RelayCommand]
@@ -450,7 +451,7 @@ public partial class NowPlayingViewModel : ViewModelBase
     private void ToggleLyrics() => ShowLyrics = !ShowLyrics;
 
     [RelayCommand]
-    private void ToggleStage() => ShowStage = !ShowStage;
+    private void ToggleArtwork() => ShowArtwork = !ShowArtwork;
 
     [RelayCommand]
     private void ToggleFullscreen() => IsFullscreen = !IsFullscreen;

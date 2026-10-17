@@ -9,8 +9,9 @@ namespace Rambutan.App.Services;
 public sealed class AppSettings
 {
     /// <summary>Version 2 split looking lyrics up online from showing them
-    /// (<see cref="LookUpLyricsOnline"/>); see <see cref="AppSettingsStore.Migrate"/>.</summary>
-    public const int CurrentVersion = 2;
+    /// (<see cref="LookUpLyricsOnline"/>); version 3 turned the visualizer stage
+    /// switch into <see cref="ShowArtwork"/>. See <see cref="AppSettingsStore.Migrate"/>.</summary>
+    public const int CurrentVersion = 3;
 
     public int Version { get; set; } = CurrentVersion;
     public bool CrossfadeEnabled { get; set; }
@@ -133,8 +134,13 @@ public sealed class AppSettings
     /// user's own lyrics and any already cached.</summary>
     public bool ShowLyrics { get; set; }
 
-    /// <summary>Now Playing gives its pane to the visualizer, without the
-    /// artwork and title. Default off.</summary>
+    /// <summary>Now Playing shows the artwork and title over the visualizer,
+    /// which fills the pane either way. Default on.</summary>
+    public bool ShowArtwork { get; set; } = true;
+
+    /// <summary>Version 2's switch that gave the pane to the visualizer, hiding
+    /// the artwork. Read only to migrate it into <see cref="ShowArtwork"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ShowVisualizerStage { get; set; }
 
     /// <summary>The lyrics pane may look tracks up on LRCLIB, which sends each
@@ -207,6 +213,9 @@ public sealed class AppSettingsStore(string dataDirectory)
     /// Brings an older file up to <see cref="AppSettings.CurrentVersion"/>.
     /// Version 1 had one lyrics switch that both showed lyrics and looked them up
     /// on LRCLIB; whoever had it on agreed to the lookups, so they keep them.
+    /// Version 2 had a switch that filled the pane with the visualizer in place
+    /// of the artwork; the visualizer now always fills it, so whoever had it on
+    /// chose to hide the artwork.
     /// </summary>
     internal static AppSettings Migrate(AppSettings settings)
     {
@@ -214,6 +223,13 @@ public sealed class AppSettingsStore(string dataDirectory)
         {
             settings.LookUpLyricsOnline = settings.ShowLyrics;
             settings.Version = 2;
+        }
+
+        if (settings.Version < 3)
+        {
+            settings.ShowArtwork = !settings.ShowVisualizerStage;
+            settings.ShowVisualizerStage = false;
+            settings.Version = 3;
         }
 
         return settings;

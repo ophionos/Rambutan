@@ -160,13 +160,15 @@ file sink), never to files directly.
   software and Now Playing says so. They move only with the feed's activity, so
   they come to rest when it stops. A new preset passes the photosensitivity
   test in `VisualizerPresetTests` (at most 3 flashes a second, from WCAG 2.3.1).
-  The stage (`NowPlayingViewModel.ShowStage`) fills the Now Playing pane with
-  the visualizer instead of the artwork, dimmed behind the lyrics when they
-  show; it works with any style. Changing the style automatically
-  (`VisualizerCycler`) picks among the styles the picker offers.
-  The radial style draws around the artwork, not in the band: the band hides
-  while it shows, and shows bars where there is no artwork (lyrics open, no
-  cover). `NowPlayingViewModel` decides which one shows and polls. The
+  The visualizer always fills the Now Playing pane (the stage), dimmed under
+  the artwork and more under the lyrics. Two header toggles (`ShowArtwork`,
+  `ShowLyrics`) put the artwork and the lyrics over it: side by side from
+  `NowPlayingView.SideBySideWidth`, else stacked with a few lines under the
+  artwork. Fullscreen follows the same toggles. Changing the style
+  automatically (`VisualizerCycler`) picks among the styles the picker offers.
+  The radial style draws around the artwork in place of the stage, and the
+  stage draws bars where there is no artwork (hidden, or no cover).
+  `NowPlayingViewModel` decides which one shows and polls. The
   "artwork" colour is `Core/Visualizer/ArtworkColor`, read from a small
   decode of the cover by `Services/VisualizerColors`. The compact meter and
   the overlay preview draw with Avalonia's primitives, always as bars. The overlay style
@@ -200,7 +202,7 @@ file sink), never to files directly.
   can't keep a window on top, so there the pin is disabled and says why.
 - Fullscreen: two modes in the main window. The drawn caption's fullscreen
   button gives the whole app the screen; Now Playing's fullscreen button
-  (`NowPlayingViewModel.IsFullscreen`) gives it to the visualizer: the
+  (`NowPlayingViewModel.IsFullscreen`) gives it to Now Playing: the
   `stagefull` class hides the `frame` (title bar, sidebar, player bar, queue)
   and `MainWindow.ApplyStageFullscreen` sets the window state. Its controls
   fade out after 3 s without input, and the pointer with them, but only

@@ -64,24 +64,44 @@ public class FullscreenVisualizerTests
     }
 
     [Fact]
-    public void Fullscreen_ShowsTheStage_WithoutChangingItsToggle()
+    public void Fullscreen_FollowsTheArtworkToggle()
     {
         var (vm, _, saved, _) = NowPlaying();
-        Assert.False(vm.IsStageShown);
 
         vm.ToggleFullscreenCommand.Execute(null);
 
         Assert.True(vm.IsOpen);
-        Assert.True(vm.IsStageShown);
-        Assert.True(vm.IsStageActive);
-        Assert.False(vm.IsIdentityShown);
         Assert.False(vm.IsWindowed);
-        Assert.False(vm.ShowStage);
-        Assert.False(saved.ShowVisualizerStage);
+        Assert.True(vm.IsStageActive);
+        Assert.True(vm.IsArtworkShown);
+        Assert.True(vm.IsIdentityShown);
+        // The artwork's own title shows: no second one over it.
+        Assert.False(vm.IsTitleCardShown);
+
+        vm.ToggleArtworkCommand.Execute(null);
+        Assert.False(saved.ShowArtwork);
+        Assert.False(vm.IsIdentityShown);
+        Assert.True(vm.IsTitleCardShown);
 
         vm.ToggleFullscreenCommand.Execute(null);
-        Assert.False(vm.IsStageShown);
+        Assert.False(vm.IsArtworkShown);
+        Assert.True(vm.IsStageActive);
+    }
+
+    [Fact]
+    public void LyricsAlone_InFullscreen_LeaveTheTitleToTheTitleCard()
+    {
+        var (vm, _, saved, _) = NowPlaying();
+        saved.ShowArtwork = false;
+        vm.ShowArtwork = false;
+        vm.ShowLyrics = true;
+        vm.Lyrics.OnTrackChanged(First);
         Assert.True(vm.IsIdentityShown);
+
+        vm.IsFullscreen = true;
+
+        Assert.False(vm.IsIdentityShown);
+        Assert.True(vm.IsTitleCardShown);
     }
 
     [Fact]
@@ -123,6 +143,7 @@ public class FullscreenVisualizerTests
     public void TheTitle_ShowsOnEntryAndOnEachNewTrack_ForAWhile()
     {
         var (vm, _, _, timers) = NowPlaying();
+        vm.ShowArtwork = false;
         vm.IsFullscreen = true;
         timers.Pass(NowPlayingViewModel.ChromeDelay);
         Assert.False(vm.IsChromeShown);
@@ -172,17 +193,17 @@ public class FullscreenVisualizerTests
     }
 
     [Fact]
-    public void ReducedMotion_KeepsTheArtworkAndTitle_InFullscreen()
+    public void ReducedMotion_KeepsTheTitle_InFullscreen_WithTheArtworkHidden()
     {
         var (vm, _, _, _) = NowPlaying(MotionPreference.Reduced);
+        vm.ShowArtwork = false;
         vm.IsFullscreen = true;
 
         Assert.False(vm.IsStageVisualizerShown);
         Assert.True(vm.IsIdentityShown);
-        // The band says why nothing moves.
-        Assert.True(vm.IsBandShown);
-        Assert.False(vm.IsBandActive);
-        // The artwork's own title shows: no second one over it.
+        // The note says why nothing moves.
+        Assert.True(vm.IsPausedNoteShown);
+        // The title shows on the pane: no second one over it.
         Assert.False(vm.IsTitleCardShown);
     }
 
