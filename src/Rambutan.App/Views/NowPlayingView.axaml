@@ -167,10 +167,7 @@
                IsVisible="{Binding ShowsSoftwareNote}" />
 
     <!-- Fullscreen's controls: the header, the title card and the transport,
-         over a shade and a backdrop that keep them readable on a bright
-         preset. The transport's backdrop is flat: a gradient across the
-         bottom drew stray white lines over a preset's feathered edge,
-         whether the preset drew on the GPU or in memory. Without input
+         over shades that keep them readable on a bright preset. Without input
          for a while they fade out with the pointer (chromeHidden); they stay
          focusable, and any key brings them back (code-behind). -->
     <Panel x:Name="Chrome" Classes.chromeHidden="{Binding IsChromeHidden}">
@@ -237,36 +234,43 @@
                    Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
       </StackPanel>
 
-      <Border x:Name="Transport" Classes="chrome" Background="#99000000"
-              CornerRadius="{StaticResource Token.Radius.Pill}" Padding="10,6"
-              HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,32"
-              IsVisible="{Binding IsFullscreen}">
-        <StackPanel Orientation="Horizontal" Spacing="10">
-          <Button Classes="icon" Command="{Binding Player.PreviousCommand}"
-                  ToolTip.Tip="{l:T player.previous}" AutomationProperties.Name="{l:T player.previous}"
-                  IsEnabled="{Binding Player.HasQueue}">
-            <PathIcon Data="{StaticResource Icon.Previous}" Width="24" Height="24" />
-          </Button>
-          <Button Classes="playcircle" Command="{Binding Player.TogglePlayPauseCommand}"
-                  ToolTip.Tip="{Binding Player.PlayPauseTip}" AutomationProperties.Name="{Binding Player.PlayPauseTip}"
-                  IsEnabled="{Binding Player.HasQueue}">
-            <Panel>
-              <Panel IsVisible="{Binding !Player.IsBuffering}">
-                <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24"
-                          IsVisible="{Binding !Player.IsPlaying}" />
-                <PathIcon Data="{StaticResource Icon.Pause}" Width="24" Height="24"
-                          IsVisible="{Binding Player.IsPlaying}" />
-              </Panel>
-              <Arc Classes="spinner" IsVisible="{Binding Player.IsBuffering}" />
-            </Panel>
-          </Button>
-          <Button Classes="icon" Command="{Binding Player.NextCommand}"
-                  ToolTip.Tip="{l:T player.next}" AutomationProperties.Name="{l:T player.next}"
-                  IsEnabled="{Binding Player.HasQueue}">
-            <PathIcon Data="{StaticResource Icon.Next}" Width="24" Height="24" />
-          </Button>
-        </StackPanel>
+      <Border Classes="chrome" Height="200" VerticalAlignment="Bottom"
+              IsHitTestVisible="False" IsVisible="{Binding IsFullscreen}">
+        <Border.Background>
+          <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="#00000000" />
+            <GradientStop Offset="1" Color="#B3000000" />
+          </LinearGradientBrush>
+        </Border.Background>
       </Border>
+
+      <StackPanel x:Name="Transport" Classes="chrome" Orientation="Horizontal" Spacing="10"
+                  HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,32"
+                  IsVisible="{Binding IsFullscreen}">
+        <Button Classes="icon" Command="{Binding Player.PreviousCommand}"
+                ToolTip.Tip="{l:T player.previous}" AutomationProperties.Name="{l:T player.previous}"
+                IsEnabled="{Binding Player.HasQueue}">
+          <PathIcon Data="{StaticResource Icon.Previous}" Width="24" Height="24" />
+        </Button>
+        <Button Classes="playcircle" Command="{Binding Player.TogglePlayPauseCommand}"
+                ToolTip.Tip="{Binding Player.PlayPauseTip}" AutomationProperties.Name="{Binding Player.PlayPauseTip}"
+                IsEnabled="{Binding Player.HasQueue}">
+          <Panel>
+            <Panel IsVisible="{Binding !Player.IsBuffering}">
+              <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24"
+                        IsVisible="{Binding !Player.IsPlaying}" />
+              <PathIcon Data="{StaticResource Icon.Pause}" Width="24" Height="24"
+                        IsVisible="{Binding Player.IsPlaying}" />
+            </Panel>
+            <Arc Classes="spinner" IsVisible="{Binding Player.IsBuffering}" />
+          </Panel>
+        </Button>
+        <Button Classes="icon" Command="{Binding Player.NextCommand}"
+                ToolTip.Tip="{l:T player.next}" AutomationProperties.Name="{l:T player.next}"
+                IsEnabled="{Binding Player.HasQueue}">
+          <PathIcon Data="{StaticResource Icon.Next}" Width="24" Height="24" />
+        </Button>
+      </StackPanel>
     </Panel>
   </Panel>
 </UserControl>
