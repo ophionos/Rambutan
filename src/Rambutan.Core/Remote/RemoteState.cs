@@ -14,6 +14,8 @@ namespace Rambutan.Core.Remote;
 /// the current one). The queue itself isn't in the state, which goes out on
 /// every progress resync; a client showing the queue asks for it again when
 /// this changes.</param>
+/// <param name="Accent">The app's accent as #RRGGBB, already readable on a dark
+/// surface, so the remote matches the app.</param>
 public sealed record RemoteState(
     string Playback,
     RemoteTrack? Track,
@@ -21,8 +23,11 @@ public sealed record RemoteState(
     long? DurationMs,
     double Volume,
     bool WaitingForNetwork,
-    long QueueVersion = 0)
+    long QueueVersion = 0,
+    string Accent = RemoteState.DefaultAccent)
 {
+    public const string DefaultAccent = "#FF4E45";
+
     public static readonly RemoteState Empty = new("stopped", null, 0, null, 1.0, false);
 }
 

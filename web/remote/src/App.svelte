@@ -46,6 +46,7 @@
     ? follow(token, {
         onState: (state) => {
           player = state;
+          applyAccent(state.accent);
           receivedAt = performance.now();
           now = receivedAt;
           updateCover(state.track);
@@ -65,6 +66,13 @@
     stop();
     clearInterval(tick);
   });
+
+  // The desktop app's accent, already made readable on a dark surface there.
+  // Anything else (an older app) keeps the stylesheet's red.
+  function applyAccent(accent) {
+    if (typeof accent === 'string' && /^#[0-9a-f]{6}$/i.test(accent))
+      document.documentElement.style.setProperty('--accent', accent);
+  }
 
   async function updateCover(track) {
     const key = track?.hasArtwork ? track.videoId : null;

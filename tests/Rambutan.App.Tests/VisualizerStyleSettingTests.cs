@@ -181,18 +181,18 @@ public class VisualizerStyleSettingTests
     {
         // Skia's native pixel order is BGRA on Windows: a swapped read turns
         // a red cover blue.
-        var red = VisualizerColors.Pick(Png(new SKColor(0xE0, 0x20, 0x20)))!.Value;
+        var red = ThemeColors.Pick(Png(new SKColor(0xE0, 0x20, 0x20)))!.Value;
         Assert.True(red.R > 0xC0 && red.B < 0x60, red.ToString());
 
-        var blue = VisualizerColors.Pick(Png(new SKColor(0x20, 0x40, 0xE0)))!.Value;
+        var blue = ThemeColors.Pick(Png(new SKColor(0x20, 0x40, 0xE0)))!.Value;
         Assert.True(blue.B > 0xC0 && blue.R < 0x60, blue.ToString());
     }
 
     [Fact]
     public void BytesThatArentAnImage_GiveNoColor() =>
-        Assert.Null(VisualizerColors.Pick([1, 2, 3, 4]));
+        Assert.Null(ThemeColors.Pick([1, 2, 3, 4]));
 
-    private static VisualizerColors Colors(
+    private static ThemeColors Colors(
         AppearanceSettings appearance, PlayerBarViewModel player, Func<string, CancellationToken, Task<byte[]>>? load) =>
         new(appearance, player, load);
 
@@ -320,16 +320,16 @@ public class VisualizerStyleSettingTests
     public void AHexThatIsntASolidColor_SaysSo_AndKeepsTheLastOne()
     {
         var (page, appearance) = Settings();
-        page.CustomColorHex = "#12ab34";
-        Assert.Null(page.CustomColorError);
+        page.VisualizerCustom.Hex = "#12ab34";
+        Assert.Null(page.VisualizerCustom.Error);
         Assert.Equal("#12AB34", appearance.VisualizerCustomColor);
 
-        page.CustomColorHex = "#12ab";
-        Assert.NotNull(page.CustomColorError);
+        page.VisualizerCustom.Hex = "#12ab";
+        Assert.NotNull(page.VisualizerCustom.Error);
         Assert.Equal("#12AB34", appearance.VisualizerCustomColor);
 
-        page.CustomColorHex = "#FF000080";
-        Assert.NotNull(page.CustomColorError);
+        page.VisualizerCustom.Hex = "#FF000080";
+        Assert.NotNull(page.VisualizerCustom.Error);
         Assert.Equal("#12AB34", appearance.VisualizerCustomColor);
     }
 
@@ -337,17 +337,48 @@ public class VisualizerStyleSettingTests
     public void APresetOrThePicker_SetsTheCustomColor()
     {
         var (page, appearance) = Settings();
-        var preset = page.ColorPresets[2];
-        page.UseColorPresetCommand.Execute(preset);
+        var preset = page.VisualizerCustom.Presets[2];
+        page.VisualizerCustom.UsePresetCommand.Execute(preset);
         Assert.Equal(preset.Hex, appearance.VisualizerCustomColor);
-        Assert.Equal(preset.Hex, page.CustomColorHex);
+        Assert.Equal(preset.Hex, page.VisualizerCustom.Hex);
 
-        page.CustomColor = Color.FromRgb(0x10, 0x20, 0x30);
+        page.VisualizerCustom.Color = Color.FromRgb(0x10, 0x20, 0x30);
         Assert.Equal("#102030", appearance.VisualizerCustomColor);
-        Assert.Equal("#102030", page.CustomColorHex);
+        Assert.Equal("#102030", page.VisualizerCustom.Hex);
     }
 
     [Fact]
     public void EveryPreset_HasAName() =>
-        Assert.All(Settings().Page.ColorPresets, p => Assert.False(string.IsNullOrWhiteSpace(p.Name)));
+        Assert.All(Settings().Page.VisualizerCustom.Presets, p => Assert.False(string.IsNullOrWhiteSpace(p.Name)));
+
+    [Fact]
+    public void TheAccent_SeedsFromAndWritesToTheLiveSettings()
+    {
+        var (page, appearance) = Settings(new AppearanceSettings { AccentSource = AccentSource.Artwork });
+        Assert.Equal((int)AccentSource.Artwork, page.AccentIndex);
+        Assert.False(page.IsCustomAccent);
+        Assert.Equal(AppearanceSettings.DefaultAccentColor, page.AccentCustom.Hex);
+
+        page.AccentIndex = (int)AccentSource.Custom;
+        page.AccentCustom.UsePresetCommand.Execute(page.AccentCustom.Presets[5]);
+
+        Assert.True(page.IsCustomAccent);
+        Assert.Equal(AccentSource.Custom, appearance.AccentSource);
+        Assert.Equal(page.AccentCustom.Presets[5].Hex, appearance.AccentCustomColor);
+        // Its own colour: the visualizer's is untouched.
+        Assert.Equal(AppearanceSettings.DefaultCustomColor, appearance.VisualizerCustomColor);
+
+        page.AccentCustom.Hex = "#12";
+        Assert.NotNull(page.AccentCustom.Error);
+        Assert.Equal(page.AccentCustom.Presets[5].Hex, appearance.AccentCustomColor);
+    }
+
+    [Fact]
+    public void BothColorFields_HaveTheirOwnNames()
+    {
+        var page = Settings().Page;
+        Assert.NotEqual(page.VisualizerCustom.PickName, page.AccentCustom.PickName);
+        Assert.NotEqual(page.VisualizerCustom.HexName, page.AccentCustom.HexName);
+        Assert.DoesNotContain("settings.", page.AccentCustom.PickName + page.AccentCustom.HexName);
+    }
 }

@@ -139,6 +139,14 @@ file sink), never to files directly.
   first in the fallback chain (`Program.cs`). Album art is blurred **once** into a
   page-background layer with translucent panels above it (Avalonia has no
   backdrop blur).
+- Accent: the user's choice (Rambutan red, the cover's colour, or custom).
+  `Services/ThemeColors` resolves it, `Core/Appearance/AccentPalette` makes it
+  readable and derives the rest (the Fluent ramp, button states, white or dark
+  text on it; the default red stays a fixed table equal to `Tokens.axaml`), and
+  `Services/AccentResources` writes it into the app's resources, changing the
+  accent brushes in place. So reach the accent only through those brushes or
+  DynamicResource, and draw on it with `Token.Brush.OnAccent`, never with a hex
+  literal or white. The phone remote gets it in its state.
 - Visualizer: `FftAnalyzer` emits raw bands, and a decimated stereo waveform
   for the styles that draw one; smoothing and peaks live in
   `Controls/VisualizerControl`, which draws on the composition thread. Keep it
@@ -170,7 +178,7 @@ file sink), never to files directly.
   stage draws bars where there is no artwork (hidden, or no cover).
   `NowPlayingViewModel` decides which one shows and polls. The
   "artwork" colour is `Core/Visualizer/ArtworkColor`, read from a small
-  decode of the cover by `Services/VisualizerColors`. The compact meter and
+  decode of the cover by `Services/ThemeColors`. The compact meter and
   the overlay preview draw with Avalonia's primitives, always as bars. The overlay style
   editor's native preview reuses the control with `OverlayBars`, which groups
   bands as the overlay page does. Each redraw costs a compositor frame, so the

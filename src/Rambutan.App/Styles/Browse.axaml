@@ -33,7 +33,7 @@
     <Setter Property="CornerRadius" Value="999" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Background" Value="{StaticResource Token.Brush.Accent}" />
-    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.OnAccent}" />
     <Setter Property="RenderTransform" Value="none" />
     <Setter Property="Transitions">
       <Transitions>
@@ -43,7 +43,7 @@
   </Style>
   <Style Selector="Button.cardplay /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{StaticResource Token.Brush.Accent}" />
-    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.OnAccent}" />
   </Style>
   <Style Selector="Button.cardplay:pointerover">
     <Setter Property="RenderTransform" Value="scale(1.08)" />
@@ -55,7 +55,7 @@
   </Style>
   <Style Selector="Button.cardplay:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPointerOver}" />
-    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.OnAccent}" />
   </Style>
   <Style Selector="Button.cardplay:pressed /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressed}" />

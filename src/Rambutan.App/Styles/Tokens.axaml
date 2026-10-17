@@ -23,8 +23,16 @@
     <x:Double x:Key="Token.Font.Page">30</x:Double>
     <x:Double x:Key="Token.Font.Hero">44</x:Double>
     <Thickness x:Key="Token.Spacing.Panel">16</Thickness>
+    <!-- The accent is the user's choice (Settings, Appearance):
+         Services/AccentResources replaces these values at startup and on each
+         change, from Core's AccentPalette. Reach the accent through these
+         brushes or DynamicResource, never a hex literal or a StaticResource
+         of one of its Colors, which keeps the first value. These are the
+         default red's. -->
     <Color x:Key="Token.Color.Accent">#FFFF4E45</Color>
     <SolidColorBrush x:Key="Token.Brush.Accent" Color="{StaticResource Token.Color.Accent}" />
+    <!-- Text and glyphs on an accent fill: white, or near black on a light accent. -->
+    <SolidColorBrush x:Key="Token.Brush.OnAccent" Color="#FFFFFFFF" />
 
     <!-- FluentTheme derives every accented control (slider fills, progress,
          selection, focus rings) from this ramp; without it they fall back to

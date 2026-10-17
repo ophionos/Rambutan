@@ -14,6 +14,7 @@ using Rambutan.App.Services;
 using Rambutan.App.Services.Demo;
 using Rambutan.App.ViewModels;
 using Rambutan.App.Views;
+using Rambutan.Core.Appearance;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Downloads;
@@ -122,6 +123,22 @@ public partial class App : Application
             Controls.TrackWarmup.Scheduler = _services.GetRequiredService<HoverWarmup>();
             Controls.VisualizerControl.Source =
                 _services.GetRequiredService<Func<FftAnalyzer?>>();
+            // The accent before the first frame, so the window never shows the
+            // default red first; then on each change, on the UI thread.
+            var theme = _services.GetRequiredService<ThemeColors>();
+            var remote = _services.GetRequiredService<PhoneRemoteService>();
+            void ApplyAccent()
+            {
+                var palette = AccentPalette.From(theme.Accent);
+                AccentResources.Apply(Resources, palette);
+                remote.Accent = palette.Base.ToString();
+            }
+            ApplyAccent();
+            theme.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ThemeColors.Accent))
+                    ApplyAccent();
+            };
 
             var main = _services.GetRequiredService<MainViewModel>();
             main.Profiles = _services.GetRequiredService<ProfilesViewModel>();
@@ -248,6 +265,8 @@ public partial class App : Application
             VisualizerCycle = AppearanceSettings.ParseCycle(settings.VisualizerCycle),
             VisualizerColorSource = AppearanceSettings.ParseColorSource(settings.VisualizerColor),
             VisualizerCustomColor = AppearanceSettings.ParseCustomColor(settings.VisualizerCustomColor),
+            AccentSource = AppearanceSettings.ParseAccentSource(settings.AccentColor),
+            AccentCustomColor = AppearanceSettings.ParseCustomColor(settings.AccentCustomColor, AppearanceSettings.DefaultAccentColor),
             Motion = AppearanceSettings.ParseMotion(settings.Motion),
         });
 
@@ -502,10 +521,11 @@ public partial class App : Application
             sp.GetRequiredService<LyricsViewModel>(),
             sp.GetRequiredService<AppSettings>(),
             sp.GetRequiredService<AppearanceSettings>(),
-            new VisualizerColors(
-                sp.GetRequiredService<AppearanceSettings>(),
-                sp.GetRequiredService<PlayerBarViewModel>(),
-                sp.GetRequiredService<ArtworkCache>().GetBytesAsync)));
+            sp.GetRequiredService<ThemeColors>()));
+        services.AddSingleton(sp => new ThemeColors(
+            sp.GetRequiredService<AppearanceSettings>(),
+            sp.GetRequiredService<PlayerBarViewModel>(),
+            sp.GetRequiredService<ArtworkCache>().GetBytesAsync));
         services.AddSingleton<PlayerBarViewModel>(sp =>
         {
             var vm = new PlayerBarViewModel(
@@ -674,6 +694,8 @@ public partial class App : Application
         settings.VisualizerCycle = AppearanceSettings.FormatCycle(appearance.VisualizerCycle);
         settings.VisualizerColor = AppearanceSettings.FormatColorSource(appearance.VisualizerColorSource);
         settings.VisualizerCustomColor = AppearanceSettings.ParseCustomColor(appearance.VisualizerCustomColor);
+        settings.AccentColor = AppearanceSettings.FormatAccentSource(appearance.AccentSource);
+        settings.AccentCustomColor = AppearanceSettings.ParseCustomColor(appearance.AccentCustomColor, AppearanceSettings.DefaultAccentColor);
         settings.Motion = AppearanceSettings.FormatMotion(appearance.Motion);
         services.GetRequiredService<AppSettingsStore>().Save(settings);
 

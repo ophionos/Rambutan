@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Rambutan.App.ViewModels;
+using Rambutan.Core.Appearance;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Visualizer;
 using SkiaSharp;
@@ -12,11 +13,11 @@ using SkiaSharp;
 namespace Rambutan.App.Services;
 
 /// <summary>
-/// The colour the Now Playing visualizer draws in, from the appearance settings
-/// and, for <see cref="VisualizerColorSource.Artwork"/>, the playing track's
-/// cover. A cover is read only while that source is chosen.
+/// The app's accent and the colour the Now Playing visualizer draws in, from the
+/// appearance settings and, for their artwork sources, the playing track's
+/// cover. A cover is read only while one of them is chosen.
 /// </summary>
-public sealed partial class VisualizerColors : ObservableObject
+public sealed partial class ThemeColors : ObservableObject
 {
     /// <summary>The cover is scaled to this many pixels a side before picking:
     /// enough for its colours, little enough to read in a millisecond.</summary>
@@ -26,6 +27,7 @@ public sealed partial class VisualizerColors : ObservableObject
     private readonly PlayerBarViewModel _player;
     private readonly Func<string, CancellationToken, Task<byte[]>>? _loadBytes;
     private CancellationTokenSource? _reading;
+    private string? _readingUrl;
     private string? _pickedUrl;
     private Color? _picked;
 
@@ -34,12 +36,19 @@ public sealed partial class VisualizerColors : ObservableObject
     /// can't be.</summary>
     [ObservableProperty] private Color? _color;
 
+    /// <summary>The accent the user chose, before <see cref="AccentPalette"/>
+    /// makes it readable. With the artwork source, the default red until the
+    /// cover has been read, when it can't be, and when the cover has no vivid
+    /// colour: a grey accent would make the playing track's marker look like
+    /// plain text.</summary>
+    [ObservableProperty] private Rgb _accent = AccentPalette.Default.Base;
+
     /// <summary>The cover read in progress, for tests to wait on.</summary>
     internal Task Pending { get; private set; } = Task.CompletedTask;
 
     /// <param name="loadBytes">The cover's bytes by URL; null reads no covers,
     /// so the artwork source draws in the accent.</param>
-    public VisualizerColors(
+    public ThemeColors(
         AppearanceSettings appearance,
         PlayerBarViewModel player,
         Func<string, CancellationToken, Task<byte[]>>? loadBytes)
@@ -54,7 +63,8 @@ public sealed partial class VisualizerColors : ObservableObject
 
     private void OnAppearanceChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(AppearanceSettings.VisualizerColorSource) or nameof(AppearanceSettings.VisualizerCustomColor))
+        if (e.PropertyName is nameof(AppearanceSettings.VisualizerColorSource) or nameof(AppearanceSettings.VisualizerCustomColor)
+            or nameof(AppearanceSettings.AccentSource) or nameof(AppearanceSettings.AccentCustomColor))
             Update();
     }
 
@@ -66,49 +76,64 @@ public sealed partial class VisualizerColors : ObservableObject
 
     private void Update()
     {
-        switch (_appearance.VisualizerColorSource)
+        var wantsCover = _appearance.VisualizerColorSource == VisualizerColorSource.Artwork
+            || _appearance.AccentSource == AccentSource.Artwork;
+        var url = _player.ArtworkUrl;
+        Color? cover = null;
+        if (!wantsCover)
+            Cancel();
+        else if (url is not null && url == _pickedUrl)
         {
-            case VisualizerColorSource.Custom:
-                Cancel();
-                Color = CssHexColor.TryParse(_appearance.VisualizerCustomColor, out var custom)
-                    ? Avalonia.Media.Color.FromRgb(custom.R, custom.G, custom.B)
-                    : null;
-                break;
-
-            case VisualizerColorSource.Artwork:
-                var url = _player.ArtworkUrl;
-                if (url is not null && url == _pickedUrl)
-                {
-                    Cancel();
-                    Color = _picked;
-                    break;
-                }
-                // The last cover's colour would be wrong for this one: the
-                // accent shows until this one is read.
-                Color = null;
-                Cancel();
-                if (url is not null && _loadBytes is not null)
-                    Pending = ReadAsync(url);
-                break;
-
-            default:
-                Cancel();
-                Color = null;
-                break;
+            Cancel();
+            cover = _picked;
         }
+        else if (_readingUrl != url || _reading is null)
+        {
+            // The last cover's colour would be wrong for this one: the
+            // defaults show until this one is read.
+            Cancel();
+            if (url is not null && _loadBytes is not null)
+                Pending = ReadAsync(url);
+        }
+        Apply(cover);
     }
+
+    private void Apply(Color? cover)
+    {
+        Color = _appearance.VisualizerColorSource switch
+        {
+            VisualizerColorSource.Custom => CssHexColor.TryParse(_appearance.VisualizerCustomColor, out var custom)
+                ? Avalonia.Media.Color.FromRgb(custom.R, custom.G, custom.B)
+                : null,
+            VisualizerColorSource.Artwork => cover,
+            _ => null,
+        };
+        Accent = _appearance.AccentSource switch
+        {
+            AccentSource.Custom => CssHexColor.TryParse(_appearance.AccentCustomColor, out var custom)
+                ? new Rgb(custom.R, custom.G, custom.B)
+                : AccentPalette.Default.Base,
+            AccentSource.Artwork when cover is { } c && !IsNeutral(c) => new Rgb(c.R, c.G, c.B),
+            _ => AccentPalette.Default.Base,
+        };
+    }
+
+    private static bool IsNeutral(Color c) =>
+        (c.R, c.G, c.B) == ArtworkColor.Neutral;
 
     private void Cancel()
     {
         _reading?.Cancel();
         _reading?.Dispose();
         _reading = null;
+        _readingUrl = null;
     }
 
     private async Task ReadAsync(string url)
     {
         var reading = new CancellationTokenSource();
         _reading = reading;
+        _readingUrl = url;
         var token = reading.Token;
         Color? picked = null;
         try
@@ -127,12 +152,14 @@ public sealed partial class VisualizerColors : ObservableObject
 
         // Back on the UI thread. A newer track or a changed source cancelled
         // this read; a result that arrives anyway is for a cover no longer shown.
-        if (token.IsCancellationRequested || url != _player.ArtworkUrl
-            || _appearance.VisualizerColorSource != VisualizerColorSource.Artwork)
+        if (token.IsCancellationRequested || url != _player.ArtworkUrl)
             return;
+        _reading = null;
+        _readingUrl = null;
+        reading.Dispose();
         _pickedUrl = url;
         _picked = picked;
-        Color = picked;
+        Apply(picked);
     }
 
     /// <summary>The visualizer colour for an encoded image; null when it can't be
