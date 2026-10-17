@@ -48,6 +48,8 @@ your own YouTube Music account to use your library.
   Import your own lyrics, or adjust their timing in the app.
 - Eight visualizer styles in your accent colour or the artwork's, and an
   optional set of animated presets.
+- An accent colour of your choice: Rambutan red, the playing cover's colour,
+  or any colour you pick. The phone remote follows it.
 
 **Offline**
 - Download songs, albums and playlists, and play them with no connection.
@@ -144,7 +146,7 @@ Everything is in **Settings**, in the sidebar. The sections are:
 | Section | What you set there |
 |---|---|
 | Account | Your sign-in. |
-| Appearance | The album-art tint, the visualizer's style, colour and frame rate, and motion. |
+| Appearance | The accent colour, the album-art tint, the visualizer's style, colour and frame rate, and motion. |
 | Behavior | Whether closing the window keeps Rambutan running in the tray. |
 | Playback | Crossfade, volume normalization, streaming quality, autoplay, the audio cache and the output device. |
 | Equalizer | The 10-band equalizer. |
