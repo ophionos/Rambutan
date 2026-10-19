@@ -29,6 +29,12 @@ public sealed record AlbumEntry : CatalogEntry
 public sealed record PlaylistEntry : CatalogEntry
 {
     public required string PlaylistId { get; init; }
+    /// <summary>
+    /// True for the signed-in user's own playlist, which is deleted rather than
+    /// taken out of the library; false for someone else's. Null where the card
+    /// doesn't say: auto playlists, and surfaces whose cards carry no menu.
+    /// </summary>
+    public bool? IsOwn { get; init; }
 }
 
 public sealed record ArtistEntry : CatalogEntry

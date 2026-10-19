@@ -39,6 +39,29 @@ public class LibraryParsersTests
     }
 
     [Fact]
+    public void ParseLibraryPlaylists_Recorded_TellsOwnPlaylistsFromSavedOnes()
+    {
+        // A recorded library (own playlists scrubbed): the user's own offer Edit
+        // playlist in their menu, saved ones the library toggle, and the auto
+        // playlists neither.
+        using var doc = LoadFixture("browse-library-playlists.json");
+
+        var playlists = LibraryParsers.ParseLibraryPlaylists(doc.RootElement).Items
+            .Cast<PlaylistEntry>().ToList();
+
+        Assert.Equal(10, playlists.Count);
+        Assert.Equal(
+            ["LM", "SE"],
+            playlists.Where(p => p.IsOwn is null).Select(p => p.PlaylistId));
+        Assert.Equal(
+            ["PLOLBWlPQqPksS974k1cqCJ7FRFYP1cznV", "RDCLAK5uy_kL-nWMqnRoPuUCh9toq5gatFti1kFokH0"],
+            playlists.Where(p => p.IsOwn == false).Select(p => p.PlaylistId));
+        Assert.Equal(
+            Enumerable.Range(1, 6).Select(n => $"My playlist {n}"),
+            playlists.Where(p => p.IsOwn == true).Select(p => p.Title));
+    }
+
+    [Fact]
     public void ParseLibraryPlaylistsContinuation_GridContinuation_YieldsMoreAndEnds()
     {
         using var doc = LoadFixture("browse-library-playlists-continuation.synthetic.json");

@@ -93,7 +93,7 @@ public class CollectionMenuTests
     }
 
     [Fact]
-    public void SignedIn_CardsOfferToAdd_AndOnTheLibraryToRemove_ButNeverAPlaylist()
+    public void SignedIn_CardsOfferToAdd_AndOnTheLibraryToRemove()
     {
         SignIn();
         _actions.Downloads = new DownloadQueue(new PendingStore());
@@ -102,10 +102,26 @@ public class CollectionMenuTests
         Assert.Equal(["Remove from library", "Download"],
             Headers(CollectionMenuModel.Build(Discovery, _collections, inLibrary: true))[1]);
         Assert.Equal(["Save to library", "Download"], Headers(CollectionMenuModel.Build(Mellow, _collections))[1]);
-        // A Library playlist may be the user's own, which is deleted, not removed.
-        Assert.Equal(["Download"], Headers(CollectionMenuModel.Build(Mellow, _collections, inLibrary: true))[1]);
         Assert.Equal(["Subscribe"], Headers(CollectionMenuModel.Build(DaftPunk, _collections))[1]);
         Assert.Equal(["Unsubscribe"], Headers(CollectionMenuModel.Build(DaftPunk, _collections, inLibrary: true))[1]);
+    }
+
+    [Fact]
+    public void SignedIn_OnlyASavedPlaylistsLibraryCard_OffersToRemoveIt()
+    {
+        SignIn();
+        _actions.Downloads = new DownloadQueue(new PendingStore());
+        var saved = Mellow with { IsOwn = false };
+        var own = Mellow with { IsOwn = true };
+
+        Assert.Equal(["Remove from library", "Download"],
+            Headers(CollectionMenuModel.Build(saved, _collections, inLibrary: true))[1]);
+        Assert.Equal(["Save to library", "Download"], Headers(CollectionMenuModel.Build(saved, _collections))[1]);
+        // The user's own is deleted on its page, not removed, and saving it means nothing.
+        Assert.Equal(["Download"], Headers(CollectionMenuModel.Build(own, _collections, inLibrary: true))[1]);
+        Assert.Equal(["Download"], Headers(CollectionMenuModel.Build(own, _collections))[1]);
+        // A Library card that doesn't say whose it is (Liked Music) gets neither.
+        Assert.Equal(["Download"], Headers(CollectionMenuModel.Build(Mellow, _collections, inLibrary: true))[1]);
     }
 
     [Fact]
