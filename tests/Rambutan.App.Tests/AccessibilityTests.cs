@@ -496,6 +496,57 @@ public class AccessibilityTests
     });
 
     [Fact]
+    public void ASongCard_OpensTheTrackMenu_AndOtherCardsDont() => Headless.Run(() =>
+    {
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+        TrackMenu.Actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, new ToastHostViewModel());
+        var card = new EntryCard { DataContext = new SongEntry { Title = "Instant Crush", Track = Track("a") } };
+        var window = new Window { Width = 300, Height = 300, Content = card };
+        window.Show();
+        window.UpdateLayout();
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+        var host = card.GetVisualDescendants().OfType<Panel>().Single(p => p.Classes.Contains("cardhost"));
+        var flyout = Assert.IsType<MenuFlyout>(host.ContextFlyout);
+        string? MenuTrack() => ((MenuItem)flyout.Items[0]!).CommandParameter is TrackInfo t ? t.VideoId : null;
+
+        // The menu key raises the request on the focused card, inside the
+        // element that owns the menu, as does a right-click.
+        var button = card.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("card"));
+        button.Focus();
+        button.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = button });
+        Assert.True(flyout.IsOpen);
+        Assert.Equal("a", MenuTrack());
+        flyout.Hide();
+
+        // Shift+F10 opens it on the release, as on a row.
+        window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+        Assert.False(flyout.IsOpen);
+        window.KeyRelease(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+        Assert.True(flyout.IsOpen);
+        flyout.Hide();
+
+        // The same card showing an album (a recycled container) opens nothing,
+        // not an empty menu.
+        card.DataContext = new AlbumEntry { Title = "Random Access Memories", BrowseId = "MPREb1" };
+        window.UpdateLayout();
+        button.Focus();
+        button.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = button });
+        Assert.False(flyout.IsOpen);
+        window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+        window.KeyRelease(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+        Assert.False(flyout.IsOpen);
+
+        // A card that was never a song has no menu at all.
+        var album = new EntryCard { DataContext = new AlbumEntry { Title = "Discovery", BrowseId = "MPREb2" } };
+        window.Content = album;
+        window.UpdateLayout();
+        Assert.Null(album.GetVisualDescendants().OfType<Panel>().Single(p => p.Classes.Contains("cardhost")).ContextFlyout);
+        window.Close();
+    });
+
+    [Fact]
     public void EveryButtonInTheShell_HasASpokenName() => Headless.Run(() =>
     {
         AccessibleNames.Install();

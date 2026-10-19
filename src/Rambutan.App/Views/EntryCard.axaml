@@ -11,8 +11,10 @@
   <!-- One catalog card for Home, artist shelves and Library. The play button
        is a sibling of the card, not inside it, so a click on it never also opens
        the page underneath. Styles/Browse.axaml reveals it on hover or keyboard
-       focus. -->
-  <Panel Classes="cardhost">
+       focus. A song card opens the track menu, from the card or its play
+       button. -->
+  <Panel Classes="cardhost"
+         controls:TrackMenu.Track="{Binding Converter={x:Static vm:Converters.SongTrack}}">
     <Button Classes="card"
             AutomationProperties.Name="{Binding Converter={x:Static controls:AccessibleNames.ItemConverter}}"
             Command="{Binding #Card.OpenCommand}"

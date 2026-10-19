@@ -45,13 +45,21 @@ public static class TrackMenu
             // instead produced a menu that reported open and never appeared (X11).
             var flyout = new MenuFlyout();
             control.ContextFlyout = flyout;
-            control.AddHandler(Control.ContextRequestedEvent,
-                (_, _) => Populate(flyout, control), RoutingStrategies.Tunnel);
+            control.AddHandler(Control.ContextRequestedEvent, (_, e) =>
+            {
+                Populate(flyout, control);
+                // A recycled container keeps its flyout when its item has no
+                // track (a card that was a song and is now an album): nothing opens.
+                if (flyout.Items.Count == 0)
+                    e.Handled = true;
+            }, RoutingStrategies.Tunnel);
 
             // The keyboard route: the menu key and Shift+F10 raise
-            // the request on the focused element, which in a list is the row's
+            // the request on the focused element. In a list that is the row's
             // ListBoxItem, *above* this control, so the request never passes
-            // through it. The row's container forwards it here instead.
+            // through it, and the row's container forwards it here instead. On a
+            // card it is the card's button, *inside* this control, so the
+            // request arrives by itself and only Shift+F10 needs handling.
             control.AttachedToVisualTree += (_, _) => ForwardFromContainer(control, flyout);
             control.DetachedFromVisualTree += (_, _) => StopForwarding(control);
             if (control.IsAttachedToVisualTree())
@@ -65,8 +73,8 @@ public static class TrackMenu
     private static void ForwardFromContainer(Control control, MenuFlyout flyout)
     {
         StopForwarding(control);
-        if (control.FindAncestorOfType<ListBoxItem>() is not { } container)
-            return;
+        var row = control.FindAncestorOfType<ListBoxItem>();
+        var container = (Control?)row ?? control;
 
         bool Open()
         {
@@ -97,7 +105,7 @@ public static class TrackMenu
         void OnKeyDown(object? sender, KeyEventArgs e)
         {
             if (!e.Handled && e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift &&
-                ReferenceEquals(e.Source, container) && GetTrack(control) is not null)
+                (row is null || ReferenceEquals(e.Source, container)) && GetTrack(control) is not null)
             {
                 f10Pressed = true;
                 e.Handled = true;
@@ -111,15 +119,20 @@ public static class TrackMenu
                 return;
             f10Pressed = false;
             e.Handled = true;
-            Open();
+            // Where the platform also maps Shift+F10 to a context request, the
+            // focused element has raised it already, and the menu is open.
+            if (!flyout.IsOpen)
+                Open();
         }
 
-        container.AddHandler(Control.ContextRequestedEvent, OnRequested);
+        if (row is not null)
+            container.AddHandler(Control.ContextRequestedEvent, OnRequested);
         container.AddHandler(InputElement.KeyDownEvent, OnKeyDown);
         container.AddHandler(InputElement.KeyUpEvent, OnKeyUp);
         control.SetValue(UnforwardProperty, () =>
         {
-            container.RemoveHandler(Control.ContextRequestedEvent, OnRequested);
+            if (row is not null)
+                container.RemoveHandler(Control.ContextRequestedEvent, OnRequested);
             container.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
             container.RemoveHandler(InputElement.KeyUpEvent, OnKeyUp);
         });
