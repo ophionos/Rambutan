@@ -486,6 +486,16 @@
                               AutomationProperties.Name="{l:T settings.behavior.closeToTray}" />
               </Grid>
             </Border>
+            <Border Classes="settingrow" IsVisible="{Binding ShowsTaskbarControls}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.behavior.taskbarControls}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.behavior.taskbarControlsHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding TaskbarControls}"
+                              AutomationProperties.Name="{l:T settings.behavior.taskbarControls}" />
+              </Grid>
+            </Border>
           </StackPanel>
         </Border>
       </StackPanel>

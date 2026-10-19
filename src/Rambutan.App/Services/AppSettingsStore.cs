@@ -21,6 +21,10 @@ public sealed class AppSettings
     public double Volume { get; set; } = 1.0;
     public bool CloseToTray { get; set; }
 
+    /// <summary>Windows: the buttons under the taskbar preview and the track's
+    /// progress on the taskbar button. Default on.</summary>
+    public bool TaskbarControls { get; set; } = true;
+
     /// <summary>A queue that runs out continues with radio. Default on, as
     /// in YouTube Music; repeat overrides it.</summary>
     public bool Autoplay { get; set; } = true;

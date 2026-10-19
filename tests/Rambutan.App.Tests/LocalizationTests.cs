@@ -121,8 +121,12 @@ public partial class StringCoverageTests
         throw new InvalidOperationException("Can't find the repository root from " + AppContext.BaseDirectory);
     }
 
+    /// <summary>The taskbar toolbar's rules choose its tips, as keys of the App's table.</summary>
+    private static readonly string TaskbarDir = Path.Combine(RepoRoot(), "src", "Rambutan.Integrations", "Taskbar");
+
     private static IEnumerable<string> SourceFiles(string pattern) =>
         Directory.EnumerateFiles(AppDir, pattern, SearchOption.AllDirectories)
+            .Concat(pattern == "*.cs" ? Directory.EnumerateFiles(TaskbarDir, pattern) : [])
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
                         && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"));
 
