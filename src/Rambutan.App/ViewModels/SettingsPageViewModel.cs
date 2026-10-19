@@ -33,6 +33,13 @@ public partial class SettingsPageViewModel : ViewModelBase
     [ObservableProperty] private bool _normalizeVolume = true;
     [ObservableProperty] private bool _autoplay = true;
     [ObservableProperty] private bool _closeToTray;
+    [ObservableProperty] private bool _taskbarControls;
+
+    /// <summary>Applies the taskbar controls setting at once; null where there
+    /// are none (not Windows, tests), and the row doesn't show.</summary>
+    public Action<bool>? ApplyTaskbarControls { get; init; }
+
+    public bool ShowsTaskbarControls => ApplyTaskbarControls is not null;
     [ObservableProperty] private bool _ambientBackground = true;
     [ObservableProperty] private bool _artworkMeter = true;
 
@@ -221,6 +228,7 @@ public partial class SettingsPageViewModel : ViewModelBase
         _normalizeVolume = playback.NormalizeVolume;
         _autoplay = playback.Autoplay;
         _closeToTray = app.CloseToTray;
+        _taskbarControls = app.TaskbarControls;
         _ambientBackground = appearance.AmbientBackground;
         _artworkMeter = appearance.ArtworkMeter;
         _visualizerFrameRateIndex = Math.Max(0,
@@ -553,6 +561,15 @@ public partial class SettingsPageViewModel : ViewModelBase
         if (_app is null)
             return;
         _app.CloseToTray = value;
+        _persist?.Invoke();
+    }
+
+    partial void OnTaskbarControlsChanged(bool value)
+    {
+        if (_app is null)
+            return;
+        _app.TaskbarControls = value;
+        ApplyTaskbarControls?.Invoke(value);
         _persist?.Invoke();
     }
 

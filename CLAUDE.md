@@ -219,6 +219,14 @@ file sink), never to files directly.
   leaving the window's fullscreen from outside ends the visualizer's too.
   Neither mode is saved (`WindowStatePersistence` writes only Normal or
   Maximized), and fullscreen and the mini player end each other.
+- Taskbar (Windows): the buttons under the taskbar preview and the progress
+  on the taskbar button are `Integrations/Taskbar` (`TaskbarToolbarState` holds
+  the rules, `TaskbarThumbnailToolbar` the `ITaskbarList3` calls) and
+  `App/Services/TaskbarControls`, which forwards the window's messages and
+  draws the icons from `Icons.axaml` (`TaskbarGlyphs`). Windows takes the
+  buttons once per taskbar button and never removes them, so the setting
+  hides them. The bar stays in the normal state, paused or not: the paused
+  and error states draw yellow and red, which read as warnings.
 - Lyrics degrade in explicit states: word-synced → line-synced → plain → "no
   lyrics found". Imported custom lyrics always win over providers.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.

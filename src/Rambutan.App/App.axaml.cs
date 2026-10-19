@@ -53,6 +53,9 @@ public partial class App : Application
     public static Action? AfterExit { get; set; }
 
     private ServiceProvider? _services;
+#if WINDOWS
+    private TaskbarControls? _taskbar;
+#endif
     private TrayIcon? _tray;
     private DispatcherTimer? _persistDebounce;
     private QueuePersistence? _queuePersistence;
@@ -165,6 +168,12 @@ public partial class App : Application
             SetupCloseToTray(window);
             SetupTray(desktop, window);
             SetupMediaSession(desktop, window);
+#if WINDOWS
+            _taskbar = TaskbarControls.Attach(
+                window, _services.GetRequiredService<AppSettings>().TaskbarControls,
+                _services.GetRequiredService<PlaybackCoordinator>(), _services.GetRequiredService<TrackRatings>(),
+                _services.GetRequiredService<SessionViewModel>(), _services.GetRequiredService<TrackActionsViewModel>());
+#endif
             _services.GetRequiredService<PlaybackListenerHub>()
                 .Attach(_services.GetRequiredService<PlaybackCoordinator>());
             _lastFm?.Start();
@@ -577,6 +586,9 @@ public partial class App : Application
             sp.GetRequiredService<LyricsViewModel>())
         {
             Stations = sp.GetRequiredService<HomeStations>(),
+#if WINDOWS
+            ApplyTaskbarControls = on => _taskbar?.SetOn(on),
+#endif
             Downloads = new DownloadsSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<DownloadStore>(),
                 defaultDownloads, () => RequestPersist(sp), sp.GetRequiredService<ExportSettings>()),
@@ -1004,6 +1016,9 @@ public partial class App : Application
         _queuePersistence?.Flush();
         var log = _services.GetRequiredService<FileLog>();
         _services.GetRequiredService<IMediaSessionService>().Dispose();
+#if WINDOWS
+        _taskbar?.Dispose();
+#endif
         _services.GetRequiredService<DiscordPresenceService>().Dispose();
         // Queued scrobbles are already on disk; this only stops the worker.
         _lastFm?.Dispose();
