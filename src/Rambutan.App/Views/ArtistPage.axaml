@@ -42,6 +42,15 @@
                 <TextBlock Text="{l:T menu.startMix}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
+            <!-- Only when the header has YouTube Music's Shuffle. -->
+            <Button Command="{Binding ShuffleSongsCommand}" IsVisible="{Binding CanShuffleSongs}"
+                    ToolTip.Tip="{l:T artist.shuffleSongsTip}"
+                    AutomationProperties.Name="{l:T artist.shuffleSongs}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource Icon.Shuffle}" Width="16" Height="16" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T artist.shuffleSongs}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
             <!-- Shown only when the state is known. The label shows the state, as
                  YouTube Music's does; the name and tooltip say what a press does. -->
             <Button Command="{Binding ToggleSubscribedCommand}"

@@ -142,31 +142,38 @@ public sealed partial class CollectionActionsViewModel
     /// <summary>Plays an artist's radio: the Mix its page's header starts, so the
     /// page loads first.</summary>
     [RelayCommand(AllowConcurrentExecutions = true)]
-    private async Task StartMixAsync(CatalogEntry? entry)
+    private Task StartMixAsync(CatalogEntry? entry) => PlayArtistMixAsync(entry, ArtistMix.Radio);
+
+    /// <summary>Plays the Shuffle an artist's page's header starts, a mix of the
+    /// artist's own songs, so the page loads first.</summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private Task ShuffleSongsAsync(CatalogEntry? entry) => PlayArtistMixAsync(entry, ArtistMix.Shuffle);
+
+    private async Task PlayArtistMixAsync(CatalogEntry? entry, ArtistMix kind)
     {
         if (entry is not ArtistEntry artist)
             return;
         var (done, mix) = await WhileLoadingAsync(entry, async _ =>
-            (await _catalog.GetArtistAsync(artist.BrowseId)).Mix is { } seed
+            kind.SeedOf(await _catalog.GetArtistAsync(artist.BrowseId)) is { } seed
                 ? await _catalog.GetMixAsync(seed)
                 : [],
-            (_, ex) => Strings.Format("toast.mix.failed", ("error", ex.Message)));
+            (_, ex) => Strings.Format(kind.Failed, ("error", ex.Message)));
         if (!done)
             return;
         if (mix.Count == 0)
         {
-            _actions.ReportError(Strings.Format("toast.artist.noMix", ("name", artist.Title)));
+            _actions.ReportError(Strings.Format(kind.None, ("name", artist.Title)));
             return;
         }
 
         try
         {
             await _coordinator.PlayQueueAsync(mix);
-            _actions.Report(Strings.Format("toast.mix.started", ("title", artist.Title), ("count", mix.Count)));
+            _actions.Report(Strings.Format(kind.Started, ("title", artist.Title), ("count", mix.Count)));
         }
         catch (Exception ex)
         {
-            _actions.ReportError(Strings.Format("toast.mix.failed", ("error", ex.Message)));
+            _actions.ReportError(Strings.Format(kind.Failed, ("error", ex.Message)));
         }
     }
 

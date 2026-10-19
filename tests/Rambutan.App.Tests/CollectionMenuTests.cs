@@ -86,7 +86,7 @@ public class CollectionMenuTests
         string[] play = ["Play", "Shuffle", "Play next", "Add to queue"];
         Assert.Equal([play, ["Go to artist", "Share"]], Headers(CollectionMenuModel.Build(Discovery, _collections)));
         Assert.Equal([play, ["Share"]], Headers(CollectionMenuModel.Build(Mellow, _collections)));
-        Assert.Equal([["Play top songs", "Start a mix"], ["Share"]], Headers(CollectionMenuModel.Build(DaftPunk, _collections)));
+        Assert.Equal([["Play top songs", "Start a mix", "Shuffle all songs"], ["Share"]], Headers(CollectionMenuModel.Build(DaftPunk, _collections)));
         Assert.Empty(CollectionMenuModel.Build(new SongEntry { Title = "a", Track = Track("a") }, _collections));
 
         Assert.All(CollectionMenuModel.Build(Discovery, _collections).SelectMany(g => g), e => Assert.True(e.IsEnabled));

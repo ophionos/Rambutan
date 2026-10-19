@@ -50,12 +50,13 @@ public static class CollectionMenuModel
                 break;
 
             case ArtistEntry:
-                // A card doesn't know whether the artist's page has a mix; one
-                // without says so when asked.
+                // A card doesn't know whether the artist's page has a mix or a
+                // shuffle; one without says so when asked.
                 List<MenuEntry> play =
                 [
                     new(Strings.Get("artist.playTopSongs"), "Icon.Play", actions.PlayCommand, entry, idle),
                     new(Strings.Get("menu.startMix"), "Icon.Radio", actions.StartMixCommand, entry, idle),
+                    new(Strings.Get("artist.shuffleSongs"), "Icon.Shuffle", actions.ShuffleSongsCommand, entry, idle),
                 ];
                 if (actions.CanOpenStation)
                     play.Add(new(Strings.Get("artist.lastFmStation"), "Icon.Radio", actions.OpenStationCommand, entry));

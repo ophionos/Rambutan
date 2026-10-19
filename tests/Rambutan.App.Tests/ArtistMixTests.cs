@@ -9,12 +9,14 @@ using Rambutan.Core.Queue;
 
 namespace Rambutan.App.Tests;
 
-/// <summary>An artist's radio, YouTube Music's Mix from the artist page's
-/// header: from the page's button and from an artist card's menu.</summary>
+/// <summary>An artist's radio and the shuffle of its songs, YouTube Music's Mix
+/// and Shuffle from the artist page's header: from the page's buttons and from
+/// an artist card's menu.</summary>
 public class ArtistMixTests
 {
     private const string Channel = "UCdp";
     private static readonly MixSeed Seed = new("2NKWW42G1b8", "RDEMdp", "wAEB");
+    private static readonly MixSeed ShuffleSeed = new("JhulBGMA7G4", "RDAOdp", "wAEB8gECGAE%3D");
     private static readonly ArtistEntry DaftPunk = new() { Title = "Daft Punk", BrowseId = Channel };
 
     private readonly FakeCatalog _catalog = new();
@@ -24,11 +26,14 @@ public class ArtistMixTests
 
     private static TrackInfo Track(string id) => new() { VideoId = id, Title = id, Artists = [] };
 
-    private void HasArtist(MixSeed? mix, params string[] mixIds)
+    private void HasArtist(MixSeed? mix, params string[] mixIds) => HasArtist(mix, null, mixIds);
+
+    private void HasArtist(MixSeed? mix, MixSeed? shuffle, params string[] mixIds)
     {
         _catalog.Artist = new ArtistPage
         {
-            BrowseId = Channel, Name = "Daft Punk", TopSongs = [Track("top")], Shelves = [], Mix = mix,
+            BrowseId = Channel, Name = "Daft Punk", TopSongs = [Track("top")], Shelves = [],
+            Mix = mix, Shuffle = shuffle,
         };
         _catalog.Mix = seed =>
         {
@@ -142,6 +147,84 @@ public class ArtistMixTests
         Assert.True(toast.IsError);
         Assert.StartsWith("Couldn't start a mix", toast.Message);
     }
+
+    [Fact]
+    public async Task ThePage_PlaysTheHeadersShuffle_NotItsMix()
+    {
+        HasArtist(Seed, ShuffleSeed, "a", "b");
+        var page = await PageAsync();
+
+        Assert.True(page.CanShuffleSongs);
+        await page.ShuffleSongsCommand.ExecuteAsync(null);
+
+        Assert.Equal([ShuffleSeed], _asked);
+        Assert.Equal(["a", "b"], _queue.Items.Select(t => t.VideoId));
+        Assert.Equal("Shuffling songs by Daft Punk — 2 tracks", _toasts.Toasts.Last().Message);
+    }
+
+    [Fact]
+    public async Task APageWithoutAShuffle_HasNoShuffleToStart()
+    {
+        HasArtist(Seed);
+        var page = await PageAsync();
+
+        Assert.False(page.CanShuffleSongs);
+        Assert.False(page.ShuffleSongsCommand.CanExecute(null));
+        Assert.True(page.CanStartMix);
+    }
+
+    [Fact]
+    public async Task ACard_LoadsThePageForItsShuffle_ThenPlaysIt()
+    {
+        HasArtist(Seed, ShuffleSeed, "a");
+        var cards = Cards();
+        var item = CollectionMenuModel.Build(DaftPunk, cards).SelectMany(g => g)
+            .Single(e => e.Header == "Shuffle all songs");
+
+        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)item.Command).ExecuteAsync(item.Parameter);
+
+        Assert.Equal([ShuffleSeed], _asked);
+        Assert.Equal(["a"], _queue.Items.Select(t => t.VideoId));
+        Assert.Equal("Shuffling songs by Daft Punk — 1 track", Assert.Single(_toasts.Toasts).Message);
+    }
+
+    [Fact]
+    public async Task ACardWhosePageHasNoShuffle_SaysSo()
+    {
+        HasArtist(Seed);
+        var cards = Cards();
+
+        await cards.ShuffleSongsCommand.ExecuteAsync(DaftPunk);
+
+        Assert.Empty(_asked);
+        var toast = Assert.Single(_toasts.Toasts);
+        Assert.True(toast.IsError);
+        Assert.Equal("YouTube Music has no shuffle for Daft Punk.", toast.Message);
+    }
+
+    [Fact]
+    public void ThePagesShuffleButton_ShowsOnlyWithAShuffle_AndIsNamed() => Headless.Run(() =>
+    {
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+
+        Button? ShuffleButton(MixSeed? shuffle)
+        {
+            HasArtist(Seed, shuffle);
+            var page = PageAsync().GetAwaiter().GetResult();
+            var view = new Rambutan.App.Views.ArtistPage { DataContext = page };
+            var window = new Window { Width = 1000, Height = 700, DataContext = new MainViewModel(), Content = view };
+            window.Show();
+            window.UpdateLayout();
+            var button = view.GetVisualDescendants().OfType<Button>()
+                .SingleOrDefault(b => b.IsEffectivelyVisible && AutomationProperties.GetName(b) == "Shuffle all songs");
+            window.Close();
+            return button;
+        }
+
+        Assert.NotNull(ShuffleButton(ShuffleSeed));
+        Assert.Null(ShuffleButton(null));
+    });
 
     [Fact]
     public void ThePagesButton_ShowsOnlyWithAMix_AndIsNamed() => Headless.Run(() =>
