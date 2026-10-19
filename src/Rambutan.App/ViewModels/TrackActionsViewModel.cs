@@ -497,8 +497,11 @@ public partial class TrackActionsViewModel : ViewModelBase
                 continuation = more.Continuation;
             }
 
+            // Liked Music is rating-driven, and a playlist saved from someone else
+            // can't be added to. One whose card doesn't say whose it is stays, so
+            // a change in YouTube Music's menus can't empty the picker.
             var playlists = items.OfType<PlaylistEntry>()
-                .Where(p => p.PlaylistId != "LM") // Liked Music is rating-driven
+                .Where(p => p.PlaylistId != "LM" && p.IsOwn != false)
                 .ToArray();
 
             if (await PlaylistPicker(playlists) is not { } pick)
