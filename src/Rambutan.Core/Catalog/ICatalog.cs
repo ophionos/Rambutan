@@ -63,6 +63,9 @@ public interface ICatalog : IRadioSource
 
     Task<ArtistPage> GetArtistAsync(string browseId, CancellationToken ct = default);
 
+    /// <summary>The queue of a page's mix, such as an artist's radio; works anonymously.</summary>
+    Task<IReadOnlyList<TrackInfo>> GetMixAsync(MixSeed seed, CancellationToken ct = default);
+
     // Library and mutations need a signed-in session. Implementations
     // throw NotSignedInException up front rather than surfacing empty pages.
 

@@ -180,6 +180,12 @@ internal sealed class FakeCatalog : ICatalog
     public Task<IReadOnlyList<TrackInfo>> GetRadioAsync(string videoId, CancellationToken ct = default) =>
         Radio is { } radio ? radio(videoId) : throw new NotSupportedException();
 
+    /// <summary>What a mix returns; unset, it fails as unsupported.</summary>
+    public Func<MixSeed, Task<IReadOnlyList<TrackInfo>>>? Mix { get; set; }
+
+    public Task<IReadOnlyList<TrackInfo>> GetMixAsync(MixSeed seed, CancellationToken ct = default) =>
+        Mix is { } mix ? mix(seed) : throw new NotSupportedException();
+
     /// <summary>A Library tab's request ("playlists", "albums", "artists" or "songs"): the
     /// first page when <see cref="Token"/> is null, else the page after it. Pending
     /// until the test answers it.</summary>

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Rambutan.Core.Models;
 using Rambutan.InnerTube.Parsing;
 
@@ -263,5 +264,30 @@ public class BrowseParsersTests
         var albumEntries = artist.Shelves.SelectMany(s => s.Entries).OfType<AlbumEntry>().ToList();
         Assert.NotEmpty(albumEntries);
         Assert.All(albumEntries, a => Assert.StartsWith("MPREb", a.BrowseId));
+    }
+
+    [Fact]
+    public void ParseArtist_ReadsTheHeadersMix_NotItsShuffle()
+    {
+        using var doc = LoadFixture("browse-artist.daft-punk.json");
+
+        var mix = BrowseParsers.ParseArtist("UCRr1xG_2WIDs18a6cIiCxeA", doc.RootElement).Mix;
+
+        // The header's play button is Shuffle (RDAO…); its Mix is the radio.
+        Assert.Equal(new MixSeed("2NKWW42G1b8", "RDEMni3jl65KF37F9JYsJM8DGg", "wAEB"), mix);
+    }
+
+    [Fact]
+    public void ParseArtist_WithoutAMixButton_HasNoMix()
+    {
+        var root = JsonNode.Parse(File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", "browse-artist.daft-punk.json")))!;
+        root["header"]!["musicImmersiveHeaderRenderer"]!.AsObject().Remove("startRadioButton");
+        using var doc = JsonDocument.Parse(root.ToJsonString());
+
+        var artist = BrowseParsers.ParseArtist("UCRr1xG_2WIDs18a6cIiCxeA", doc.RootElement);
+
+        Assert.Null(artist.Mix);
+        Assert.Equal("Daft Punk", artist.Name);
     }
 }
