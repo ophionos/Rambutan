@@ -35,6 +35,10 @@ public class OfflineQueueTests
     /// <summary>Waits for the availability pass, running the UI jobs it posts back.</summary>
     private static void Settle(QueueViewModel vm)
     {
+        // A network or queue change posts a pass of its own. Run it first, so the
+        // pass awaited here is the latest: a later one would supersede it, and
+        // this one would end before the marks were set.
+        Dispatcher.UIThread.RunJobs();
         var update = vm.UpdateAvailabilityAsync();
         while (!update.IsCompleted)
         {
