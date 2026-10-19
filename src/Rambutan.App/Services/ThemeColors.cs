@@ -82,7 +82,7 @@ public sealed partial class ThemeColors : ObservableObject
             || _appearance.AccentSource == AccentSource.Artwork;
         var url = _player.ArtworkUrl;
         Color? cover = null;
-        var keepAccent = false;
+        var read = false;
         if (!wantsCover)
         {
             Cancel();
@@ -99,13 +99,13 @@ public sealed partial class ThemeColors : ObservableObject
             // visualizer's default shows until this one is read. The accent
             // repaints the whole app, so it keeps the last cover's meanwhile.
             Cancel();
-            if (url is not null && _loadBytes is not null)
-            {
-                Pending = ReadAsync(url);
-                keepAccent = true;
-            }
+            read = url is not null && _loadBytes is not null;
         }
-        Apply(cover, keepAccent);
+        // The interim colours go first: off the UI thread (tests), a quick read
+        // can end before this method does, and must not be painted over.
+        Apply(cover, keepAccent: read);
+        if (read)
+            Pending = ReadAsync(url!);
     }
 
     private void Apply(Color? cover, bool keepAccent = false)
