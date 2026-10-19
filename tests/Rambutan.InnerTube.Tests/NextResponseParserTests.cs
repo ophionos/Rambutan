@@ -39,6 +39,22 @@ public class NextResponseParserTests
     }
 
     [Fact]
+    public void ParseWatchQueue_RecordedArtistMix_YieldsTheArtistAndSimilarOnes()
+    {
+        // Daft Punk's header Mix (RDEM…), from its seed track: the artist's
+        // own songs mixed with similar artists'.
+        using var doc = LoadFixture("next-mix.rdemni3jl65kf37f9jysjm8dgg.json");
+
+        var tracks = NextResponseParser.ParseWatchQueue(doc.RootElement);
+
+        Assert.Equal(50, tracks.Count);
+        Assert.Equal("2NKWW42G1b8", tracks[0].VideoId);
+        Assert.Contains(tracks, t => t.Artists.Any(a => a.Name == "Daft Punk"));
+        Assert.Contains(tracks, t => t.Artists.All(a => a.Name != "Daft Punk"));
+        Assert.All(tracks, t => Assert.False(string.IsNullOrEmpty(t.VideoId)));
+    }
+
+    [Fact]
     public void ParseWatchQueue_RadioFromAMusicVideo_HasNoAlbums_BecauseYtmSendsNone()
     {
         // Seeded from Adele's "Hello" video: every row is a music video whose byline

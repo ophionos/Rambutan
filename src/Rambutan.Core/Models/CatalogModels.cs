@@ -212,4 +212,14 @@ public sealed record ArtistPage
     public bool? Subscribed { get; init; }
     public required IReadOnlyList<TrackInfo> TopSongs { get; init; }
     public required IReadOnlyList<Shelf> Shelves { get; init; }
+    /// <summary>The artist's radio, from the header's Mix button; null when the
+    /// header has none.</summary>
+    public MixSeed? Mix { get; init; }
 }
+
+/// <summary>
+/// Where a YouTube Music mix starts: a first track and the mix's playlist, as a
+/// page's Mix button names them (an artist's radio is <c>RDEM…</c>).
+/// <paramref name="Params"/> is the button's own request flag, passed on as it came.
+/// </summary>
+public sealed record MixSeed(string VideoId, string PlaylistId, string? Params = null);

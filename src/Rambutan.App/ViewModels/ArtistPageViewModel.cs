@@ -35,6 +35,15 @@ public partial class ArtistPageViewModel : ViewModelBase
 
     public bool CanSubscribe => Subscribed is not null;
 
+    /// <summary>The header's Mix, the artist's radio; null (none, or not loaded
+    /// yet) hides its button.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanStartMix))]
+    [NotifyCanExecuteChangedFor(nameof(StartMixCommand))]
+    private MixSeed? _mix;
+
+    public bool CanStartMix => Mix is not null;
+
     /// <summary>Set by navigation; null in tests, where outcomes go unreported.</summary>
     public TrackActionsViewModel? Actions { get; init; }
 
@@ -80,6 +89,7 @@ public partial class ArtistPageViewModel : ViewModelBase
             Name = artist.Name;
             ThumbnailUrl = artist.ThumbnailUrl;
             Subscribed = artist.Subscribed;
+            Mix = artist.Mix;
             foreach (var track in artist.TopSongs)
                 TopSongs.Add(track);
             foreach (var shelf in artist.Shelves)
@@ -101,6 +111,30 @@ public partial class ArtistPageViewModel : ViewModelBase
     [RelayCommand]
     private Task PlayTopSongsAsync() =>
         TopSongs.Count > 0 ? _coordinator.PlayQueueAsync(TopSongs.ToList()) : Task.CompletedTask;
+
+    /// <summary>Plays the artist's radio. The button waits while the mix loads.</summary>
+    [RelayCommand(CanExecute = nameof(CanStartMix))]
+    private async Task StartMixAsync()
+    {
+        if (Mix is not { } seed)
+            return;
+        try
+        {
+            Actions?.Report(Strings.Format("toast.mix.starting", ("title", Name)));
+            var mix = await _catalog.GetMixAsync(seed);
+            if (mix.Count == 0)
+            {
+                Actions?.ReportError(Strings.Format("toast.artist.noMix", ("name", Name)));
+                return;
+            }
+            await _coordinator.PlayQueueAsync(mix);
+            Actions?.Report(Strings.Format("toast.mix.started", ("title", Name), ("count", mix.Count)));
+        }
+        catch (Exception ex)
+        {
+            Actions?.ReportError(Strings.Format("toast.mix.failed", ("error", ex.Message)));
+        }
+    }
 
     /// <summary>Subscribes or unsubscribes, which adds the artist to the library or
     /// takes it out. The toggle flips at once and flips back, with a toast, if

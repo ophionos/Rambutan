@@ -221,6 +221,7 @@ public class TrackRatingsTests
         public Task<PlaylistPage> GetPlaylistContinuationAsync(string playlistId, ContinuationToken continuation, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<ArtistPage> GetArtistAsync(string browseId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<TrackInfo>> GetRadioAsync(string videoId, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<TrackInfo>> GetMixAsync(MixSeed seed, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<LibraryPage> GetLibraryPlaylistsAsync(CancellationToken ct = default) => throw PageFailure ?? new NotSupportedException();
         public Task<LibraryPage> GetLibraryAlbumsAsync(CancellationToken ct = default) => throw PageFailure ?? new NotSupportedException();
         public Task<LibraryPage> GetLibraryAlbumsContinuationAsync(ContinuationToken continuation, CancellationToken ct = default) => throw new NotSupportedException();

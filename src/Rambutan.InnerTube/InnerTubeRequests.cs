@@ -70,7 +70,8 @@ internal sealed record NextRequest(
     [property: JsonPropertyName("playlistId")] string PlaylistId,
     [property: JsonPropertyName("enablePersistentPlaylistPanel")] bool EnablePersistentPlaylistPanel,
     [property: JsonPropertyName("isAudioOnly")] bool IsAudioOnly,
-    [property: JsonPropertyName("tunerSettingValue")] string TunerSettingValue);
+    [property: JsonPropertyName("tunerSettingValue")] string TunerSettingValue,
+    [property: JsonPropertyName("params")] string? Params = null);
 
 internal sealed record RequestContext(
     [property: JsonPropertyName("client")] ClientInfo Client);

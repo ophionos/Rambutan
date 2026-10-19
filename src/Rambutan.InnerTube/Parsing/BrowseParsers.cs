@@ -512,6 +512,7 @@ public static class BrowseParsers
         string? description = null;
         string? thumbnail = null;
         bool? subscribed = null;
+        MixSeed? mix = null;
 
         if (root.TryGetPath(out var header, "header", "musicImmersiveHeaderRenderer") ||
             root.TryGetPath(out header, "header", "musicVisualHeaderRenderer"))
@@ -525,6 +526,7 @@ public static class BrowseParsers
             {
                 subscribed = state.GetBoolean();
             }
+            mix = HeaderMix(header);
         }
 
         var topSongs = new List<TrackInfo>();
@@ -564,7 +566,27 @@ public static class BrowseParsers
             Subscribed = subscribed,
             TopSongs = topSongs,
             Shelves = shelves,
+            Mix = mix,
         };
+    }
+
+    /// <summary>The header's Mix button (the artist's radio). The header's play
+    /// button is its Shuffle, a different mix.</summary>
+    private static MixSeed? HeaderMix(JsonElement header)
+    {
+        if (!header.TryGetPath(out var watch,
+                "startRadioButton", "buttonRenderer", "navigationEndpoint", "watchEndpoint") ||
+            Text(watch, "videoId") is not { Length: > 0 } videoId ||
+            Text(watch, "playlistId") is not { Length: > 0 } playlistId)
+        {
+            return null;
+        }
+        return new MixSeed(videoId, playlistId, Text(watch, "params"));
+
+        static string? Text(JsonElement owner, string property) =>
+            owner.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
     }
 
     /// <summary>

@@ -153,6 +153,9 @@ public sealed class OfflineCatalog(
     public Task<ArtistPage> GetArtistAsync(string browseId, CancellationToken ct = default) =>
         inner.GetArtistAsync(browseId, ct);
 
+    public Task<IReadOnlyList<TrackInfo>> GetMixAsync(MixSeed seed, CancellationToken ct = default) =>
+        inner.GetMixAsync(seed, ct);
+
     public Task<LibraryPage> GetLibraryPlaylistsContinuationAsync(
         ContinuationToken continuation, CancellationToken ct = default) =>
         inner.GetLibraryPlaylistsContinuationAsync(continuation, ct);

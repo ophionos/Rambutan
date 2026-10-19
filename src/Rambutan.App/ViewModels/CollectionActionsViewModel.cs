@@ -139,6 +139,37 @@ public sealed partial class CollectionActionsViewModel
             _actions.Report(Strings.Format("toast.album.noArtist", ("title", album.Title)));
     }
 
+    /// <summary>Plays an artist's radio: the Mix its page's header starts, so the
+    /// page loads first.</summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task StartMixAsync(CatalogEntry? entry)
+    {
+        if (entry is not ArtistEntry artist)
+            return;
+        var (done, mix) = await WhileLoadingAsync(entry, async _ =>
+            (await _catalog.GetArtistAsync(artist.BrowseId)).Mix is { } seed
+                ? await _catalog.GetMixAsync(seed)
+                : [],
+            (_, ex) => Strings.Format("toast.mix.failed", ("error", ex.Message)));
+        if (!done)
+            return;
+        if (mix.Count == 0)
+        {
+            _actions.ReportError(Strings.Format("toast.artist.noMix", ("name", artist.Title)));
+            return;
+        }
+
+        try
+        {
+            await _coordinator.PlayQueueAsync(mix);
+            _actions.Report(Strings.Format("toast.mix.started", ("title", artist.Title), ("count", mix.Count)));
+        }
+        catch (Exception ex)
+        {
+            _actions.ReportError(Strings.Format("toast.mix.failed", ("error", ex.Message)));
+        }
+    }
+
     /// <summary>Opens the Last.fm station of an artist and similar ones; its page
     /// shows the loading.</summary>
     [RelayCommand]

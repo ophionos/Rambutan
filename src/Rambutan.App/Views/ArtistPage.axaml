@@ -33,6 +33,15 @@
                 <TextBlock Text="{l:T artist.playTopSongs}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
+            <!-- Only when the header has YouTube Music's Mix. -->
+            <Button Command="{Binding StartMixCommand}" IsVisible="{Binding CanStartMix}"
+                    ToolTip.Tip="{l:T artist.mixTip}"
+                    AutomationProperties.Name="{l:T menu.startMix}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <PathIcon Data="{StaticResource Icon.Radio}" Width="16" Height="16" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T menu.startMix}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
             <!-- Shown only when the state is known. The label shows the state, as
                  YouTube Music's does; the name and tooltip say what a press does. -->
             <Button Command="{Binding ToggleSubscribedCommand}"

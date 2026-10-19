@@ -30,6 +30,7 @@ var positional = new List<string>();
 string? filterName = null;
 string? continuationArg = null;
 string? paramsArg = null;
+string? playlistArg = null;
 
 for (var i = 0; i < args.Length; i++)
 {
@@ -40,6 +41,7 @@ for (var i = 0; i < args.Length; i++)
         case "--filter": filterName = Next(args, ref i); break;
         case "--continuation": continuationArg = Next(args, ref i); break;
         case "--params": paramsArg = Next(args, ref i); break;
+        case "--playlist": playlistArg = Next(args, ref i); break;
         default: positional.Add(args[i]); break;
     }
 }
@@ -114,8 +116,10 @@ switch (positional[0])
         break;
 
     case "next" when positional.Count >= 2:
-        doc = await client.NextAsync(positional[1]);
-        defaultName = $"next-radio.{Slug(positional[1])}.json";
+        doc = await client.NextAsync(positional[1], playlistId: playlistArg, @params: paramsArg);
+        defaultName = playlistArg is null
+            ? $"next-radio.{Slug(positional[1])}.json"
+            : $"next-mix.{Slug(playlistArg)}.json";
         break;
 
     case "search" when positional.Count >= 2:
@@ -307,6 +311,17 @@ static async Task<int> LiveDiffAsync(InnerTubeClient client)
             : throw new InvalidOperationException($"{page.Name}: no top songs");
     });
 
+    await Check("artist mix", async () =>
+    {
+        var page = await client.GetArtistAsync(First<ArtistEntry>(artists).BrowseId);
+        if (page.Mix is not { } seed)
+            throw new InvalidOperationException($"{page.Name}: the header has no Mix button");
+        var mix = await client.GetMixAsync(seed);
+        return mix.Count > 1
+            ? $"{mix.Count} tracks in {page.Name}'s {seed.PlaylistId[..4]}… mix"
+            : throw new InvalidOperationException($"{mix.Count} track(s) in {page.Name}'s mix");
+    });
+
     await Check("album page", async () =>
     {
         // Not the first "daft punk" album: that is whatever ranks first today, and
@@ -370,7 +385,7 @@ static int Usage()
           dotnet run --project tools/Rambutan.FixtureRecorder -- home [options]   (Home and every continuation, in one session: <out>, <out>-continuation-N)
           dotnet run --project tools/Rambutan.FixtureRecorder -- search <query> [--filter songs|videos|albums|artists|playlists] [--continuation <token>] [options]   (no --filter: the unfiltered "All" search)
           dotnet run --project tools/Rambutan.FixtureRecorder -- suggestions <partial query>   (search-box completions)
-          dotnet run --project tools/Rambutan.FixtureRecorder -- next <videoId>   (radio/automix watch queue)
+          dotnet run --project tools/Rambutan.FixtureRecorder -- next <videoId> [--playlist <id> [--params <params>]]   (radio/automix watch queue; with --playlist, a page's mix, such as an artist's radio)
           dotnet run --project tools/Rambutan.FixtureRecorder -- live-diff   (run all anonymous parsers against live YTM and Last.fm)
 
         options:

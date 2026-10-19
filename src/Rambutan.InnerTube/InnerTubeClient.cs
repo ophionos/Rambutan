@@ -470,6 +470,12 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         return NextResponseParser.ParseWatchQueue(doc.RootElement);
     }
 
+    public async Task<IReadOnlyList<TrackInfo>> GetMixAsync(MixSeed seed, CancellationToken ct = default)
+    {
+        using var doc = await NextAsync(seed.VideoId, ct, seed.PlaylistId, seed.Params);
+        return NextResponseParser.ParseWatchQueue(doc.RootElement);
+    }
+
     public async Task<Rating?> GetRatingAsync(string videoId, CancellationToken ct = default)
     {
         // Anonymous responses always say INDIFFERENT, which would read as a real
@@ -744,12 +750,14 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
     }
 
     /// <summary>Raw next (watch-queue) response; also used for fixture recording.</summary>
-    internal Task<JsonDocument> NextAsync(string videoId, CancellationToken ct = default)
+    /// <param name="playlistId">The mix to build; null for the track's own radio.
+    /// RDAMVM{videoId} is the per-track radio playlist the web player uses.</param>
+    internal Task<JsonDocument> NextAsync(
+        string videoId, CancellationToken ct = default, string? playlistId = null, string? @params = null)
     {
-        // RDAMVM{videoId} is the per-track radio playlist the web player uses.
-        var request = new NextRequest(Context(), videoId, "RDAMVM" + videoId,
+        var request = new NextRequest(Context(), videoId, playlistId ?? "RDAMVM" + videoId,
             EnablePersistentPlaylistPanel: true, IsAudioOnly: true,
-            TunerSettingValue: "AUTOMIX_SETTING_NORMAL");
+            TunerSettingValue: "AUTOMIX_SETTING_NORMAL", Params: @params);
         return PostAsync("next", request, InnerTubeJsonContext.Default.NextRequest, ct);
     }
 
