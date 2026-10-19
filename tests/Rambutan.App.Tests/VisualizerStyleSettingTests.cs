@@ -268,7 +268,7 @@ public class VisualizerStyleSettingTests
         slow.SetResult(Png(SKColors.Red));
         await first;
 
-        Assert.True(colors.Color!.Value.B > 0xC0);
+        Assert.True(colors.Color is { B: > 0xC0 }, $"read as {colors.Color?.ToString() ?? "null"}");
     }
 
     [Fact]
