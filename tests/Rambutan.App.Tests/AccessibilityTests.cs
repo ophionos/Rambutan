@@ -610,6 +610,10 @@ public class AccessibilityTests
             Assert.True(play.IsVisible);
             Assert.True(spinner.IsVisible);
             Assert.Equal("Loading Discovery", Name());
+            // Drawn on the accent, so in the colour made for that, not the
+            // player bar's dark ring.
+            Assert.True(card.TryFindResource("Token.Brush.OnAccent", out var onAccent));
+            Assert.Same(onAccent, spinner.Stroke);
 
             gate.SetResult();
             loading.GetAwaiter().GetResult();

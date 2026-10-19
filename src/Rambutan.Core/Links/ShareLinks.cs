@@ -3,9 +3,9 @@ using Rambutan.Core.Models;
 namespace Rambutan.Core.Links;
 
 /// <summary>
-/// The music.youtube.com links Share copies: the forms YouTube Music's own Share
-/// button gives, so they open there and, through <see cref="DeepLinkParser"/>, in
-/// Rambutan.
+/// The music.youtube.com links Share copies: each page's address as YouTube
+/// Music's own pages use it, so it opens there and, through
+/// <see cref="DeepLinkParser"/>, in Rambutan.
 /// </summary>
 public static class ShareLinks
 {
