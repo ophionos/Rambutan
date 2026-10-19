@@ -93,6 +93,41 @@ public class AutoplayTests
     }
 
     [Fact]
+    public void EnqueueRange_KeepsTheAlbumsOrder_AheadOfAutoplay_WithOneChange()
+    {
+        var queue = new QueueModel();
+        var seed = T("a");
+        queue.SetQueue([seed]);
+        queue.AppendAutoplay(seed, [T("x"), T("y")]);
+        var changes = 0;
+        queue.Changed += () => changes++;
+
+        queue.EnqueueRange([T("1"), T("2"), T("3")]);
+
+        Assert.Equal(["a", "1", "2", "3", "x", "y"], Ids(queue.Items));
+        Assert.Equal([4, 5], queue.Snapshot().AutoplayIndices);
+        Assert.Equal(1, changes);
+
+        queue.EnqueueRange([]);
+        Assert.Equal(1, changes); // nothing added, nothing to tell
+    }
+
+    [Fact]
+    public void EnqueueRange_WithShuffleOn_KeepsTheAlbumsOrderInTheOriginalOrder()
+    {
+        var queue = new QueueModel(new Random(7));
+        var seed = T("a");
+        queue.SetQueue([seed]);
+        queue.AppendAutoplay(seed, [T("x"), T("y")]);
+        queue.SetShuffle(true);
+
+        queue.EnqueueRange([T("1"), T("2"), T("3")]);
+        queue.SetShuffle(false);
+
+        Assert.Equal(["a", "1", "2", "3", "x", "y"], Ids(queue.Items));
+    }
+
+    [Fact]
     public void Enqueue_WithShuffleOn_LandsBeforeAutoplayInTheOriginalOrderToo()
     {
         var queue = new QueueModel(new Random(7));

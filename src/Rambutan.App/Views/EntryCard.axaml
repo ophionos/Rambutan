@@ -11,8 +11,13 @@
   <!-- One catalog card for Home, artist shelves and Library. The play button
        is a sibling of the card, not inside it, so a click on it never also opens
        the page underneath. Styles/Browse.axaml reveals it on hover or keyboard
-       focus. -->
-  <Panel Classes="cardhost">
+       focus, and keeps it up, turning, while the card's album, playlist or
+       artist loads; an artist card has the button only then. A song card
+       opens the track menu, any other card its own, from the card or its
+       play button. -->
+  <Panel Classes="cardhost" Classes.loading="{Binding #Card.IsLoading}"
+         controls:TrackMenu.Track="{Binding Converter={x:Static vm:Converters.SongTrack}}"
+         controls:CollectionMenu.Entry="{Binding}">
     <Button Classes="card"
             AutomationProperties.Name="{Binding Converter={x:Static controls:AccessibleNames.ItemConverter}}"
             Command="{Binding #Card.OpenCommand}"
@@ -39,14 +44,23 @@
 
     <!-- Bottom-right corner of the artwork, 8px in from its edges: the card's
          8px padding + 160px art - 44px button - 8px inset = 116 from the top. -->
-    <Panel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,116,16,0"
-           IsVisible="{Binding Converter={x:Static vm:Converters.HasCardPlayButton}}">
+    <Panel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,116,16,0">
+      <Panel.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.Or}">
+          <Binding Converter="{x:Static vm:Converters.HasCardPlayButton}" />
+          <Binding Path="#Card.IsLoading" />
+        </MultiBinding>
+      </Panel.IsVisible>
       <Button Classes="cardplay"
               ToolTip.Tip="{l:T common.play}"
-              AutomationProperties.Name="{l:T common.playNamed, Arg={Binding Title}}"
+              AutomationProperties.Name="{Binding #Card.PlayName}"
               Command="{Binding #Card.PlayCommand}"
               CommandParameter="{Binding}">
-        <PathIcon Data="{StaticResource Icon.Play}" Width="20" Height="20" />
+        <Panel>
+          <PathIcon Data="{StaticResource Icon.Play}" Width="20" Height="20"
+                    IsVisible="{Binding !#Card.IsLoading}" />
+          <Arc Classes="spinner" IsVisible="{Binding #Card.IsLoading}" />
+        </Panel>
       </Button>
     </Panel>
   </Panel>

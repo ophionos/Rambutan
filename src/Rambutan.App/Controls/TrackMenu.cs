@@ -1,10 +1,5 @@
-using System;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Media;
-using Avalonia.VisualTree;
 using Rambutan.App.ViewModels;
 using Rambutan.Core.Models;
 
@@ -18,8 +13,8 @@ namespace Rambutan.App.Controls;
 /// &lt;Grid controls:TrackMenu.Track="{Binding}"
 ///       controls:TrackMenu.Host="{Binding #Root.((vm:PlaylistPageViewModel)DataContext)}"&gt;
 /// </code>
-/// Entries come from <see cref="TrackMenuModel"/> and are rebuilt each time the
-/// menu is requested, so enabled states are never stale.
+/// Entries come from <see cref="TrackMenuModel"/>; the flyout and its keyboard
+/// route are <see cref="ContextMenuHost"/>'s, shared with <see cref="CollectionMenu"/>.
 /// </summary>
 public static class TrackMenu
 {
@@ -35,132 +30,19 @@ public static class TrackMenu
 
     static TrackMenu()
     {
+        ContextMenuHost.AddSource(owner =>
+            GetTrack(owner) is { } track && Actions is { } actions
+                ? TrackMenuModel.Build(track, actions, GetHost(owner)?.MenuExtrasFor(owner.DataContext, track))
+                : []);
         TrackProperty.Changed.AddClassHandler<Control>((control, e) =>
         {
-            if (e.NewValue is null || control.ContextFlyout is not null)
-                return;
-
-            // Filled on the way *down* to the row, before the control's own
-            // handler shows the flyout. Filling it from the flyout's Opening event
-            // instead produced a menu that reported open and never appeared (X11).
-            var flyout = new MenuFlyout();
-            control.ContextFlyout = flyout;
-            control.AddHandler(Control.ContextRequestedEvent,
-                (_, _) => Populate(flyout, control), RoutingStrategies.Tunnel);
-
-            // The keyboard route: the menu key and Shift+F10 raise
-            // the request on the focused element, which in a list is the row's
-            // ListBoxItem, *above* this control, so the request never passes
-            // through it. The row's container forwards it here instead.
-            control.AttachedToVisualTree += (_, _) => ForwardFromContainer(control, flyout);
-            control.DetachedFromVisualTree += (_, _) => StopForwarding(control);
-            if (control.IsAttachedToVisualTree())
-                ForwardFromContainer(control, flyout);
+            if (e.NewValue is not null)
+                ContextMenuHost.Install(control);
         });
-    }
-
-    private static readonly AttachedProperty<Action?> UnforwardProperty =
-        AvaloniaProperty.RegisterAttached<Control, Action?>("Unforward", typeof(TrackMenu));
-
-    private static void ForwardFromContainer(Control control, MenuFlyout flyout)
-    {
-        StopForwarding(control);
-        if (control.FindAncestorOfType<ListBoxItem>() is not { } container)
-            return;
-
-        bool Open()
-        {
-            if (GetTrack(control) is null)
-                return false;
-            Populate(flyout, control);
-            if (flyout.Items.Count == 0)
-                return false;
-            flyout.ShowAt(control);
-            return true;
-        }
-
-        void OnRequested(object? sender, ContextRequestedEventArgs e)
-        {
-            // Only requests aimed at the row itself: one from inside the row (a
-            // right-click on the row content) has already opened this menu.
-            if (!e.Handled && ReferenceEquals(e.Source, container))
-                e.Handled = Open();
-        }
-
-        // Shift+F10, the other keyboard route, which X11 doesn't turn into a
-        // context request the way it does the menu key. The menu opens on the
-        // release, not the press: on Windows an unhandled F10 release puts the
-        // window into menu mode, which takes focus and so light-dismisses a
-        // flyout opened on the press before it is ever seen.
-        var f10Pressed = false;
-
-        void OnKeyDown(object? sender, KeyEventArgs e)
-        {
-            if (!e.Handled && e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift &&
-                ReferenceEquals(e.Source, container) && GetTrack(control) is not null)
-            {
-                f10Pressed = true;
-                e.Handled = true;
-            }
-        }
-
-        void OnKeyUp(object? sender, KeyEventArgs e)
-        {
-            // Shift may already be up: the press decided, so modifiers don't matter here.
-            if (e.Key != Key.F10 || !f10Pressed)
-                return;
-            f10Pressed = false;
-            e.Handled = true;
-            Open();
-        }
-
-        container.AddHandler(Control.ContextRequestedEvent, OnRequested);
-        container.AddHandler(InputElement.KeyDownEvent, OnKeyDown);
-        container.AddHandler(InputElement.KeyUpEvent, OnKeyUp);
-        control.SetValue(UnforwardProperty, () =>
-        {
-            container.RemoveHandler(Control.ContextRequestedEvent, OnRequested);
-            container.RemoveHandler(InputElement.KeyDownEvent, OnKeyDown);
-            container.RemoveHandler(InputElement.KeyUpEvent, OnKeyUp);
-        });
-    }
-
-    private static void StopForwarding(Control control)
-    {
-        control.GetValue(UnforwardProperty)?.Invoke();
-        control.ClearValue(UnforwardProperty);
     }
 
     public static TrackInfo? GetTrack(Control control) => control.GetValue(TrackProperty);
     public static void SetTrack(Control control, TrackInfo? value) => control.SetValue(TrackProperty, value);
     public static ITrackMenuHost? GetHost(Control control) => control.GetValue(HostProperty);
     public static void SetHost(Control control, ITrackMenuHost? value) => control.SetValue(HostProperty, value);
-
-    private static void Populate(MenuFlyout flyout, Control owner)
-    {
-        flyout.Items.Clear();
-        if (GetTrack(owner) is not { } track || Actions is not { } actions)
-            return;
-
-        var extras = GetHost(owner)?.MenuExtrasFor(owner.DataContext, track);
-        foreach (var group in TrackMenuModel.Build(track, actions, extras))
-        {
-            if (flyout.Items.Count > 0)
-                flyout.Items.Add(new Separator());
-
-            foreach (var entry in group)
-            {
-                var item = new MenuItem
-                {
-                    Header = entry.Header,
-                    Command = entry.Command,
-                    CommandParameter = entry.Parameter,
-                    IsEnabled = entry.IsEnabled,
-                };
-                if (owner.TryFindResource(entry.IconKey, out var icon) && icon is Geometry geometry)
-                    item.Icon = new PathIcon { Data = geometry, Width = 14, Height = 14 };
-                flyout.Items.Add(item);
-            }
-        }
-    }
 }

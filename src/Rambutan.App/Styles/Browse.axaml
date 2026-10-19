@@ -25,6 +25,14 @@
   <Style Selector="Panel.cardhost:focus-within Button.cardplay">
     <Setter Property="IsVisible" Value="True" />
   </Style>
+  <!-- Loading the card's album or playlist: the button stays up after the
+       pointer leaves, turning, until the tracks arrive or the load fails. -->
+  <Style Selector="Panel.cardhost.loading Button.cardplay">
+    <Setter Property="IsVisible" Value="True" />
+  </Style>
+  <Style Selector="Button.cardplay Arc.spinner">
+    <Setter Property="Stroke" Value="{StaticResource Token.Brush.OnAccent}" />
+  </Style>
 
   <Style Selector="Button.cardplay">
     <Setter Property="Width" Value="44" />
@@ -61,7 +69,7 @@
     <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressed}" />
   </Style>
   <!-- The glyph's box is centred, but a triangle's weight isn't: nudge it right. -->
-  <Style Selector="Button.cardplay > PathIcon">
+  <Style Selector="Button.cardplay PathIcon">
     <Setter Property="Margin" Value="2,0,0,0" />
   </Style>
 

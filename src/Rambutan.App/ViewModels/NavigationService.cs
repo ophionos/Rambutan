@@ -47,6 +47,9 @@ public partial class NavigationService : ViewModelBase
 
     public TrackActionsViewModel? Actions => _actions;
 
+    /// <summary>What album, playlist and artist cards do without opening their page.</summary>
+    public CollectionActionsViewModel Collections { get; }
+
     /// <summary>Which sidebar entry reads as active. Follows every
     /// route into a page (sidebar, shortcuts, Back), not just sidebar clicks.</summary>
     [ObservableProperty] private NavSection _section;
@@ -60,6 +63,7 @@ public partial class NavigationService : ViewModelBase
         _actions = actions;
         _searchHistory = searchHistory;
         _stations = stations;
+        Collections = new CollectionActionsViewModel(catalog, coordinator, actions, stations, OpenStation);
     }
 
     public void GoHome()
@@ -184,32 +188,11 @@ public partial class NavigationService : ViewModelBase
 
     /// <summary>
     /// A card's play button: plays an album or playlist without
-    /// opening it. Songs take the same route as a click. A failed fetch (an error
-    /// toast) or an empty list (a plain one) says so rather than doing nothing.
+    /// opening it (<see cref="CollectionActionsViewModel.PlayAsync"/>, which the
+    /// card's menu shares). Songs take the same route as a click.
     /// </summary>
-    public async Task PlayEntryAsync(CatalogEntry entry)
-    {
-        if (entry is SongEntry song)
-        {
-            await PlaySongWithRadioAsync(song.Track);
-            return;
-        }
-
-        try
-        {
-            var tracks = await EntryPlayback.ResolveAsync(_catalog, entry, _actions.DownloadedIds.Contains);
-            if (tracks.Count == 0)
-            {
-                _actions.Report(Strings.Format("toast.nothingToPlay", ("title", entry.Title)));
-                return;
-            }
-            await _coordinator.PlayQueueAsync(tracks);
-        }
-        catch (Exception ex)
-        {
-            _actions.ReportError(Strings.Format("toast.playFailed", ("title", entry.Title), ("error", ex.Message)));
-        }
-    }
+    public Task PlayEntryAsync(CatalogEntry entry) =>
+        entry is SongEntry song ? PlaySongWithRadioAsync(song.Track) : Collections.PlayAsync(entry);
 
     /// <summary>
     /// A lone song from a shelf (Home, Library, an artist's page) plays at once and its

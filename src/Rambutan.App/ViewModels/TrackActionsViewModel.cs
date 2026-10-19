@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Downloads;
+using Rambutan.Core.Links;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Queue;
@@ -260,6 +261,14 @@ public partial class TrackActionsViewModel : ViewModelBase
 
     public void NotifyLibraryChanged(LibrarySectionKind kind) => LibraryChanged?.Invoke(kind);
 
+    /// <summary>An album or artist left the library from its card's menu. The
+    /// Library drops that card at once, as it drops a song, so the tab on screen
+    /// doesn't keep offering to remove it.</summary>
+    public event Action<LibrarySectionKind, CatalogEntry>? RemovedFromLibrary;
+
+    public void NotifyRemovedFromLibrary(LibrarySectionKind kind, CatalogEntry entry) =>
+        RemovedFromLibrary?.Invoke(kind, entry);
+
     /// <summary>The song's rating as every thumb shows it, so the track menu agrees
     /// with the row and player-bar buttons.</summary>
     public Rating? RatingOf(TrackInfo track) => _ratings?.Of(track) ?? track.Rating;
@@ -272,6 +281,14 @@ public partial class TrackActionsViewModel : ViewModelBase
         _queue.EnqueueNext(track);
         Report(Strings.Format("toast.track.playingNext", ("title", track.Title)));
     }
+
+    /// <summary>A whole album or playlist, in its order, after the user's
+    /// upcoming tracks; the caller says what was added.</summary>
+    public void EnqueueAll(IReadOnlyList<TrackInfo> tracks) => _queue.EnqueueRange(tracks);
+
+    /// <summary>A whole album or playlist, in its order, right after the current
+    /// track; the caller says what was added.</summary>
+    public void EnqueueNextAll(IReadOnlyList<TrackInfo> tracks) => _queue.EnqueueNextRange(tracks);
 
     [RelayCommand]
     private void AddToQueue(TrackInfo? track)
@@ -380,7 +397,7 @@ public partial class TrackActionsViewModel : ViewModelBase
         if (track is null || CopyToClipboard is null)
             return;
 
-        await CopyToClipboard($"https://music.youtube.com/watch?v={track.VideoId}");
+        await CopyToClipboard(ShareLinks.ForTrack(track));
         Report(Strings.Format("toast.track.linkCopied", ("title", track.Title)));
     }
 

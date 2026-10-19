@@ -98,6 +98,10 @@ public partial class App : Application
 
             var actions = _services.GetRequiredService<TrackActionsViewModel>();
             Controls.TrackMenu.Actions = actions;
+            var collections = _services.GetRequiredService<NavigationService>().Collections;
+            var session = _services.GetRequiredService<SessionViewModel>();
+            collections.IsSignedIn = () => session.IsSignedIn;
+            Controls.CollectionMenu.Actions = collections;
             // Rows show the downloaded mark through a binding; their spoken names
             // read the same set and are renamed when it changes.
             Controls.AccessibleNames.IsDownloaded = id => actions.DownloadedIds.Contains(id);

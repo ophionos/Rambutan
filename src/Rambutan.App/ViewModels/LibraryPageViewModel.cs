@@ -74,10 +74,14 @@ public partial class LibraryPageViewModel : ViewModelBase
         {
             actions.LibraryChanged += OnLibraryChanged;
             actions.SongLibraryChanged += OnSongLibraryChanged;
+            actions.RemovedFromLibrary += OnRemovedFromLibrary;
         }
     }
 
     private void OnLibraryChanged(LibrarySectionKind kind) => Section(kind).MarkStale();
+
+    private void OnRemovedFromLibrary(LibrarySectionKind kind, CatalogEntry entry) =>
+        Section(kind).RemoveEntry(entry);
 
     private void OnSongLibraryChanged(TrackInfo track, bool inLibrary)
     {
@@ -93,6 +97,7 @@ public partial class LibraryPageViewModel : ViewModelBase
         {
             _actions.LibraryChanged -= OnLibraryChanged;
             _actions.SongLibraryChanged -= OnSongLibraryChanged;
+            _actions.RemovedFromLibrary -= OnRemovedFromLibrary;
         }
     }
 

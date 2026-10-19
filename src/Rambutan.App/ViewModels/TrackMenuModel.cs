@@ -5,9 +5,9 @@ using Rambutan.App.Localization;
 
 namespace Rambutan.App.ViewModels;
 
-/// <summary>One entry of the track context menu. <paramref name="IconKey"/> names a
+/// <summary>One entry of a context menu, a track's or a card's. <paramref name="IconKey"/> names a
 /// geometry in <c>Styles/Icons.axaml</c>.</summary>
-public sealed record TrackMenuEntry(
+public sealed record MenuEntry(
     string Header, string IconKey, ICommand Command, object? Parameter, bool IsEnabled = true);
 
 /// <summary>
@@ -17,8 +17,8 @@ public sealed record TrackMenuEntry(
 /// appended as a last group: removals, which read best at the bottom.
 /// </summary>
 public sealed record TrackMenuExtras(
-    IReadOnlyList<TrackMenuEntry>? Play = null,
-    IReadOnlyList<TrackMenuEntry>? Edit = null)
+    IReadOnlyList<MenuEntry>? Play = null,
+    IReadOnlyList<MenuEntry>? Edit = null)
 {
     public static readonly TrackMenuExtras None = new();
 }
@@ -36,12 +36,12 @@ public interface ITrackMenuHost
 /// </summary>
 public static class TrackMenuModel
 {
-    public static IReadOnlyList<IReadOnlyList<TrackMenuEntry>> Build(
+    public static IReadOnlyList<IReadOnlyList<MenuEntry>> Build(
         TrackInfo track, TrackActionsViewModel actions, TrackMenuExtras? extras = null)
     {
         extras ??= TrackMenuExtras.None;
 
-        var play = new List<TrackMenuEntry>();
+        var play = new List<MenuEntry>();
         if (extras.Play is { } hostPlay)
         {
             play.AddRange(hostPlay);
@@ -56,7 +56,7 @@ public static class TrackMenuModel
         // Like is a toggle, labelled for what choosing it does now, like the
         // thumbs: a liked song offers "Remove like" with a filled thumb.
         var liked = actions.RatingOf(track) is Rating.Like;
-        List<TrackMenuEntry> library =
+        List<MenuEntry> library =
         [
             liked
                 ? new(Strings.Get("rating.removeLike"), "Icon.ThumbUp", actions.LikeCommand, track)
@@ -83,7 +83,7 @@ public static class TrackMenuModel
 
         // Tracks whose source linked no album keep the entry, disabled, so
         // the menu's shape doesn't change from row to row.
-        List<TrackMenuEntry> navigate =
+        List<MenuEntry> navigate =
         [
             new(Strings.Get("common.goToAlbum"), "Icon.Album", actions.GoToAlbumCommand, track,
                 IsEnabled: track.AlbumBrowseId is not null),
@@ -92,7 +92,7 @@ public static class TrackMenuModel
             new(Strings.Get("menu.share"), "Icon.Share", actions.ShareCommand, track),
         ];
 
-        var groups = new List<IReadOnlyList<TrackMenuEntry>> { play, library, navigate };
+        var groups = new List<IReadOnlyList<MenuEntry>> { play, library, navigate };
         if (extras.Edit is { Count: > 0 } edit)
             groups.Add(edit);
         return groups;

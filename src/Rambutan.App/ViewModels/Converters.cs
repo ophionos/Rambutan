@@ -34,6 +34,12 @@ public static class Converters
     public static readonly IValueConverter HasCardPlayButton =
         new FuncValueConverter<Rambutan.Core.Models.CatalogEntry?, bool>(EntryPlayback.HasPlayButton);
 
+    /// <summary>A song card's track, for <c>TrackMenu.Track</c>; null on any other
+    /// card, which so gets no track menu.</summary>
+    public static readonly IValueConverter SongTrack =
+        new FuncValueConverter<Rambutan.Core.Models.CatalogEntry?, Rambutan.Core.Models.TrackInfo?>(
+            entry => (entry as Rambutan.Core.Models.SongEntry)?.Track);
+
     /// <summary>Artist cards get round art.</summary>
     public static readonly IValueConverter IsArtist =
         new FuncValueConverter<Rambutan.Core.Models.CatalogEntry?, bool>(entry => entry is Rambutan.Core.Models.ArtistEntry);

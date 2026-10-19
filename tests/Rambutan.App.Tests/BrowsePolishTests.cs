@@ -132,21 +132,24 @@ public class EntryPlaybackTests
     }
 
     [Fact]
-    public async Task Resolve_FetchesTheAlbumOrPlaylistTracks()
+    public async Task Resolve_FetchesTheAlbumOrPlaylistTracks_OrTheArtistsTopSongs()
     {
         var catalog = new FakeCatalog
         {
             Album = new AlbumPage { BrowseId = "MPRE", Title = "a", Tracks = [Track("a1"), Track("a2")] },
             Playlist = new PlaylistPage { PlaylistId = "PL", Title = "p", Tracks = [Track("p1")] },
+            Artist = new ArtistPage { BrowseId = "UC", Name = "x", TopSongs = [Track("x1")], Shelves = [] },
         };
 
         var album = await EntryPlayback.ResolveAsync(catalog, new AlbumEntry { Title = "a", BrowseId = "MPRE" });
         var playlist = await EntryPlayback.ResolveAsync(catalog, new PlaylistEntry { Title = "p", PlaylistId = "PL" });
         var artist = await EntryPlayback.ResolveAsync(catalog, new ArtistEntry { Title = "x", BrowseId = "UC" });
+        var song = await EntryPlayback.ResolveAsync(catalog, new SongEntry { Title = "s", Track = Track("s1") });
 
         Assert.Equal(["a1", "a2"], album.Select(t => t.VideoId));
         Assert.Equal(["p1"], playlist.Select(t => t.VideoId));
-        Assert.Empty(artist);
+        Assert.Equal(["x1"], artist.Select(t => t.VideoId));
+        Assert.Empty(song); // a song card plays its song with a radio, not through this
     }
 
     [Fact]

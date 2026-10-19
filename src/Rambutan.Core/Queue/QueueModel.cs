@@ -262,33 +262,53 @@ public sealed class QueueModel(Random random)
     public void Enqueue(TrackInfo track)
     {
         lock (_sync)
-        {
-            var at = FirstUpcomingAutoplayUnsafe();
-            if (at < 0)
-            {
-                _ranks?.Add(_items.Count);
-                _items.Add(track);
-            }
-            else
-            {
-                if (_ranks is not null)
-                {
-                    // In the original order it goes where the autoplay run begins.
-                    var rank = int.MaxValue;
-                    for (var i = at; i < _items.Count; i++)
-                    {
-                        if (_autoplay.Contains(_items[i]))
-                            rank = Math.Min(rank, _ranks[i]);
-                    }
-                    OpenRankUnsafe(rank);
-                    _ranks.Insert(at, rank);
-                }
-                _items.Insert(at, track);
-            }
-            if (_currentIndex < 0)
-                _currentIndex = 0;
-        }
+            EnqueueUnsafe(track);
         Changed?.Invoke();
+    }
+
+    /// <summary><see cref="Enqueue"/> for a whole album or playlist, in its order,
+    /// with one <see cref="Changed"/>.</summary>
+    public void EnqueueRange(IEnumerable<TrackInfo> tracks)
+    {
+        var any = false;
+        lock (_sync)
+        {
+            foreach (var track in tracks)
+            {
+                EnqueueUnsafe(track);
+                any = true;
+            }
+        }
+        if (any)
+            Changed?.Invoke();
+    }
+
+    private void EnqueueUnsafe(TrackInfo track)
+    {
+        var at = FirstUpcomingAutoplayUnsafe();
+        if (at < 0)
+        {
+            _ranks?.Add(_items.Count);
+            _items.Add(track);
+        }
+        else
+        {
+            if (_ranks is not null)
+            {
+                // In the original order it goes where the autoplay run begins.
+                var rank = int.MaxValue;
+                for (var i = at; i < _items.Count; i++)
+                {
+                    if (_autoplay.Contains(_items[i]))
+                        rank = Math.Min(rank, _ranks[i]);
+                }
+                OpenRankUnsafe(rank);
+                _ranks.Insert(at, rank);
+            }
+            _items.Insert(at, track);
+        }
+        if (_currentIndex < 0)
+            _currentIndex = 0;
     }
 
     private int FirstUpcomingAutoplayUnsafe()
@@ -360,25 +380,49 @@ public sealed class QueueModel(Random random)
     public void EnqueueNext(TrackInfo track)
     {
         lock (_sync)
+            EnqueueNextUnsafe(track, 0);
+        Changed?.Invoke();
+    }
+
+    /// <summary><see cref="EnqueueNext"/> for a whole album or playlist: it plays
+    /// next in its own order, with one <see cref="Changed"/>.</summary>
+    public void EnqueueNextRange(IEnumerable<TrackInfo> tracks)
+    {
+        var any = false;
+        var afterCurrent = 0;
+        lock (_sync)
         {
-            if (_currentIndex < 0)
+            foreach (var track in tracks)
             {
-                _ranks?.Add(_items.Count);
-                _items.Add(track);
-                _currentIndex = 0;
-            }
-            else
-            {
-                if (_ranks is not null)
-                {
-                    var rank = _ranks[_currentIndex] + 1;
-                    OpenRankUnsafe(rank);
-                    _ranks.Insert(_currentIndex + 1, rank);
-                }
-                _items.Insert(_currentIndex + 1, track);
+                if (EnqueueNextUnsafe(track, afterCurrent))
+                    afterCurrent++;
+                any = true;
             }
         }
-        Changed?.Invoke();
+        if (any)
+            Changed?.Invoke();
+    }
+
+    /// <param name="offset">How many tracks this same request already put after the current one.</param>
+    /// <returns>False when the queue had no current track, so this one became it.</returns>
+    private bool EnqueueNextUnsafe(TrackInfo track, int offset)
+    {
+        if (_currentIndex < 0)
+        {
+            _ranks?.Add(_items.Count);
+            _items.Add(track);
+            _currentIndex = 0;
+            return false;
+        }
+
+        if (_ranks is not null)
+        {
+            var rank = _ranks[_currentIndex] + 1 + offset;
+            OpenRankUnsafe(rank);
+            _ranks.Insert(_currentIndex + 1 + offset, rank);
+        }
+        _items.Insert(_currentIndex + 1 + offset, track);
+        return true;
     }
 
     /// <summary>
