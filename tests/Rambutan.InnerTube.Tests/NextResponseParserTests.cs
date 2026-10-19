@@ -55,6 +55,22 @@ public class NextResponseParserTests
     }
 
     [Fact]
+    public void ParseWatchQueue_RecordedArtistShuffle_YieldsTheArtistsOwnSongs()
+    {
+        // Daft Punk's header Shuffle (RDAO…), from its seed track. Unlike the
+        // Mix, it holds the artist's own songs; one row is a fan upload whose
+        // byline names the uploader.
+        using var doc = LoadFixture("next-mix.rdaoni3jl65kf37f9jysjm8dgg.json");
+
+        var tracks = NextResponseParser.ParseWatchQueue(doc.RootElement);
+
+        Assert.Equal(50, tracks.Count);
+        Assert.Equal("JhulBGMA7G4", tracks[0].VideoId);
+        Assert.Equal(49, tracks.Count(t => t.Artists.Any(a => a.Name == "Daft Punk")));
+        Assert.All(tracks, t => Assert.False(string.IsNullOrEmpty(t.VideoId)));
+    }
+
+    [Fact]
     public void ParseWatchQueue_RadioFromAMusicVideo_HasNoAlbums_BecauseYtmSendsNone()
     {
         // Seeded from Adele's "Hello" video: every row is a music video whose byline

@@ -215,11 +215,15 @@ public sealed record ArtistPage
     /// <summary>The artist's radio, from the header's Mix button; null when the
     /// header has none.</summary>
     public MixSeed? Mix { get; init; }
+    /// <summary>A mix of the artist's own songs, from the header's Shuffle button
+    /// (<c>RDAO…</c>); null when the header has none.</summary>
+    public MixSeed? Shuffle { get; init; }
 }
 
 /// <summary>
 /// Where a YouTube Music mix starts: a first track and the mix's playlist, as a
-/// page's Mix button names them (an artist's radio is <c>RDEM…</c>).
+/// page's Mix button names them (an artist's radio is <c>RDEM…</c>, the shuffle
+/// of its songs <c>RDAO…</c>).
 /// <paramref name="Params"/> is the button's own request flag, passed on as it came.
 /// </summary>
 public sealed record MixSeed(string VideoId, string PlaylistId, string? Params = null);

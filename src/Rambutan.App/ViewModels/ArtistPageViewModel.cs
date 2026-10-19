@@ -44,6 +44,15 @@ public partial class ArtistPageViewModel : ViewModelBase
 
     public bool CanStartMix => Mix is not null;
 
+    /// <summary>The header's Shuffle, a mix of the artist's own songs; null (none,
+    /// or not loaded yet) hides its button.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanShuffleSongs))]
+    [NotifyCanExecuteChangedFor(nameof(ShuffleSongsCommand))]
+    private MixSeed? _shuffle;
+
+    public bool CanShuffleSongs => Shuffle is not null;
+
     /// <summary>Set by navigation; null in tests, where outcomes go unreported.</summary>
     public TrackActionsViewModel? Actions { get; init; }
 
@@ -90,6 +99,7 @@ public partial class ArtistPageViewModel : ViewModelBase
             ThumbnailUrl = artist.ThumbnailUrl;
             Subscribed = artist.Subscribed;
             Mix = artist.Mix;
+            Shuffle = artist.Shuffle;
             foreach (var track in artist.TopSongs)
                 TopSongs.Add(track);
             foreach (var shelf in artist.Shelves)
@@ -114,25 +124,32 @@ public partial class ArtistPageViewModel : ViewModelBase
 
     /// <summary>Plays the artist's radio. The button waits while the mix loads.</summary>
     [RelayCommand(CanExecute = nameof(CanStartMix))]
-    private async Task StartMixAsync()
+    private Task StartMixAsync() => PlayMixAsync(Mix, ArtistMix.Radio);
+
+    /// <summary>Plays YouTube Music's shuffle of the artist's songs. The button
+    /// waits while the mix loads.</summary>
+    [RelayCommand(CanExecute = nameof(CanShuffleSongs))]
+    private Task ShuffleSongsAsync() => PlayMixAsync(Shuffle, ArtistMix.Shuffle);
+
+    private async Task PlayMixAsync(MixSeed? seed, ArtistMix kind)
     {
-        if (Mix is not { } seed)
+        if (seed is null)
             return;
         try
         {
-            Actions?.Report(Strings.Format("toast.mix.starting", ("title", Name)));
+            Actions?.Report(Strings.Format(kind.Starting, ("title", Name)));
             var mix = await _catalog.GetMixAsync(seed);
             if (mix.Count == 0)
             {
-                Actions?.ReportError(Strings.Format("toast.artist.noMix", ("name", Name)));
+                Actions?.ReportError(Strings.Format(kind.None, ("name", Name)));
                 return;
             }
             await _coordinator.PlayQueueAsync(mix);
-            Actions?.Report(Strings.Format("toast.mix.started", ("title", Name), ("count", mix.Count)));
+            Actions?.Report(Strings.Format(kind.Started, ("title", Name), ("count", mix.Count)));
         }
         catch (Exception ex)
         {
-            Actions?.ReportError(Strings.Format("toast.mix.failed", ("error", ex.Message)));
+            Actions?.ReportError(Strings.Format(kind.Failed, ("error", ex.Message)));
         }
     }
 

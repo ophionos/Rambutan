@@ -267,14 +267,29 @@ public class BrowseParsersTests
     }
 
     [Fact]
-    public void ParseArtist_ReadsTheHeadersMix_NotItsShuffle()
+    public void ParseArtist_ReadsTheHeadersMixAndShuffle_Apart()
     {
         using var doc = LoadFixture("browse-artist.daft-punk.json");
 
-        var mix = BrowseParsers.ParseArtist("UCRr1xG_2WIDs18a6cIiCxeA", doc.RootElement).Mix;
+        var artist = BrowseParsers.ParseArtist("UCRr1xG_2WIDs18a6cIiCxeA", doc.RootElement);
 
-        // The header's play button is Shuffle (RDAO…); its Mix is the radio.
-        Assert.Equal(new MixSeed("2NKWW42G1b8", "RDEMni3jl65KF37F9JYsJM8DGg", "wAEB"), mix);
+        // The header's Mix is the radio (RDEM…); its play button is Shuffle (RDAO…).
+        Assert.Equal(new MixSeed("2NKWW42G1b8", "RDEMni3jl65KF37F9JYsJM8DGg", "wAEB"), artist.Mix);
+        Assert.Equal(new MixSeed("JhulBGMA7G4", "RDAOni3jl65KF37F9JYsJM8DGg", "wAEB8gECGAE%3D"), artist.Shuffle);
+    }
+
+    [Fact]
+    public void ParseArtist_WithoutAPlayButton_HasNoShuffle()
+    {
+        var root = JsonNode.Parse(File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", "browse-artist.daft-punk.json")))!;
+        root["header"]!["musicImmersiveHeaderRenderer"]!.AsObject().Remove("playButton");
+        using var doc = JsonDocument.Parse(root.ToJsonString());
+
+        var artist = BrowseParsers.ParseArtist("UCRr1xG_2WIDs18a6cIiCxeA", doc.RootElement);
+
+        Assert.Null(artist.Shuffle);
+        Assert.NotNull(artist.Mix);
     }
 
     [Fact]
