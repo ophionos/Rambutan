@@ -31,6 +31,20 @@ public class OfflineCollectionsTests
     private static readonly DateTimeOffset Day2 = Day1.AddDays(1);
 
     [Fact]
+    public void AnAlbumsCopy_GivesItsRowsTheHeadersArtAndAlbum_UnlessTheyHaveTheirOwn()
+    {
+        var kept = KeptCollection.ForAlbum("MPREb_disc", "Discovery", "Daft Punk", "UC_daft", "Album • 2001",
+            "https://art/disc", [Track("1"), Track("2") with { ThumbnailUrl = "https://art/own", Album = "Single" }], Day1);
+
+        Assert.Equal(KeptCollectionKind.Album, kept.Kind);
+        Assert.Equal(("https://art/disc", "Discovery", "MPREb_disc"),
+            (kept.Tracks[0].ThumbnailUrl, kept.Tracks[0].Album, kept.Tracks[0].AlbumBrowseId));
+        Assert.Equal(("https://art/own", "Single", "MPREb_disc"),
+            (kept.Tracks[1].ThumbnailUrl, kept.Tracks[1].Album, kept.Tracks[1].AlbumBrowseId));
+        Assert.Equal(Day1, kept.KeptAt);
+    }
+
+    [Fact]
     public void Keep_ReplacesAnOlderCopyOfThePage_AndListsNewestFirst()
     {
         var store = new MemoryStore();

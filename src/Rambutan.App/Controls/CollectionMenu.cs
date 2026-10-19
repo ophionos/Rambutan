@@ -24,11 +24,16 @@ public static class CollectionMenu
     public static readonly AttachedProperty<CatalogEntry?> EntryProperty =
         AvaloniaProperty.RegisterAttached<Control, CatalogEntry?>("Entry", typeof(CollectionMenu));
 
+    /// <summary>Set on a list whose cards are all in the library (a Library tab),
+    /// so their menus offer to remove them. Inherited by the cards.</summary>
+    public static readonly AttachedProperty<bool> InLibraryProperty =
+        AvaloniaProperty.RegisterAttached<Control, bool>("InLibrary", typeof(CollectionMenu), inherits: true);
+
     static CollectionMenu()
     {
         ContextMenuHost.AddSource(owner =>
             GetEntry(owner) is { } entry && Actions is { } actions
-                ? CollectionMenuModel.Build(entry, actions)
+                ? CollectionMenuModel.Build(entry, actions, GetInLibrary(owner))
                 : []);
         EntryProperty.Changed.AddClassHandler<Control>((control, e) =>
         {
@@ -39,4 +44,7 @@ public static class CollectionMenu
 
     public static CatalogEntry? GetEntry(Control control) => control.GetValue(EntryProperty);
     public static void SetEntry(Control control, CatalogEntry? value) => control.SetValue(EntryProperty, value);
+
+    public static bool GetInLibrary(Control control) => control.GetValue(InLibraryProperty);
+    public static void SetInLibrary(Control control, bool value) => control.SetValue(InLibraryProperty, value);
 }

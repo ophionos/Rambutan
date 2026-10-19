@@ -86,6 +86,48 @@ public class QueueModelTests
     }
 
     [Fact]
+    public void EnqueueNextRange_PlaysTheAlbumNextInItsOrder_WithOneChange()
+    {
+        var queue = Queue("a", "b");
+        var changes = 0;
+        queue.Changed += () => changes++;
+
+        queue.EnqueueNextRange([TestTracks.Track("1"), TestTracks.Track("2"), TestTracks.Track("3")]);
+
+        Assert.Equal(["a", "1", "2", "3", "b"], queue.Items.Select(t => t.VideoId));
+        Assert.Equal("a", queue.Current!.VideoId);
+        Assert.Equal(1, changes);
+
+        queue.EnqueueNextRange([]);
+        Assert.Equal(1, changes); // nothing added, nothing to tell
+    }
+
+    [Fact]
+    public void EnqueueNextRange_IntoAnEmptyQueue_StartsAtItsFirstTrack()
+    {
+        var queue = new QueueModel();
+
+        queue.EnqueueNextRange([TestTracks.Track("1"), TestTracks.Track("2")]);
+
+        Assert.Equal(["1", "2"], queue.Items.Select(t => t.VideoId));
+        Assert.Equal("1", queue.Current!.VideoId);
+    }
+
+    [Fact]
+    public void EnqueueNextRange_WhileShuffled_PlaysNext_AndKeepsItsOrderInTheOriginalOrder()
+    {
+        var queue = Shuffled(5, "a", "b", "c", "d");
+        queue.JumpTo(1); // b
+        queue.SetShuffle(true);
+
+        queue.EnqueueNextRange([TestTracks.Track("1"), TestTracks.Track("2")]);
+        Assert.Equal(["1", "2"], Ids(queue)[2..4]);
+
+        queue.SetShuffle(false);
+        Assert.Equal(["a", "b", "1", "2", "c", "d"], Ids(queue));
+    }
+
+    [Fact]
     public void Remove_BeforeCurrent_AdjustsIndex()
     {
         var queue = Queue("a", "b", "c");

@@ -537,6 +537,19 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
             request, InnerTubeJsonContext.Default.RateRequest, ct);
     }
 
+    public async Task SetPlaylistInLibraryAsync(
+        string playlistId, bool inLibrary, CancellationToken ct = default)
+    {
+        // The album toggle's request with the playlist's own id: the like
+        // endpoints take the id without the VL that its browse id carries.
+        RequireSession();
+        var id = playlistId.StartsWith("VL", StringComparison.Ordinal) ? playlistId[2..] : playlistId;
+        var request = new RateRequest(Context(), new RateTarget(PlaylistId: id));
+        using var doc = await PostAsync(
+            inLibrary ? "like/like" : "like/removelike",
+            request, InnerTubeJsonContext.Default.RateRequest, ct);
+    }
+
     public async Task SetArtistSubscribedAsync(
         string artistBrowseId, bool subscribed, CancellationToken ct = default)
     {

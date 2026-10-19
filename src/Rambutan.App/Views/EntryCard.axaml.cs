@@ -41,8 +41,9 @@ public partial class EntryCard : UserControl
         set => SetValue(PlayCommandProperty, value);
     }
 
-    /// <summary>Whether the card's album or playlist is loading for Play, Shuffle
-    /// or Add to queue, from this card or another showing the same one.</summary>
+    /// <summary>Whether the card's album, playlist or artist is loading for an
+    /// entry of its menu or its play button, from this card or another showing
+    /// the same one.</summary>
     public bool IsLoading
     {
         get => _isLoading;

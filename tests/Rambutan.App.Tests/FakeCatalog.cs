@@ -166,8 +166,15 @@ internal sealed class FakeCatalog : ICatalog
     /// <summary>What artist fetches return; unset, they fail as unsupported.</summary>
     public ArtistPage? Artist { get; set; }
 
-    public Task<ArtistPage> GetArtistAsync(string browseId, CancellationToken ct = default) =>
-        Artist is { } artist ? Task.FromResult(artist) : throw new NotSupportedException();
+    /// <summary>Holds artist fetches until it completes; unset, they answer at once.</summary>
+    public Task? ArtistGate { get; set; }
+
+    public async Task<ArtistPage> GetArtistAsync(string browseId, CancellationToken ct = default)
+    {
+        if (ArtistGate is { } gate)
+            await gate;
+        return Artist ?? throw new NotSupportedException();
+    }
     public Func<string, Task<IReadOnlyList<TrackInfo>>>? Radio { get; set; }
 
     public Task<IReadOnlyList<TrackInfo>> GetRadioAsync(string videoId, CancellationToken ct = default) =>
@@ -226,6 +233,14 @@ internal sealed class FakeCatalog : ICatalog
         if (EditFailure is { } failure)
             return Task.FromException(failure);
         LibraryEdits.Add($"{(inLibrary ? "save" : "remove")} {audioPlaylistId}");
+        return Task.CompletedTask;
+    }
+
+    public Task SetPlaylistInLibraryAsync(string playlistId, bool inLibrary, CancellationToken ct = default)
+    {
+        if (EditFailure is { } failure)
+            return Task.FromException(failure);
+        LibraryEdits.Add($"{(inLibrary ? "save" : "remove")} playlist {playlistId}");
         return Task.CompletedTask;
     }
 

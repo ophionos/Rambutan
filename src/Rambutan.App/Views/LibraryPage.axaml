@@ -121,6 +121,7 @@
         <Panel>
         <ItemsControl ItemsSource="{Binding Items}" Margin="4,0"
                       IsVisible="{Binding !IsSongs}"
+                      controls:CollectionMenu.InLibrary="{Binding !IsOfflineCopy}"
                       AutomationProperties.Name="{Binding Kind, Converter={x:Static vm:Converters.LibrarySectionName}}"
                       controls:RovingFocus.IsEnabled="True">
           <ItemsControl.ItemsPanel>

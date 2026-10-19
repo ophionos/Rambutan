@@ -278,6 +278,10 @@ public partial class TrackActionsViewModel : ViewModelBase
     /// upcoming tracks; the caller says what was added.</summary>
     public void EnqueueAll(IReadOnlyList<TrackInfo> tracks) => _queue.EnqueueRange(tracks);
 
+    /// <summary>A whole album or playlist, in its order, right after the current
+    /// track; the caller says what was added.</summary>
+    public void EnqueueNextAll(IReadOnlyList<TrackInfo> tracks) => _queue.EnqueueNextRange(tracks);
+
     [RelayCommand]
     private void AddToQueue(TrackInfo? track)
     {

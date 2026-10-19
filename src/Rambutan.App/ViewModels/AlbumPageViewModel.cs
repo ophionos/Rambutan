@@ -132,22 +132,13 @@ public partial class AlbumPageViewModel : ViewModelBase
             ? _coordinator.PlayQueueAsync(EntryPlayback.Shuffled(Tracks, Random.Shared))
             : Task.CompletedTask;
 
-    /// <summary>Album rows carry no art or album name of their own; the
-    /// downloads list shows the header's. A live page is kept with the downloads,
-    /// so it opens offline.</summary>
+    /// <summary>A live page is kept with the downloads, so it opens offline.</summary>
     [RelayCommand]
     private void DownloadAll()
     {
-        var tracks = Tracks.Select(t => t with
-        {
-            ThumbnailUrl = t.ThumbnailUrl ?? ThumbnailUrl,
-            Album = t.Album ?? Title,
-            AlbumBrowseId = t.AlbumBrowseId ?? _browseId,
-        }).ToList();
-        Actions?.DownloadAll(tracks, KeptAt is null
-            ? new KeptCollection(KeptCollectionKind.Album, _browseId, Title, Artist?.Name, Artist?.BrowseId,
-                _subtitleInfo, ThumbnailUrl, tracks, DateTimeOffset.UtcNow)
-            : null);
+        var kept = KeptCollection.ForAlbum(_browseId, Title, Artist?.Name, Artist?.BrowseId,
+            _subtitleInfo, ThumbnailUrl, Tracks, DateTimeOffset.UtcNow);
+        Actions?.DownloadAll(kept.Tracks, KeptAt is null ? kept : null);
     }
 
     /// <summary>Saves the album to the library or removes it. The toggle flips at

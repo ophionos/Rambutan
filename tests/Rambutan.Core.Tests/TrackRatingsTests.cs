@@ -227,6 +227,7 @@ public class TrackRatingsTests
         public Task<LibraryPage> GetLibraryArtistsAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<LibraryPage> GetLibraryArtistsContinuationAsync(ContinuationToken continuation, CancellationToken ct = default) => throw new NotSupportedException();
         public Task SetAlbumInLibraryAsync(string audioPlaylistId, bool inLibrary, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task SetPlaylistInLibraryAsync(string playlistId, bool inLibrary, CancellationToken ct = default) => throw new NotSupportedException();
         public Task SetArtistSubscribedAsync(string artistBrowseId, bool subscribed, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<LibraryPage> GetLibrarySongsAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<LibraryPage> GetLibrarySongsContinuationAsync(ContinuationToken continuation, CancellationToken ct = default) => throw new NotSupportedException();

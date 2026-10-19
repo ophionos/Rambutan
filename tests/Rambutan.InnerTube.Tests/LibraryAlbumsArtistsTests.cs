@@ -140,6 +140,23 @@ public class LibraryAlbumsArtistsTests
     }
 
     [Theory]
+    [InlineData("RDCLAK5uy_mellow", true, "like/like")]
+    [InlineData("VLRDCLAK5uy_mellow", true, "like/like")]
+    [InlineData("RDCLAK5uy_mellow", false, "like/removelike")]
+    public async Task SavePlaylist_RatesIt_ByItsIdWithoutVL(string id, bool save, string endpoint)
+    {
+        var (client, handler) = RecordingHandler.Client();
+
+        await client.SetPlaylistInLibraryAsync(id, save);
+
+        var sent = Assert.Single(handler.Requests);
+        Assert.Equal(endpoint, sent.Endpoint);
+        var target = sent.Body.GetProperty("target");
+        Assert.Equal("RDCLAK5uy_mellow", target.GetProperty("playlistId").GetString());
+        Assert.False(target.TryGetProperty("videoId", out _));
+    }
+
+    [Theory]
     [InlineData(true, "subscription/subscribe")]
     [InlineData(false, "subscription/unsubscribe")]
     public async Task Subscribe_SendsTheChannel(bool subscribe, string endpoint)
@@ -162,6 +179,7 @@ public class LibraryAlbumsArtistsTests
         await Assert.ThrowsAsync<NotSignedInException>(() => client.GetLibraryAlbumsAsync());
         await Assert.ThrowsAsync<NotSignedInException>(() => client.GetLibraryArtistsAsync());
         await Assert.ThrowsAsync<NotSignedInException>(() => client.SetAlbumInLibraryAsync("OLAK", true));
+        await Assert.ThrowsAsync<NotSignedInException>(() => client.SetPlaylistInLibraryAsync("RDCLAK", true));
         await Assert.ThrowsAsync<NotSignedInException>(() => client.SetArtistSubscribedAsync("UC", true));
         Assert.Empty(handler.Requests);
     }

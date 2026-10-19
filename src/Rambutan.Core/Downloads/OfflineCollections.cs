@@ -21,7 +21,23 @@ public sealed record KeptCollection(
     string? SubtitleInfo,
     string? ThumbnailUrl,
     IReadOnlyList<TrackInfo> Tracks,
-    DateTimeOffset KeptAt);
+    DateTimeOffset KeptAt)
+{
+    /// <summary>An album's copy, from its page or its card. Album rows carry no
+    /// art or album name of their own, so each track gets the header's, which
+    /// the downloads list shows.</summary>
+    public static KeptCollection ForAlbum(
+        string browseId, string title, string? artist, string? artistBrowseId, string? subtitleInfo,
+        string? thumbnailUrl, IEnumerable<TrackInfo> tracks, DateTimeOffset keptAt) =>
+        new(KeptCollectionKind.Album, browseId, title, artist, artistBrowseId, subtitleInfo, thumbnailUrl,
+            tracks.Select(t => t with
+            {
+                ThumbnailUrl = t.ThumbnailUrl ?? thumbnailUrl,
+                Album = t.Album ?? title,
+                AlbumBrowseId = t.AlbumBrowseId ?? browseId,
+            }).ToList(),
+            keptAt);
+}
 
 public interface IKeptCollectionStore
 {

@@ -101,6 +101,13 @@ public interface ICatalog : IRadioSource
     /// </summary>
     Task SetAlbumInLibraryAsync(string audioPlaylistId, bool inLibrary, CancellationToken ct = default);
 
+    /// <summary>
+    /// Adds someone else's playlist to the library or removes it, as YTM's "Save
+    /// to library" on a playlist does. Takes the playlist's id, with or without
+    /// its <c>VL</c> browse prefix.
+    /// </summary>
+    Task SetPlaylistInLibraryAsync(string playlistId, bool inLibrary, CancellationToken ct = default);
+
     /// <summary>Subscribes to an artist (adding it to the library) or unsubscribes.</summary>
     Task SetArtistSubscribedAsync(string artistBrowseId, bool subscribed, CancellationToken ct = default);
 

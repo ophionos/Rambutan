@@ -63,7 +63,7 @@ public partial class NavigationService : ViewModelBase
         _actions = actions;
         _searchHistory = searchHistory;
         _stations = stations;
-        Collections = new CollectionActionsViewModel(catalog, coordinator, actions);
+        Collections = new CollectionActionsViewModel(catalog, coordinator, actions, stations, OpenStation);
     }
 
     public void GoHome()

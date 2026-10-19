@@ -179,6 +179,9 @@ public sealed class OfflineCatalog(
     public Task SetAlbumInLibraryAsync(string audioPlaylistId, bool inLibrary, CancellationToken ct = default) =>
         inner.SetAlbumInLibraryAsync(audioPlaylistId, inLibrary, ct);
 
+    public Task SetPlaylistInLibraryAsync(string playlistId, bool inLibrary, CancellationToken ct = default) =>
+        inner.SetPlaylistInLibraryAsync(playlistId, inLibrary, ct);
+
     public Task SetArtistSubscribedAsync(string artistBrowseId, bool subscribed, CancellationToken ct = default) =>
         inner.SetArtistSubscribedAsync(artistBrowseId, subscribed, ct);
 

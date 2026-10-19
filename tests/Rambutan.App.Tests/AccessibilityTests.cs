@@ -541,7 +541,7 @@ public class AccessibilityTests
             window.UpdateLayout();
             MenuKey();
             Assert.True(flyout.IsOpen);
-            Assert.Equal(["Play", "Shuffle", "Add to queue", "Share"], Headers());
+            Assert.Equal(["Play", "Shuffle", "Play next", "Add to queue", "Go to artist", "Share"], Headers());
             flyout.Hide();
             window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
             window.KeyRelease(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
@@ -621,6 +621,60 @@ public class AccessibilityTests
             Assert.False(play.IsVisible);
             Assert.False(spinner.IsVisible);
             Assert.Equal("Play Discovery", Name());
+            window.Close();
+        }
+        finally
+        {
+            CollectionMenu.Actions = null;
+        }
+    });
+
+    [Fact]
+    public void AnArtistCard_ShowsTheButtonOnlyWhileItsTopSongsLoad() => Headless.Run(() =>
+    {
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+        var catalog = new FakeCatalog
+        {
+            Artist = new Rambutan.Core.Models.ArtistPage
+            {
+                BrowseId = "UC1", Name = "Daft Punk", TopSongs = [Track("a")], Shelves = [],
+            },
+        };
+        var gate = new TaskCompletionSource();
+        catalog.ArtistGate = gate.Task;
+        var queue = new QueueModel();
+        var actions = new TrackActionsViewModel(catalog, queue, null!, null!, new ToastHostViewModel());
+        var collections = new CollectionActionsViewModel(catalog, FakePlayback.Coordinator(queue), actions);
+        CollectionMenu.Actions = collections;
+        try
+        {
+            var entry = new ArtistEntry { Title = "Daft Punk", BrowseId = "UC1" };
+            var card = new EntryCard { DataContext = entry };
+            var window = new Window { Width = 300, Height = 300, Content = card };
+            window.Show();
+            window.UpdateLayout();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            var play = card.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("cardplay"));
+            string? Name() => Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(play).GetName();
+
+            // An artist has no single thing to play, so no button at rest, even on focus.
+            card.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("card")).Focus();
+            window.UpdateLayout();
+            Assert.False(play.IsEffectivelyVisible);
+
+            // "Play top songs" from the card's menu.
+            var loading = collections.PlayCommand.ExecuteAsync(entry);
+            window.UpdateLayout();
+            Assert.True(play.IsEffectivelyVisible);
+            Assert.Equal("Loading Daft Punk", Name());
+
+            gate.SetResult();
+            loading.GetAwaiter().GetResult();
+            window.UpdateLayout();
+            Assert.False(play.IsEffectivelyVisible);
+            Assert.Equal("a", queue.Current?.VideoId);
             window.Close();
         }
         finally
