@@ -531,10 +531,43 @@ internal static class ParseHelpers
             return null;
         }
 
-        var entry = BrowseEntry(PageType(renderer), id, title, subtitle, thumbnail);
-        return entry is AlbumEntry album
-            ? album with { AudioPlaylistId = TwoRowAudioPlaylistId(renderer) }
-            : entry;
+        return BrowseEntry(PageType(renderer), id, title, subtitle, thumbnail) switch
+        {
+            AlbumEntry album => album with { AudioPlaylistId = TwoRowAudioPlaylistId(renderer) },
+            PlaylistEntry playlist => playlist with { IsOwn = TwoRowPlaylistIsOwn(renderer) },
+            var entry => entry,
+        };
+    }
+
+    /// <summary>
+    /// Whether the signed-in user owns a playlist card, from its menu: an own
+    /// playlist offers Edit playlist, one saved from someone else the library
+    /// toggle. Null when the menu offers neither, as the auto playlists' (Liked
+    /// Music, Episodes for Later) don't.
+    /// </summary>
+    private static bool? TwoRowPlaylistIsOwn(JsonElement renderer)
+    {
+        if (!renderer.TryGetPath(out var items, "menu", "menuRenderer", "items") ||
+            items.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.TryGetPath(out _,
+                    "menuNavigationItemRenderer", "navigationEndpoint", "playlistEditorEndpoint"))
+            {
+                return true;
+            }
+            if (item.TryGetPath(out _,
+                    "toggleMenuServiceItemRenderer", "defaultServiceEndpoint", "likeEndpoint"))
+            {
+                return false;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

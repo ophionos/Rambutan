@@ -35,9 +35,12 @@ public static class CollectionMenuModel
                     new(Strings.Get("menu.playNext"), "Icon.Next", actions.PlayNextCommand, entry, idle),
                     new(Strings.Get("common.addToQueue"), "Icon.Add", actions.AddToQueueCommand, entry, idle),
                 ]);
-                // A playlist on the Library tab may be the user's own, which is
-                // deleted rather than removed, so it gets neither entry.
-                if (actions.CanChangeLibrary && !(inLibrary && entry is PlaylistEntry))
+                // The user's own playlist is deleted on its page rather than
+                // removed, and saving it means nothing, so it gets neither entry;
+                // nor does one on the Library tab whose card doesn't say whose it is.
+                if (actions.CanChangeLibrary &&
+                    entry is not PlaylistEntry { IsOwn: true } &&
+                    !(inLibrary && entry is PlaylistEntry { IsOwn: null }))
                 {
                     library.Add(inLibrary
                         ? new(Strings.Get("menu.removeFromLibrary"), "Icon.LibraryAdded",
