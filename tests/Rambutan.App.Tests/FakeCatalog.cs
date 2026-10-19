@@ -147,8 +147,15 @@ internal sealed class FakeCatalog : ICatalog
     public AlbumPage? Album { get; set; }
     public PlaylistPage? Playlist { get; set; }
 
-    public Task<AlbumPage> GetAlbumAsync(string browseId, CancellationToken ct = default) =>
-        Album is { } album ? Task.FromResult(album) : throw new NotSupportedException();
+    /// <summary>Holds album fetches until it completes; unset, they answer at once.</summary>
+    public Task? AlbumGate { get; set; }
+
+    public async Task<AlbumPage> GetAlbumAsync(string browseId, CancellationToken ct = default)
+    {
+        if (AlbumGate is { } gate)
+            await gate;
+        return Album ?? throw new NotSupportedException();
+    }
     public Task<PlaylistPage> GetPlaylistAsync(string playlistId, CancellationToken ct = default) =>
         Playlist is { } playlist ? Task.FromResult(playlist) : throw new NotSupportedException();
     /// <summary>What a playlist's next page returns; unset, it fails as unsupported.</summary>

@@ -11,10 +11,12 @@
   <!-- One catalog card for Home, artist shelves and Library. The play button
        is a sibling of the card, not inside it, so a click on it never also opens
        the page underneath. Styles/Browse.axaml reveals it on hover or keyboard
-       focus. A song card opens the track menu, from the card or its play
-       button. -->
-  <Panel Classes="cardhost"
-         controls:TrackMenu.Track="{Binding Converter={x:Static vm:Converters.SongTrack}}">
+       focus, and keeps it up, turning, while the card's album or playlist
+       loads. A song card opens the track menu, any other card its own, from
+       the card or its play button. -->
+  <Panel Classes="cardhost" Classes.loading="{Binding #Card.IsLoading}"
+         controls:TrackMenu.Track="{Binding Converter={x:Static vm:Converters.SongTrack}}"
+         controls:CollectionMenu.Entry="{Binding}">
     <Button Classes="card"
             AutomationProperties.Name="{Binding Converter={x:Static controls:AccessibleNames.ItemConverter}}"
             Command="{Binding #Card.OpenCommand}"
@@ -45,10 +47,14 @@
            IsVisible="{Binding Converter={x:Static vm:Converters.HasCardPlayButton}}">
       <Button Classes="cardplay"
               ToolTip.Tip="{l:T common.play}"
-              AutomationProperties.Name="{l:T common.playNamed, Arg={Binding Title}}"
+              AutomationProperties.Name="{Binding #Card.PlayName}"
               Command="{Binding #Card.PlayCommand}"
               CommandParameter="{Binding}">
-        <PathIcon Data="{StaticResource Icon.Play}" Width="20" Height="20" />
+        <Panel>
+          <PathIcon Data="{StaticResource Icon.Play}" Width="20" Height="20"
+                    IsVisible="{Binding !#Card.IsLoading}" />
+          <Arc Classes="spinner" IsVisible="{Binding #Card.IsLoading}" />
+        </Panel>
       </Button>
     </Panel>
   </Panel>

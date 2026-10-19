@@ -496,54 +496,133 @@ public class AccessibilityTests
     });
 
     [Fact]
-    public void ASongCard_OpensTheTrackMenu_AndOtherCardsDont() => Headless.Run(() =>
+    public void ACard_OpensItsMenuFromTheKeyboard_AndARecycledCardChangesMenus() => Headless.Run(() =>
     {
         AccessibleNames.Install();
         ShellResources.Ensure();
-        TrackMenu.Actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, new ToastHostViewModel());
-        var card = new EntryCard { DataContext = new SongEntry { Title = "Instant Crush", Track = Track("a") } };
-        var window = new Window { Width = 300, Height = 300, Content = card };
-        window.Show();
-        window.UpdateLayout();
-        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        var actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, new ToastHostViewModel());
+        TrackMenu.Actions = actions;
+        CollectionMenu.Actions = new CollectionActionsViewModel(null!, null!, actions);
+        try
+        {
+            var card = new EntryCard { DataContext = new SongEntry { Title = "Instant Crush", Track = Track("a") } };
+            var window = new Window { Width = 300, Height = 300, Content = card };
+            window.Show();
+            window.UpdateLayout();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-        var host = card.GetVisualDescendants().OfType<Panel>().Single(p => p.Classes.Contains("cardhost"));
-        var flyout = Assert.IsType<MenuFlyout>(host.ContextFlyout);
-        string? MenuTrack() => ((MenuItem)flyout.Items[0]!).CommandParameter is TrackInfo t ? t.VideoId : null;
+            var host = card.GetVisualDescendants().OfType<Panel>().Single(p => p.Classes.Contains("cardhost"));
+            var flyout = Assert.IsType<MenuFlyout>(host.ContextFlyout);
+            var button = card.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("card"));
+            string[] Headers() => flyout.Items.OfType<MenuItem>().Select(i => (string)i.Header!).ToArray();
 
-        // The menu key raises the request on the focused card, inside the
-        // element that owns the menu, as does a right-click.
-        var button = card.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("card"));
-        button.Focus();
-        button.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = button });
-        Assert.True(flyout.IsOpen);
-        Assert.Equal("a", MenuTrack());
-        flyout.Hide();
+            void MenuKey()
+            {
+                button.Focus();
+                button.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = button });
+            }
 
-        // Shift+F10 opens it on the release, as on a row.
-        window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
-        Assert.False(flyout.IsOpen);
-        window.KeyRelease(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
-        Assert.True(flyout.IsOpen);
-        flyout.Hide();
+            // The menu key raises the request on the focused card, inside the
+            // element that owns the menu, as does a right-click.
+            MenuKey();
+            Assert.True(flyout.IsOpen);
+            Assert.Equal("a", ((MenuItem)flyout.Items[0]!).CommandParameter is TrackInfo t ? t.VideoId : null);
+            flyout.Hide();
 
-        // The same card showing an album (a recycled container) opens nothing,
-        // not an empty menu.
-        card.DataContext = new AlbumEntry { Title = "Random Access Memories", BrowseId = "MPREb1" };
-        window.UpdateLayout();
-        button.Focus();
-        button.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = button });
-        Assert.False(flyout.IsOpen);
-        window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
-        window.KeyRelease(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
-        Assert.False(flyout.IsOpen);
+            // Shift+F10 opens it on the release, as on a row.
+            window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+            Assert.False(flyout.IsOpen);
+            window.KeyRelease(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+            Assert.True(flyout.IsOpen);
+            flyout.Hide();
 
-        // A card that was never a song has no menu at all.
-        var album = new EntryCard { DataContext = new AlbumEntry { Title = "Discovery", BrowseId = "MPREb2" } };
-        window.Content = album;
-        window.UpdateLayout();
-        Assert.Null(album.GetVisualDescendants().OfType<Panel>().Single(p => p.Classes.Contains("cardhost")).ContextFlyout);
-        window.Close();
+            // The same card showing an album (a recycled container) has the album's menu.
+            card.DataContext = new AlbumEntry { Title = "Random Access Memories", BrowseId = "MPREb1" };
+            window.UpdateLayout();
+            MenuKey();
+            Assert.True(flyout.IsOpen);
+            Assert.Equal(["Play", "Shuffle", "Add to queue", "Share"], Headers());
+            flyout.Hide();
+            window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+            window.KeyRelease(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+            Assert.True(flyout.IsOpen);
+            flyout.Hide();
+
+            // And back to a song.
+            card.DataContext = new SongEntry { Title = "Digital Love", Track = Track("b") };
+            window.UpdateLayout();
+            MenuKey();
+            Assert.Equal("Play next", Headers()[0]);
+            flyout.Hide();
+
+            // With nothing to show, nothing opens: no empty menu.
+            card.DataContext = null;
+            window.UpdateLayout();
+            MenuKey();
+            Assert.False(flyout.IsOpen);
+            window.KeyPress(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+            window.KeyRelease(Key.F10, RawInputModifiers.Shift, PhysicalKey.F10, null);
+            Assert.False(flyout.IsOpen);
+            window.Close();
+        }
+        finally
+        {
+            CollectionMenu.Actions = null;
+        }
+    });
+
+    [Fact]
+    public void ACardWhoseAlbumLoads_KeepsItsPlayButtonUp_AndSaysSo() => Headless.Run(() =>
+    {
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+        var catalog = new FakeCatalog
+        {
+            Album = new Rambutan.Core.Models.AlbumPage { BrowseId = "MPREb1", Title = "Discovery", Tracks = [Track("a")] },
+        };
+        var gate = new TaskCompletionSource();
+        catalog.AlbumGate = gate.Task;
+        var queue = new QueueModel();
+        var actions = new TrackActionsViewModel(catalog, queue, null!, null!, new ToastHostViewModel());
+        var collections = new CollectionActionsViewModel(catalog, FakePlayback.Coordinator(queue), actions);
+        CollectionMenu.Actions = collections;
+        try
+        {
+            var entry = new AlbumEntry { Title = "Discovery", BrowseId = "MPREb1" };
+            var card = new EntryCard { DataContext = entry };
+            var window = new Window { Width = 300, Height = 300, Content = card };
+            window.Show();
+            window.UpdateLayout();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            var play = card.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("cardplay"));
+            var spinner = ((Panel)play.Content!).Children.OfType<Avalonia.Controls.Shapes.Arc>().Single();
+            string? Name() => Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(play).GetName();
+
+            // At rest: hidden until hover or focus, the glyph and not the spinner.
+            Assert.False(play.IsVisible);
+            Assert.False(spinner.IsVisible);
+            Assert.Equal("Play Discovery", Name());
+
+            // Started from the card's menu (an equal entry of its own).
+            var loading = collections.PlayCommand.ExecuteAsync(entry with { });
+            window.UpdateLayout();
+            Assert.True(play.IsVisible);
+            Assert.True(spinner.IsVisible);
+            Assert.Equal("Loading Discovery", Name());
+
+            gate.SetResult();
+            loading.GetAwaiter().GetResult();
+            window.UpdateLayout();
+            Assert.False(play.IsVisible);
+            Assert.False(spinner.IsVisible);
+            Assert.Equal("Play Discovery", Name());
+            window.Close();
+        }
+        finally
+        {
+            CollectionMenu.Actions = null;
+        }
     });
 
     [Fact]

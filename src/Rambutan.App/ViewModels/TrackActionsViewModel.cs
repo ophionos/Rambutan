@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Downloads;
+using Rambutan.Core.Links;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Queue;
@@ -273,6 +274,10 @@ public partial class TrackActionsViewModel : ViewModelBase
         Report(Strings.Format("toast.track.playingNext", ("title", track.Title)));
     }
 
+    /// <summary>A whole album or playlist, in its order, after the user's
+    /// upcoming tracks; the caller says what was added.</summary>
+    public void EnqueueAll(IReadOnlyList<TrackInfo> tracks) => _queue.EnqueueRange(tracks);
+
     [RelayCommand]
     private void AddToQueue(TrackInfo? track)
     {
@@ -380,7 +385,7 @@ public partial class TrackActionsViewModel : ViewModelBase
         if (track is null || CopyToClipboard is null)
             return;
 
-        await CopyToClipboard($"https://music.youtube.com/watch?v={track.VideoId}");
+        await CopyToClipboard(ShareLinks.ForTrack(track));
         Report(Strings.Format("toast.track.linkCopied", ("title", track.Title)));
     }
 

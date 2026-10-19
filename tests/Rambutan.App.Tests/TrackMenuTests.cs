@@ -25,7 +25,7 @@ public class TrackMenuTests
         Rating = rating,
     };
 
-    private static string[][] Headers(IReadOnlyList<IReadOnlyList<TrackMenuEntry>> groups) =>
+    private static string[][] Headers(IReadOnlyList<IReadOnlyList<MenuEntry>> groups) =>
         groups.Select(g => g.Select(e => e.Header).ToArray()).ToArray();
 
     [Fact]
@@ -108,7 +108,7 @@ public class TrackMenuTests
             SongLibrary = new SongLibrary(catalog),
         };
 
-    private static TrackMenuEntry? LibraryEntry(TrackInfo track, TrackActionsViewModel actions) =>
+    private static MenuEntry? LibraryEntry(TrackInfo track, TrackActionsViewModel actions) =>
         TrackMenuModel.Build(track, actions)[1].SingleOrDefault(e => e.Command == actions.ToggleInLibraryCommand);
 
     [Fact]
