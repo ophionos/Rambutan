@@ -630,6 +630,51 @@ public class AccessibilityTests
     });
 
     [Fact]
+    public void ACardInAListMarkedInTheLibrary_OffersToRemoveIt() => Headless.Run(() =>
+    {
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+        var actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, new ToastHostViewModel());
+        CollectionMenu.Actions = new CollectionActionsViewModel(null!, null!, actions) { IsSignedIn = () => true };
+        try
+        {
+            // As the Library's tabs list their cards.
+            var list = new ItemsControl
+            {
+                ItemsSource = new CatalogEntry[] { new ArtistEntry { Title = "Daft Punk", BrowseId = "UC1" } },
+                ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<CatalogEntry>((_, _) => new EntryCard()),
+            };
+            var window = new Window { Width = 300, Height = 300, Content = list };
+            window.Show();
+            window.UpdateLayout();
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+
+            var host = list.GetVisualDescendants().OfType<Panel>().Single(p => p.Classes.Contains("cardhost"));
+            var flyout = Assert.IsType<MenuFlyout>(host.ContextFlyout);
+            var button = list.GetVisualDescendants().OfType<Button>().Single(b => b.Classes.Contains("card"));
+            string[] Headers()
+            {
+                button.Focus();
+                button.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = button });
+                var headers = flyout.Items.OfType<MenuItem>().Select(i => (string)i.Header!).ToArray();
+                flyout.Hide();
+                return headers;
+            }
+
+            Assert.Contains("Subscribe", Headers());
+
+            CollectionMenu.SetInLibrary(list, true);
+            Assert.Contains("Unsubscribe", Headers());
+            Assert.DoesNotContain("Subscribe", Headers());
+            window.Close();
+        }
+        finally
+        {
+            CollectionMenu.Actions = null;
+        }
+    });
+
+    [Fact]
     public void AnArtistCard_ShowsTheButtonOnlyWhileItsTopSongsLoad() => Headless.Run(() =>
     {
         AccessibleNames.Install();

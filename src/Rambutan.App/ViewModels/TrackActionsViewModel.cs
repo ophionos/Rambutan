@@ -261,6 +261,14 @@ public partial class TrackActionsViewModel : ViewModelBase
 
     public void NotifyLibraryChanged(LibrarySectionKind kind) => LibraryChanged?.Invoke(kind);
 
+    /// <summary>An album or artist left the library from its card's menu. The
+    /// Library drops that card at once, as it drops a song, so the tab on screen
+    /// doesn't keep offering to remove it.</summary>
+    public event Action<LibrarySectionKind, CatalogEntry>? RemovedFromLibrary;
+
+    public void NotifyRemovedFromLibrary(LibrarySectionKind kind, CatalogEntry entry) =>
+        RemovedFromLibrary?.Invoke(kind, entry);
+
     /// <summary>The song's rating as every thumb shows it, so the track menu agrees
     /// with the row and player-bar buttons.</summary>
     public Rating? RatingOf(TrackInfo track) => _ratings?.Of(track) ?? track.Rating;

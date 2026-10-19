@@ -248,6 +248,28 @@ public sealed class LibraryTests
     }
 
     [Fact]
+    public async Task UnsubscribingFromACardOnTheTab_DropsItsCardAtOnce()
+    {
+        var library = Library();
+        library.SelectedSection = library.Section(LibrarySectionKind.Artists);
+        var shown = library.EnsureLoadedAsync();
+        var daftPunk = new ArtistEntry { Title = "Daft Punk", BrowseId = "UC1" };
+        _catalog.LibraryCalls[^1].Complete(null, [daftPunk, new ArtistEntry { Title = "Justice", BrowseId = "UC2" }]);
+        await shown;
+        var collections = new CollectionActionsViewModel(_catalog, FakePlayback.Coordinator(new QueueModel()), _actions)
+        {
+            IsSignedIn = () => true,
+        };
+
+        var unsubscribe = CollectionMenuModel.Build(daftPunk, collections, inLibrary: true)
+            .SelectMany(g => g).Single(e => e.Header == "Unsubscribe");
+        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)unsubscribe.Command).ExecuteAsync(unsubscribe.Parameter);
+
+        Assert.Equal(["unsubscribe UC1"], _catalog.LibraryEdits);
+        Assert.Equal(["Justice"], library.Section(LibrarySectionKind.Artists).Items.Select(e => e.Title));
+    }
+
+    [Fact]
     public void GoingBackToTheLibrary_AfterASave_ReloadsTheChangedTab()
     {
         _catalog.Album = Album(inLibrary: false);

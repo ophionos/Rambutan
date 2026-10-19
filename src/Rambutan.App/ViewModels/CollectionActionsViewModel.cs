@@ -162,7 +162,7 @@ public sealed partial class CollectionActionsViewModel
 
     private async Task SetInLibraryAsync(CatalogEntry? entry, bool add)
     {
-        var (done, _) = await WhileLoadingAsync(entry, async e =>
+        var (done, section) = await WhileLoadingAsync(entry, async e =>
         {
             switch (e)
             {
@@ -173,18 +173,16 @@ public sealed partial class CollectionActionsViewModel
                         ?? (await _catalog.GetAlbumAsync(album.BrowseId)).AudioPlaylistId
                         ?? throw new InvalidOperationException(Strings.Get("card.noAlbumPlaylist"));
                     await _catalog.SetAlbumInLibraryAsync(id, add);
-                    _actions.NotifyLibraryChanged(LibrarySectionKind.Albums);
-                    break;
+                    return LibrarySectionKind.Albums;
                 case PlaylistEntry playlist:
                     await _catalog.SetPlaylistInLibraryAsync(playlist.PlaylistId, add);
-                    _actions.NotifyLibraryChanged(LibrarySectionKind.Playlists);
-                    break;
+                    return LibrarySectionKind.Playlists;
                 case ArtistEntry artist:
                     await _catalog.SetArtistSubscribedAsync(artist.BrowseId, add);
-                    _actions.NotifyLibraryChanged(LibrarySectionKind.Artists);
-                    break;
+                    return LibrarySectionKind.Artists;
+                default:
+                    throw new NotSupportedException();
             }
-            return true;
         }, (e, ex) => ex is NotSignedInException
             ? Strings.Get("toast.library.signIn")
             : e is ArtistEntry
@@ -193,6 +191,9 @@ public sealed partial class CollectionActionsViewModel
         if (!done)
             return;
 
+        _actions.NotifyLibraryChanged(section);
+        if (!add)
+            _actions.NotifyRemovedFromLibrary(section, entry!);
         _actions.Report(entry is ArtistEntry
             ? Strings.Format(add ? "toast.artist.subscribedTo" : "toast.artist.unsubscribedFrom", ("name", entry.Title))
             : Strings.Format(add ? "toast.library.saved" : "toast.library.removed", ("title", entry!.Title)));

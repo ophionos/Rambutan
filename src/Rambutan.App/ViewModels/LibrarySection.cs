@@ -79,6 +79,17 @@ public partial class LibrarySection : ViewModelBase
     /// <summary>The library changed under this tab; it reloads when next shown.</summary>
     public void MarkStale() => _stale = true;
 
+    /// <summary>Drops a card removed from the library from its own menu, at once.
+    /// Entries are records, so an equal entry matches.</summary>
+    public void RemoveEntry(CatalogEntry entry)
+    {
+        for (var i = Items.Count - 1; i >= 0; i--)
+        {
+            if (Equals(Items[i], entry))
+                Items.RemoveAt(i);
+        }
+    }
+
     /// <summary>Songs tab: drops a song removed from the library elsewhere, at once,
     /// as YouTube Music does; the next page's token stays good.</summary>
     public void RemoveSong(string videoId)
