@@ -228,12 +228,13 @@ public class VisualizerStyleSettingTests
             reads++;
             return Task.FromResult(Png(url == "red" ? SKColors.Red : SKColors.Blue));
         });
+        // Each check names what it read, so a failure says why.
         await colors.Pending;
-        Assert.True(colors.Color!.Value.R > 0xC0);
+        Assert.True(colors.Color is { R: > 0xC0 }, $"red cover read as {colors.Color?.ToString() ?? "null"}");
 
         player.ArtworkUrl = "blue";
         await colors.Pending;
-        Assert.True(colors.Color!.Value.B > 0xC0);
+        Assert.True(colors.Color is { B: > 0xC0 }, $"blue cover read as {colors.Color?.ToString() ?? "null"}, reads: {reads}");
         Assert.Equal(2, reads);
     }
 
