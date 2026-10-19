@@ -8,7 +8,8 @@ using Rambutan.Integrations.LastFm;
 
 // Records live InnerTube responses as parser test fixtures.
 // Authed recordings are scrubbed automatically — identity fields are redacted
-// and the account display name is replaced everywhere it appears. Review the
+// and the account display name is replaced everywhere it appears, as are the
+// account's own playlists and the channel they link. Review the
 // diff before committing anyway; the scrubber is a net, not a guarantee.
 
 const string FixturesDir = "tests/Rambutan.InnerTube.Tests/Fixtures";
@@ -155,7 +156,7 @@ void Save(JsonDocument response, string path)
 
     if (cookiesPath is not null)
     {
-        var redactions = Scrub(root, redactedKeys, accountName);
+        var redactions = Scrub(root, redactedKeys, accountName) + ScrubOwnPlaylists(root);
         Console.WriteLine($"scrubbed: {redactions} value(s) redacted");
     }
 
@@ -475,6 +476,110 @@ static int Scrub(JsonNode node, string[] redactedKeys, string? accountName)
     }
 
     return count;
+}
+
+// The account's own playlists: a card whose menu offers Edit playlist
+// (playlistEditorEndpoint). Their ids lead back to the account, their bylines
+// link its channel, and their titles and covers are the user's, so each is
+// replaced everywhere in the response: ids and titles as text, the channel id,
+// and the card's thumbnails. Titles are replaced inside longer strings too
+// (accessibility labels repeat them), which can catch unrelated text that
+// happens to contain one.
+static int ScrubOwnPlaylists(JsonNode root)
+{
+    var replacements = new Dictionary<string, string>(StringComparer.Ordinal);
+    var count = 0;
+    var n = 0;
+
+    foreach (var card in Descendants(root).OfType<JsonObject>()
+                 .SelectMany(o => new[] { o["musicTwoRowItemRenderer"], o["musicResponsiveListItemRenderer"] })
+                 .OfType<JsonObject>()
+                 .ToList())
+    {
+        var editor = Descendants(card).OfType<JsonObject>()
+            .Select(o => o["playlistEditorEndpoint"]?["playlistId"]?.GetValue<string>())
+            .FirstOrDefault(id => id is { Length: > 0 });
+        if (editor is null)
+            continue;
+
+        n++;
+        replacements.TryAdd(editor, $"PLredacted{n:D2}");
+
+        var title = card["title"] ?? card["flexColumns"]?[0]?["musicResponsiveListItemFlexColumnRenderer"]?["text"];
+        if (title?["runs"] is JsonArray runs)
+        {
+            var text = string.Concat(runs.Select(r => r?["text"]?.GetValue<string>()));
+            if (text.Length > 0)
+                replacements.TryAdd(text, $"My playlist {n}");
+            // A title split over runs wouldn't match as one string.
+            runs.Clear();
+            runs.Add((JsonNode)new JsonObject { ["text"] = $"My playlist {n}" });
+            count++;
+        }
+
+        // The byline's channel link is the owner's: the account's own channel.
+        foreach (var id in Descendants(card["subtitle"] ?? card["flexColumns"])
+                     .OfType<JsonObject>()
+                     .Select(o => o["browseEndpoint"]?["browseId"]?.GetValue<string>())
+                     .Where(id => id is not null && id.StartsWith("UC", StringComparison.Ordinal)))
+        {
+            replacements.TryAdd(id!, "UCredactedredactedredact");
+        }
+
+        foreach (var url in Descendants(card["thumbnailRenderer"] ?? card["thumbnail"])
+                     .OfType<JsonObject>()
+                     .Where(o => o["url"] is JsonValue))
+        {
+            url["url"] = $"https://i.ytimg.com/vi/redacted{n}/hqdefault.jpg";
+            count++;
+        }
+    }
+
+    if (replacements.Count == 0)
+        return count;
+
+    // Longest first, so a title that contains another is replaced whole.
+    var ordered = replacements.OrderByDescending(r => r.Key.Length).ToList();
+    foreach (var node in Descendants(root).ToList())
+    {
+        if (node is not JsonValue value || value.GetValueKind() != JsonValueKind.String)
+            continue;
+        var text = value.GetValue<string>();
+        var scrubbed = ordered.Aggregate(text, (s, r) => s.Replace(r.Key, r.Value, StringComparison.Ordinal));
+        if (scrubbed == text)
+            continue;
+        switch (node.Parent)
+        {
+            case JsonObject parent:
+                parent[node.GetPropertyName()] = scrubbed;
+                break;
+            case JsonArray parent:
+                parent[node.GetElementIndex()] = scrubbed;
+                break;
+        }
+        count++;
+    }
+
+    Console.WriteLine($"own playlists: {n} scrubbed");
+    return count;
+}
+
+static IEnumerable<JsonNode> Descendants(JsonNode? node)
+{
+    if (node is null)
+        yield break;
+    yield return node;
+    var children = node switch
+    {
+        JsonObject obj => obj.Select(p => p.Value),
+        JsonArray array => array.AsEnumerable(),
+        _ => [],
+    };
+    foreach (var child in children)
+    {
+        foreach (var descendant in Descendants(child))
+            yield return descendant;
+    }
 }
 
 static bool TryScrubString(JsonNode? node, string? accountName, out string replaced)
