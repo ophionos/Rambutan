@@ -24,7 +24,25 @@ public sealed class YouTubeMatchesTests : IDisposable
         Add("local:3", title: null, artist: "Pulp");
     }
 
-    public void Dispose() => Directory.Delete(_dir, recursive: true);
+    // A match saves, and keeps its cover, after the answer is announced, so a
+    // write can still be running when a test ends; Windows refuses to delete
+    // a folder with a file open in it.
+    public void Dispose()
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(_dir))
+                    Directory.Delete(_dir, recursive: true);
+                return;
+            }
+            catch (IOException) when (attempt < 50)
+            {
+                Thread.Sleep(20);
+            }
+        }
+    }
 
     private void Add(string id, string? title, string? artist, string? cover = null) =>
         _files[id] = new LocalFile(id, Path.Combine(_dir, id[6..] + ".mp3"), 1, DateTimeOffset.UnixEpoch,
