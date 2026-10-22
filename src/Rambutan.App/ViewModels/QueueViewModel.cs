@@ -24,6 +24,37 @@ public sealed partial class QueueItemViewModel(TrackInfo track) : ObservableObje
 {
     public TrackInfo Track { get; } = track;
     public string Title => Track.Title;
+
+    private string? _artworkUrl;
+    private bool _artworkRead;
+
+    /// <summary>The row's cover (<see cref="Rambutan.App.Converters.ArtworkConverter.For"/>),
+    /// read when it is first shown.</summary>
+    public string? ArtworkUrl
+    {
+        get
+        {
+            if (!_artworkRead)
+            {
+                _artworkUrl = Rambutan.App.Converters.ArtworkConverter.For(Track);
+                _artworkRead = true;
+            }
+            return _artworkUrl;
+        }
+    }
+
+    /// <summary>Reads the cover again, for a local file a scan can give another
+    /// one; the row tells its view only when it changed.</summary>
+    public void RefreshArtwork()
+    {
+        if (!_artworkRead)
+            return;
+        var url = Rambutan.App.Converters.ArtworkConverter.For(Track);
+        if (url == _artworkUrl)
+            return;
+        _artworkUrl = url;
+        OnPropertyChanged(nameof(ArtworkUrl));
+    }
     public string Artist => Track.ArtistDisplay;
 
     /// <summary>Position in the queue as of the last refresh.</summary>
@@ -121,7 +152,7 @@ public partial class QueueViewModel : ViewModelBase, ITrackMenuHost
     /// that need a connection while offline; either null, no row is marked.</param>
     /// <param name="playsOffline">Also marks the local files that won't play.</param>
     /// <param name="localFilesChanged">Subscribes to changes of the local index,
-    /// after which the local rows are checked again.</param>
+    /// after which the local rows are checked again, and their covers read.</param>
     public QueueViewModel(
         QueueModel queue, PlaybackCoordinator? coordinator,
         NetworkStatus? network = null, IOfflineAvailability? playsOffline = null,
@@ -140,8 +171,14 @@ public partial class QueueViewModel : ViewModelBase, ITrackMenuHost
         });
         localFilesChanged?.Invoke(() => Dispatcher.UIThread.Post(() =>
         {
-            if (HasLocalRows)
-                _ = UpdateAvailabilityAsync();
+            if (!HasLocalRows)
+                return;
+            _ = UpdateAvailabilityAsync();
+            foreach (var item in Items)
+            {
+                if (LocalIds.IsLocal(item.Track.VideoId))
+                    item.RefreshArtwork();
+            }
         }));
         if (network is not null)
             network.Changed += offline => Dispatcher.UIThread.Post(() => _ = UpdateAvailabilityAsync());

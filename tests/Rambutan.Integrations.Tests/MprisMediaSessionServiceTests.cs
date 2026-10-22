@@ -35,9 +35,10 @@ public sealed class MprisMediaSessionServiceTests : IAsyncLifetime
         return default;
     }
 
-    private async Task<(MprisMediaSessionService Service, string Name)> StartAsync()
+    private async Task<(MprisMediaSessionService Service, string Name)> StartAsync(
+        Func<string, (string Path, string? Cover)?>? localFile = null)
     {
-        var service = new MprisMediaSessionService("Rambutan test", _address);
+        var service = new MprisMediaSessionService("Rambutan test", _address, localFile: localFile);
         _services.Add(service);
         var name = await service.ConnectAsync();
         Assert.NotNull(name);
@@ -141,6 +142,38 @@ public sealed class MprisMediaSessionServiceTests : IAsyncLifetime
         Assert.Equal(["The Quiet Harbour", "Guest"], metadata["xesam:artist"].GetArray<string>());
         Assert.Equal(212_000_000, metadata["mpris:length"].GetInt64());
         Assert.Equal("Playing", (await GetAsync(name, Player, "PlaybackStatus")).GetString());
+    }
+
+    [Fact]
+    public async Task A_new_cover_is_announced_without_moving_the_position()
+    {
+        var cover = "/data/local-covers/old.jpg";
+        var (service, name) = await StartAsync(id => id == "local:1" ? ("/music/a.flac", cover) : null);
+        service.UpdateNowPlaying(MprisPlayerStateTests.Track("local:1") with { ThumbnailUrl = null });
+        service.UpdateTimeline(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(3));
+        var changed = new TaskCompletionSource<Dictionary<string, VariantValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var watch = await _client!.WatchSignalAsync(null, Path, Properties, "PropertiesChanged",
+            static (m, _) =>
+            {
+                var reader = m.GetBodyReader();
+                reader.ReadString();
+                return reader.ReadDictionaryOfStringToVariantValue();
+            },
+            (Notification<Dictionary<string, VariantValue>> n) =>
+            {
+                if (n.HasValue && n.Value.ContainsKey("Metadata"))
+                    changed.TrySetResult(n.Value);
+            },
+            ObserverFlags.None, false, null);
+
+        cover = "/data/local-covers/new.jpg";
+        service.UpdateArtwork();
+
+        var announced = await changed.Task.WaitAsync(Timeout);
+        Assert.Equal(["Metadata"], announced.Keys);
+        var metadata = announced["Metadata"].GetDictionary<string, VariantValue>();
+        Assert.Equal("file:///data/local-covers/new.jpg", metadata["mpris:artUrl"].GetString());
+        Assert.Equal(30_000_000, (await GetAsync(name, Player, "Position")).GetInt64());
     }
 
     [Fact]

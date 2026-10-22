@@ -288,7 +288,9 @@ file sink), never to files directly.
   copied into the cover cache, and a changed picture updates it without
   reading the track again. Covers come by id through
   `Services/KeptCovers`, never as a URL in the track, so no file path reaches
-  Discord or `queue.json`. The YouTube-only actions (radio, like, library,
+  Discord or `queue.json`; when the index changes, the player bar, the queue
+  rows and the media session read the playing file's cover again
+  (`IMediaSessionService.UpdateArtwork`). The YouTube-only actions (radio, like, library,
   playlists, download, share) are off for such a track
   (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice.
   Library has two sources, YouTube Music and On this computer

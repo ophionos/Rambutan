@@ -20,6 +20,7 @@ public sealed class SmtcMediaSessionService(Func<string, string?>? localCover = 
 {
     private MediaPlayer? _player;
     private SystemMediaTransportControls? _smtc;
+    private TrackInfo? _track;
     private TimeSpan _lastPushedPosition = TimeSpan.MinValue;
     private TimeSpan? _lastPushedDuration;
 
@@ -79,6 +80,7 @@ public sealed class SmtcMediaSessionService(Func<string, string?>? localCover = 
         if (_smtc is null)
             return;
 
+        _track = track;
         var updater = _smtc.DisplayUpdater;
         if (track is null)
         {
@@ -96,8 +98,17 @@ public sealed class SmtcMediaSessionService(Func<string, string?>? localCover = 
         updater.Update();
     }
 
+    public void UpdateArtwork()
+    {
+        if (_smtc is null || _track is null)
+            return;
+        var updater = _smtc.DisplayUpdater;
+        updater.Thumbnail = Thumbnail(SmtcArtwork.For(_track, localCover));
+        updater.Update();
+    }
+
     /// <summary>
-    /// A cover file is read here, once per track, rather than handed over as a
+    /// A cover file is read here, once per track and cover, rather than handed over as a
     /// file: <c>CreateFromUri</c> isn't documented to take <c>file:</c>, and a
     /// <c>StorageFile</c> only comes asynchronously. The bytes go into a WinRT
     /// <see cref="InMemoryRandomAccessStream"/>: Windows showed no picture from

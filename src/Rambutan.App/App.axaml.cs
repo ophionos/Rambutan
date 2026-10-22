@@ -593,7 +593,8 @@ public partial class App : Application
                 sp.GetRequiredService<PlaybackCoordinator>(),
                 sp.GetRequiredService<QueueModel>(),
                 sp.GetRequiredService<TrackRatings>(),
-                sp.GetRequiredService<ToastHostViewModel>());
+                sp.GetRequiredService<ToastHostViewModel>(),
+                changed => sp.GetRequiredService<LocalLibraryScans>().Changed += changed);
             vm.SettingsEdited += () => RequestPersist(sp);
             return vm;
         });
@@ -907,15 +908,29 @@ public partial class App : Application
         // can start it.
         // Every queue edit raises Changed; only a different track is pushed.
         var queue = coordinator.Queue;
+        var covers = _services!.GetRequiredService<KeptCovers>();
         TrackInfo? shown = null;
+        string? shownCover = null;
         void Show()
         {
             var track = coordinator.NowPlaying ?? queue.Current;
             if (track == shown)
                 return;
             shown = track;
+            shownCover = track is null ? null : covers.PathFor(track.VideoId);
             session.UpdateNowPlaying(track);
         }
+        // A scan can give the local file that plays another cover, or take it away.
+        _services!.GetRequiredService<LocalLibraryScans>().Changed += () => Dispatcher.UIThread.Post(() =>
+        {
+            if (shown is not { } track || !Rambutan.Core.Local.LocalIds.IsLocal(track.VideoId))
+                return;
+            var cover = covers.PathFor(track.VideoId);
+            if (cover == shownCover)
+                return;
+            shownCover = cover;
+            session.UpdateArtwork();
+        });
         // The session drops repeats of the same mode, so every queue edit can push both.
         void ShowModes()
         {

@@ -755,7 +755,7 @@
                         Margin="0,0,12,0" VerticalAlignment="Center" Background="{StaticResource Token.Brush.Overlay.14}">
                   <Panel>
                     <PathIcon Data="{StaticResource Icon.MusicNote}" Width="16" Height="16" Opacity="0.35" />
-                    <controls:RemoteImage Url="{Binding Track, Converter={x:Static conv:ArtworkConverter.Instance}}" Stretch="UniformToFill" DecodeWidth="96" />
+                    <controls:RemoteImage Url="{Binding ArtworkUrl}" Stretch="UniformToFill" DecodeWidth="96" />
                     <Panel Background="#99000000" IsVisible="{Binding IsCurrent}">
                       <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16"
                                 Foreground="{StaticResource Token.Brush.Accent}" />

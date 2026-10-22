@@ -9,6 +9,7 @@ using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Queue;
 using Rambutan.App.Localization;
+using Rambutan.Core.Local;
 
 namespace Rambutan.App.ViewModels;
 
@@ -106,9 +107,11 @@ public partial class PlayerBarViewModel : ViewModelBase
         DurationDisplay = "5:38";
     }
 
+    /// <param name="localFilesChanged">Subscribes to changes of the local index,
+    /// after which a local track's cover is read again.</param>
     public PlayerBarViewModel(
         PlaybackCoordinator coordinator, QueueModel queue, TrackRatings? ratings,
-        ToastHostViewModel? toasts = null)
+        ToastHostViewModel? toasts = null, Action<Action>? localFilesChanged = null)
     {
         _coordinator = coordinator;
         _queue = queue;
@@ -129,6 +132,7 @@ public partial class PlayerBarViewModel : ViewModelBase
             if (NowPlaying is null)
                 Show(_queue.Current);
         });
+        localFilesChanged?.Invoke(() => Dispatcher.UIThread.Post(RefreshArtwork));
 
         if (coordinator is null)
             return;
@@ -205,6 +209,14 @@ public partial class PlayerBarViewModel : ViewModelBase
         if (track is not null)
             _ = LookUpRatingAsync(track);
         ResetProgress(track);
+    }
+
+    /// <summary>Reads the shown local track's cover again: a scan can give the
+    /// file another one, or take it away. Public so tests can drive it.</summary>
+    public void RefreshArtwork()
+    {
+        if (ShownTrack is { } track && LocalIds.IsLocal(track.VideoId))
+            ArtworkUrl = Rambutan.App.Converters.ArtworkConverter.For(track);
     }
 
     /// <summary>"Artist • Album", the second line under the title.</summary>
