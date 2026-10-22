@@ -63,10 +63,15 @@ public sealed class LocalMatcher(
     public static readonly TimeSpan FoundLifetime = StationMatchCache.SongLifetime;
     public static readonly TimeSpan NotFoundLifetime = StationMatchCache.NoSongLifetime;
 
+    /// <summary>How long <see cref="Request"/> leaves a failed search alone. A
+    /// failure is announced, and what shows it asks again; without a wait, an
+    /// open menu would search over and over while offline.</summary>
+    public static readonly TimeSpan RetryAfter = TimeSpan.FromSeconds(30);
+
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
     private readonly Dictionary<string, LocalMatch> _known = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (string Key, Task<LocalMatch?> Search)> _pending = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> _failed = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (string Key, DateTimeOffset At)> _failed = new(StringComparer.Ordinal);
     private readonly Lock _lock = new();
 
     /// <summary>A search for <c>id</c> ended, found or not, or failed. Raised on
@@ -84,7 +89,7 @@ public sealed class LocalMatcher(
                 return match.Song is { } song ? new(LocalMatchState.Found, song) : new(LocalMatchState.NotFound);
             if (_pending.TryGetValue(id, out var pending) && pending.Key == query.Key)
                 return new(LocalMatchState.Searching);
-            return _failed.TryGetValue(id, out var failed) && failed == query.Key
+            return _failed.TryGetValue(id, out var failed) && failed.Key == query.Key
                 ? new(LocalMatchState.Failed)
                 : new(LocalMatchState.NotSearched);
         }
@@ -117,12 +122,19 @@ public sealed class LocalMatcher(
         return (await search.WaitAsync(ct).ConfigureAwait(false))?.Song;
     }
 
-    /// <summary>Starts a search when nothing current is known or pending; the
+    /// <summary>Starts a search when nothing current is known or pending, and
+    /// no search for the same tags failed within <see cref="RetryAfter"/>; the
     /// answer arrives through <see cref="Changed"/>.</summary>
     public void Request(string id, LocalMatchQuery? query)
     {
         if (query is null)
             return;
+        lock (_lock)
+        {
+            if (_failed.TryGetValue(id, out var failed) && failed.Key == query.Key
+                && _clock.GetUtcNow() - failed.At is var age && age >= TimeSpan.Zero && age < RetryAfter)
+                return;
+        }
         var search = MatchAsync(id, query);
         // Seen here so an unobserved failure doesn't surface later; it is in
         // StatusOf as Failed.
@@ -155,7 +167,7 @@ public sealed class LocalMatcher(
         {
             lock (_lock)
             {
-                _failed[id] = query.Key;
+                _failed[id] = (query.Key, _clock.GetUtcNow());
                 RemovePending(id, query.Key);
             }
             Changed?.Invoke(id);

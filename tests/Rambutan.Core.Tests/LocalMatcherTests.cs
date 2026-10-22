@@ -139,6 +139,27 @@ public class LocalMatcherTests
     }
 
     [Fact]
+    public async Task A_request_leaves_a_fresh_failure_alone_until_the_wait_is_over()
+    {
+        var searches = 0;
+        var matcher = new LocalMatcher((_, _) =>
+        {
+            Interlocked.Increment(ref searches);
+            return Task.FromException<IReadOnlyList<TrackInfo>>(new HttpRequestException("offline"));
+        }, _time);
+        var query = LocalMatchQuery.Of(Tags("Disco 2000", "Pulp"));
+        await Assert.ThrowsAsync<HttpRequestException>(() => matcher.MatchAsync("local:1", query));
+
+        matcher.Request("local:1", query);
+        Assert.Equal(LocalMatchState.Failed, matcher.StatusOf("local:1", query).State);
+        Assert.Equal(1, searches);
+
+        _time.Now += LocalMatcher.RetryAfter;
+        matcher.Request("local:1", query);
+        await TestTracks.WaitUntilAsync(() => Volatile.Read(ref searches) == 2);
+    }
+
+    [Fact]
     public async Task Requests_while_a_search_runs_share_it()
     {
         var gate = new TaskCompletionSource<IReadOnlyList<TrackInfo>>(TaskCreationOptions.RunContinuationsAsynchronously);

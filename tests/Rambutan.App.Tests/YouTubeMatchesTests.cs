@@ -189,6 +189,40 @@ public sealed class YouTubeMatchesTests : IDisposable
     }
 
     [Fact]
+    public async Task A_failed_search_says_so_and_the_menu_filling_again_does_not_search_again()
+    {
+        var searches = 0;
+        var matches = new YouTubeMatches(
+            new LocalMatcher((_, _) =>
+            {
+                Interlocked.Increment(ref searches);
+                return Task.FromException<IReadOnlyList<TrackInfo>>(new HttpRequestException("offline"));
+            }),
+            id => _files.GetValueOrDefault(id), _dir, (_, _) => Task.FromResult(Array.Empty<byte>()))
+        {
+            Enabled = true,
+        };
+        var actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, new ToastHostViewModel())
+        {
+            YouTubeMatches = matches,
+        };
+        var announced = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        matches.Changed += () => announced.TrySetResult();
+        var local = Local("local:1", "Disco 2000");
+
+        Assert.Equal(LocalMatchState.Searching, matches.StatusOf(local)!.Value.State);
+        await announced.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        // What the open menu does when told: it builds itself again.
+        var group = TrackMenuModel.Build(local, actions)[1];
+
+        Assert.Equal("Couldn't reach YouTube Music", group[0].Header);
+        Assert.All(group, e => Assert.False(e.IsEnabled));
+        Assert.Equal(LocalMatchState.Failed, matches.StatusOf(local)!.Value.State);
+        await Task.Delay(50);
+        Assert.Equal(1, Volatile.Read(ref searches));
+    }
+
+    [Fact]
     public void Without_matching_a_local_file_menu_has_no_YouTube_Music_group()
     {
         var actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, new ToastHostViewModel())
