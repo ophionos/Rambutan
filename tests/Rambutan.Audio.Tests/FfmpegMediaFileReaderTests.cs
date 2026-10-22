@@ -99,16 +99,6 @@ public class FfmpegMediaFileReaderTests
         }
     }
 
-    [Fact]
-    public void Id3v2Length_IncludesTheHeader()
-    {
-        // Size 0x01 0x00 in synchsafe bytes is 128.
-        byte[] tag = [(byte)'I', (byte)'D', (byte)'3', 3, 0, 0, 0, 0, 1, 0];
-
-        Assert.Equal(138, FfmpegMediaFileReader.Id3v2Length(new MemoryStream(tag)));
-        Assert.Equal(0, FfmpegMediaFileReader.Id3v2Length(new MemoryStream("fLaC"u8.ToArray())));
-    }
-
     private static class Libav
     {
         public static bool Available { get; } = TryInitialize();
@@ -135,4 +125,29 @@ public class FfmpegMediaFileReaderTests
             }
         }
     }
+}
+
+/// <summary>The ID3v2 skip, which needs no libav.</summary>
+public class Id3v2LengthTests
+{
+    [Fact]
+    public void IncludesTheHeader()
+    {
+        // Size 0x01 0x00 in synchsafe bytes is 128.
+        byte[] tag = [(byte)'I', (byte)'D', (byte)'3', 3, 0, 0, 0, 0, 1, 0];
+
+        Assert.Equal(138, FfmpegMediaFileReader.Id3v2Length(new MemoryStream(tag)));
+    }
+
+    [Fact]
+    public void AddsTheFooter_WhenTheFlagSaysThereIsOne()
+    {
+        byte[] tag = [(byte)'I', (byte)'D', (byte)'3', 4, 0, 0x10, 0, 0, 1, 0];
+
+        Assert.Equal(148, FfmpegMediaFileReader.Id3v2Length(new MemoryStream(tag)));
+    }
+
+    [Fact]
+    public void IsZero_WithoutATag() =>
+        Assert.Equal(0, FfmpegMediaFileReader.Id3v2Length(new MemoryStream("fLaC"u8.ToArray())));
 }
