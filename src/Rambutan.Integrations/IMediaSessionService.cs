@@ -14,6 +14,10 @@ public interface IMediaSessionService : IDisposable
 
     void UpdateNowPlaying(TrackInfo? track);
 
+    /// <summary>The current track's cover changed (a scan gave a local file
+    /// another one, or took it away): shows it again, nothing else.</summary>
+    void UpdateArtwork();
+
     void UpdatePlaybackState(SessionPlaybackStatus status);
 
     void UpdateTimeline(TimeSpan position, TimeSpan? duration);
@@ -85,6 +89,7 @@ public sealed class NullMediaSessionService : IMediaSessionService
 
     public void Initialize(nint windowHandle) { }
     public void UpdateNowPlaying(TrackInfo? track) { }
+    public void UpdateArtwork() { }
     public void UpdatePlaybackState(SessionPlaybackStatus status) { }
     public void UpdateVolume(double volume) { }
     public void UpdateShuffle(bool shuffle) { }

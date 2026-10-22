@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using Rambutan.Core.Links;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.App.Localization;
 
@@ -37,6 +39,9 @@ public interface ITrackMenuHost
 /// </summary>
 public static class TrackMenuModel
 {
+    // The match's line only names it; it does nothing.
+    private static readonly ICommand Nothing = new RelayCommand(() => { });
+
     public static IReadOnlyList<IReadOnlyList<MenuEntry>> Build(
         TrackInfo track, TrackActionsViewModel actions, TrackMenuExtras? extras = null)
     {
@@ -101,9 +106,42 @@ public static class TrackMenuModel
         var groups = new List<IReadOnlyList<MenuEntry>> { play };
         if (onYouTube)
             groups.Add(library);
+        else if (actions.YouTubeMatches?.StatusOf(track) is { } match)
+            groups.Add(MatchGroup(match, actions));
         groups.Add(navigate);
         if (extras.Edit is { Count: > 0 } edit)
             groups.Add(edit);
         return groups;
+    }
+
+    /// <summary>
+    /// A local file's YouTube Music song: a line that names it, or says why there
+    /// is none, and the actions that take it, off without one. They act on the
+    /// song as a YouTube Music track's own entries do, so a like or a playlist
+    /// gets the song, never the file.
+    /// </summary>
+    private static List<MenuEntry> MatchGroup(LocalMatchStatus match, TrackActionsViewModel actions)
+    {
+        var song = match.Song;
+        var line = match.State switch
+        {
+            LocalMatchState.Found when song is not null =>
+                Strings.Format("menu.match.found", ("title", song.Title), ("artist", song.ArtistDisplay)),
+            LocalMatchState.NotFound => Strings.Get("menu.match.notFound"),
+            LocalMatchState.NoTitle => Strings.Get("menu.match.noTitle"),
+            LocalMatchState.Failed => Strings.Get("menu.match.failed"),
+            _ => Strings.Get("menu.match.searching"),
+        };
+        var liked = song is not null && actions.RatingOf(song) is Rating.Like;
+        return
+        [
+            new(line, "Icon.Search", Nothing, null, IsEnabled: false),
+            new(Strings.Get("menu.startMix"), "Icon.Radio", actions.StartRadioCommand, song, IsEnabled: song is not null),
+            liked
+                ? new(Strings.Get("rating.removeLike"), "Icon.ThumbUp", actions.LikeCommand, song)
+                : new(Strings.Get("rating.like"), "Icon.ThumbUpOutline", actions.LikeCommand, song, IsEnabled: song is not null),
+            new(Strings.Get("menu.saveToPlaylist"), "Icon.AddToPlaylist", actions.AddToPlaylistCommand, song,
+                IsEnabled: song is not null),
+        ];
     }
 }

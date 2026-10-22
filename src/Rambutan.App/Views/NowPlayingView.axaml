@@ -110,7 +110,7 @@
                 Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
                 CommandParameter="{Binding Player.ShownTrack}"
                 Classes.inert="{Binding Player.ShownTrack.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}"
-                ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.Album}}">
+                ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.DisplayedTrack.Album}}">
           <TextBlock Text="{Binding Player.Title}"
                      TextAlignment="Center" TextWrapping="Wrap" MaxLines="2"
                      TextTrimming="CharacterEllipsis" />
@@ -122,18 +122,18 @@
                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToArtistCommand}"
                   CommandParameter="{Binding Player.ShownTrack.PrimaryArtist}"
                   Classes.inert="{Binding Player.ShownTrack.PrimaryArtist, Converter={x:Static ObjectConverters.IsNull}}"
-                  ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.PrimaryArtist.Name}}">
-            <TextBlock Text="{Binding Player.ShownTrack.ArtistDisplay}" TextTrimming="CharacterEllipsis" />
+                  ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.DisplayedTrack.PrimaryArtist.Name}}">
+            <TextBlock Text="{Binding Player.DisplayedTrack.ArtistDisplay}" TextTrimming="CharacterEllipsis" />
           </Button>
           <TextBlock Text=" • " FontSize="15" VerticalAlignment="Center"
-                     IsVisible="{Binding Player.ShownTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                     IsVisible="{Binding Player.DisplayedTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
           <Button Classes="link" FontSize="15" MaxWidth="250"
                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
                   CommandParameter="{Binding Player.ShownTrack}"
                   Classes.inert="{Binding Player.ShownTrack.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}"
-                  IsVisible="{Binding Player.ShownTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                  ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.Album}}">
-            <TextBlock Text="{Binding Player.ShownTrack.Album}" TextTrimming="CharacterEllipsis" />
+                  IsVisible="{Binding Player.DisplayedTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                  ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.DisplayedTrack.Album}}">
+            <TextBlock Text="{Binding Player.DisplayedTrack.Album}" TextTrimming="CharacterEllipsis" />
           </Button>
         </WrapPanel>
       </StackPanel>
@@ -215,7 +215,7 @@
                   IsHitTestVisible="False" IsVisible="{Binding IsFullscreen}">
         <TextBlock Text="{Binding Player.Title}" FontSize="24" FontWeight="SemiBold"
                    TextTrimming="CharacterEllipsis" />
-        <TextBlock Text="{Binding Player.ShownTrack.ArtistDisplay}" FontSize="15" Opacity="0.75"
+        <TextBlock Text="{Binding Player.DisplayedTrack.ArtistDisplay}" FontSize="15" Opacity="0.75"
                    Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
       </StackPanel>
 

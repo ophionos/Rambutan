@@ -87,6 +87,13 @@ public partial class App : Application
             _services.GetRequiredService<PlaybackCoordinator>().NowPlayingChanged +=
                 _ => Task.Run(downloads.RetryLeftovers);
             Converters.ArtworkConverter.LocalArtwork = _services.GetRequiredService<KeptCovers>().PathFor;
+            // A local file is matched when it plays, and autoplay continues it
+            // with its match's radio; a menu waiting for a match fills again.
+            var matches = _services.GetRequiredService<YouTubeMatches>();
+            var playback = _services.GetRequiredService<PlaybackCoordinator>();
+            playback.RadioSeedFor = matches.RadioSeedAsync;
+            playback.NowPlayingChanged += matches.Request;
+            matches.Changed += () => Dispatcher.UIThread.Post(Controls.ContextMenuHost.RefreshOpen);
             // Downloads made before covers were kept get theirs, in the background.
             _ = Task.Run(() => downloads.FillMissingArtworkAsync(CancellationToken.None));
             // Linux has no install step, so the AppImage registers rambutan:// as it
@@ -349,12 +356,21 @@ public partial class App : Application
         // The watched folders' music, read through libav once ffmpeg is ready
         // (not yt-dlp, which a first start offline can't fetch).
         services.AddSingleton<FfmpegMediaFileReader>();
-        services.AddSingleton(sp => new LocalLibraryScans(new LocalFileIndex(
-            dataDir, sp.GetRequiredService<FfmpegMediaFileReader>(),
-            ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct),
-            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [])));
+        // Watched while the app runs too, except the app's own folders, whose
+        // log and index writes would start a scan after every scan.
+        services.AddSingleton(sp => new LocalLibraryScans(
+            new LocalFileIndex(
+                dataDir, sp.GetRequiredService<FfmpegMediaFileReader>(),
+                ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct),
+                () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [],
+                // Files opened from outside the watched folders are kept only
+                // while the queue holds them; it is restored before this runs.
+                queued: () => queue.Snapshot().Tracks.Select(t => t.VideoId).ToHashSet(StringComparer.Ordinal)),
+            new LocalFolderWatcher([dataDir, toolsDir]),
+            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []));
         services.AddSingleton(sp => new KeptCovers(
-            sp.GetRequiredService<DownloadStore>(), sp.GetRequiredService<LocalLibraryScans>().Index));
+            sp.GetRequiredService<DownloadStore>(), sp.GetRequiredService<LocalLibraryScans>().Index,
+            sp.GetRequiredService<YouTubeMatches>().CoverPathFor));
         services.AddSingleton(sp =>
         {
             var queue = new DownloadQueue(sp.GetRequiredService<DownloadStore>());
@@ -505,6 +521,15 @@ public partial class App : Application
         if (lastFm is not null)
             lastFm.Changed += () => Dispatcher.UIThread.Post(homeStations.ConnectionChanged);
         services.AddSingleton(homeStations);
+        // Local files matched to YouTube Music songs, off by default; through
+        // the stations' signed-out client, for the same reason.
+        services.AddSingleton(sp => new YouTubeMatches(
+            new Rambutan.Core.Local.LocalMatcher(stationSearch.SearchSongsAsync),
+            sp.GetRequiredService<LocalLibraryScans>().Index.Find, dataDir,
+            sp.GetRequiredService<ArtworkCache>().GetBytesAsync)
+        {
+            Enabled = settings.MatchLocalOnYouTubeMusic,
+        });
 
         services.AddSingleton(_ =>
         {
@@ -544,6 +569,11 @@ public partial class App : Application
             }));
 
         services.AddSingleton<ToastHostViewModel>();
+        services.AddSingleton(sp => new LocalFileOpener(
+            sp.GetRequiredService<LocalLibraryScans>().Index,
+            tracks => sp.GetRequiredService<PlaybackCoordinator>().PlayAfterCurrentAsync(tracks),
+            sp.GetRequiredService<QueueModel>().EnqueueRange,
+            sp.GetRequiredService<ToastHostViewModel>()));
         services.AddSingleton(sp => new TrackActionsViewModel(
             sp.GetRequiredService<ICatalog>(), sp.GetRequiredService<QueueModel>(),
             sp.GetRequiredService<PlaybackCoordinator>(), sp.GetRequiredService<TrackRatings>(),
@@ -551,6 +581,7 @@ public partial class App : Application
         {
             Downloads = sp.GetRequiredService<DownloadQueue>(),
             KeptCollections = sp.GetRequiredService<OfflineCollections>(),
+            YouTubeMatches = sp.GetRequiredService<YouTubeMatches>(),
             SongLibrary = new SongLibrary(sp.GetRequiredService<ICatalog>()),
         });
         // Export writes downloads out with the ffmpeg sidecar; off until the user
@@ -571,7 +602,7 @@ public partial class App : Application
         services.AddSingleton(sp => new QueueViewModel(
             sp.GetRequiredService<QueueModel>(), sp.GetRequiredService<PlaybackCoordinator>(),
             sp.GetRequiredService<NetworkStatus>(), sp.GetRequiredService<IStreamSource>() as IOfflineAvailability,
-            changed => sp.GetRequiredService<LocalLibraryScans>().Changed += changed));
+            changed => LocalTracksChanged(sp, changed)));
         services.AddSingleton(sp => new NowPlayingViewModel(
             sp.GetRequiredService<PlayerBarViewModel>(),
             sp.GetRequiredService<LyricsViewModel>(),
@@ -588,7 +619,11 @@ public partial class App : Application
                 sp.GetRequiredService<PlaybackCoordinator>(),
                 sp.GetRequiredService<QueueModel>(),
                 sp.GetRequiredService<TrackRatings>(),
-                sp.GetRequiredService<ToastHostViewModel>());
+                sp.GetRequiredService<ToastHostViewModel>(),
+                changed => LocalTracksChanged(sp, changed))
+            {
+                ShowAs = sp.GetRequiredService<YouTubeMatches>().Fill,
+            };
             vm.SettingsEdited += () => RequestPersist(sp);
             return vm;
         });
@@ -641,7 +676,7 @@ public partial class App : Application
                 defaultDownloads, () => RequestPersist(sp), sp.GetRequiredService<ExportSettings>()),
             Local = new LocalFilesSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<LocalLibraryScans>(),
-                () => RequestPersist(sp)),
+                () => RequestPersist(sp), matches: sp.GetRequiredService<YouTubeMatches>()),
             Remote = new RemoteSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PhoneRemoteService>(),
                 () => RequestPersist(sp)),
@@ -716,6 +751,14 @@ public partial class App : Application
         {
             // Offline or feed unreachable — try again next launch.
         }
+    }
+
+    /// <summary>Subscribes to what changes how a local track shows: a scan (its
+    /// cover) and a match (its cover and names).</summary>
+    private static void LocalTracksChanged(IServiceProvider services, Action changed)
+    {
+        services.GetRequiredService<LocalLibraryScans>().Changed += changed;
+        services.GetRequiredService<YouTubeMatches>().Changed += changed;
     }
 
     /// <summary>Coalesces bursts of settings edits (slider drags fire per tick)
@@ -902,15 +945,39 @@ public partial class App : Application
         // can start it.
         // Every queue edit raises Changed; only a different track is pushed.
         var queue = coordinator.Queue;
+        var covers = _services!.GetRequiredService<KeptCovers>();
+        var matches = _services!.GetRequiredService<YouTubeMatches>();
         TrackInfo? shown = null;
+        string? shownCover = null;
         void Show()
         {
             var track = coordinator.NowPlaying ?? queue.Current;
             if (track == shown)
                 return;
             shown = track;
-            session.UpdateNowPlaying(track);
+            shownCover = track is null ? null : covers.PathFor(track.VideoId);
+            session.UpdateNowPlaying(track is null ? null : matches.Fill(track));
         }
+        // A scan can give the local file that plays another cover, or take it away.
+        _services!.GetRequiredService<LocalLibraryScans>().Changed += () => Dispatcher.UIThread.Post(() =>
+        {
+            if (shown is not { } track || !Rambutan.Core.Local.LocalIds.IsLocal(track.VideoId))
+                return;
+            var cover = covers.PathFor(track.VideoId);
+            if (cover == shownCover)
+                return;
+            shownCover = cover;
+            session.UpdateArtwork();
+        });
+        // A match can name the local file that plays and give it a cover.
+        matches.Changed += () => Dispatcher.UIThread.Post(() =>
+        {
+            if (shown is { } track && Rambutan.Core.Local.LocalIds.IsLocal(track.VideoId))
+            {
+                shown = null;
+                Show();
+            }
+        });
         // The session drops repeats of the same mode, so every queue edit can push both.
         void ShowModes()
         {
@@ -1083,7 +1150,7 @@ public partial class App : Application
         _services.GetRequiredService<TrackActionsViewModel>().FlushPendingRemovals();
         // Saves the jobs still waiting, so they resume at the next start.
         _services.GetRequiredService<DownloadStore>().Dispose();
-        _services.GetRequiredService<LocalLibraryScans>().Index.Dispose();
+        _services.GetRequiredService<LocalLibraryScans>().Dispose();
         _services.GetRequiredService<PlaybackCoordinator>().Dispose();
         (_services.GetRequiredService<IAudioPlayer>() as IDisposable)?.Dispose();
         _services.Dispose();

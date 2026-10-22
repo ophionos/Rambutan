@@ -37,6 +37,30 @@ public class PlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task PlayAfterCurrent_PlaysTheFirst_AndKeepsTheRestOfTheQueue()
+    {
+        using var coordinator = CreateCoordinator();
+        await coordinator.PlayQueueAsync(Tracks("t1", "t2"));
+
+        await coordinator.PlayAfterCurrentAsync(Tracks("n1", "n2"));
+
+        Assert.Equal("n1", coordinator.NowPlaying!.VideoId);
+        Assert.Equal(["t1", "n1", "n2", "t2"], _queue.Snapshot().Tracks.Select(t => t.VideoId));
+        Assert.Equal(1, _queue.CurrentIndex);
+    }
+
+    [Fact]
+    public async Task PlayAfterCurrent_OnAnEmptyQueue_PlaysTheFirst()
+    {
+        using var coordinator = CreateCoordinator();
+
+        await coordinator.PlayAfterCurrentAsync(Tracks("n1", "n2"));
+
+        Assert.Equal("n1", coordinator.NowPlaying!.VideoId);
+        Assert.Equal(["n1", "n2"], _queue.Snapshot().Tracks.Select(t => t.VideoId));
+    }
+
+    [Fact]
     public async Task JumpTo_StartsFromTheGivenPosition()
     {
         using var coordinator = CreateCoordinator();

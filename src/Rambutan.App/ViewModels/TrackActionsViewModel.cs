@@ -13,6 +13,7 @@ using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Queue;
 using Rambutan.App.Localization;
+using Rambutan.App.Services;
 
 namespace Rambutan.App.ViewModels;
 
@@ -43,6 +44,11 @@ public partial class TrackActionsViewModel : ViewModelBase
 
     /// <summary>Set by MainViewModel, like <see cref="OpenArtist"/>.</summary>
     public Action<string>? OpenAlbum { get; set; }
+
+    /// <summary>Local files' YouTube Music matches, which the menu offers the
+    /// YouTube Music actions through; null where there are none (tests, design
+    /// time).</summary>
+    public YouTubeMatches? YouTubeMatches { get; init; }
 
     /// <summary>Set at composition; null where downloads aren't offered (tests,
     /// design time), and the menu leaves the entry out.</summary>

@@ -25,6 +25,9 @@ internal static class ContextMenuHost
 
     private static readonly List<Source> Sources = [];
 
+    // The menu open now, filled again when what it shows changes underneath.
+    private static (MenuFlyout Flyout, Control Owner)? _open;
+
     private static readonly AttachedProperty<MenuFlyout?> FlyoutProperty =
         AvaloniaProperty.RegisterAttached<Control, MenuFlyout?>("Flyout", typeof(ContextMenuHost));
 
@@ -35,6 +38,14 @@ internal static class ContextMenuHost
     /// sources win.</summary>
     public static void AddSource(Source source) => Sources.Add(source);
 
+    /// <summary>Fills the open menu again, if one is open: an answer it was
+    /// waiting for arrived (a local file's match). UI thread only.</summary>
+    public static void RefreshOpen()
+    {
+        if (_open is { } open && open.Flyout.IsOpen)
+            Populate(open.Flyout, open.Owner);
+    }
+
     public static void Install(Control control)
     {
         if (control.GetValue(FlyoutProperty) is not null)
@@ -44,6 +55,12 @@ internal static class ContextMenuHost
         // handler shows the flyout. Filling it from the flyout's Opening event
         // instead produced a menu that reported open and never appeared (X11).
         var flyout = new MenuFlyout();
+        flyout.Opened += (_, _) => _open = (flyout, control);
+        flyout.Closed += (_, _) =>
+        {
+            if (_open is { } open && ReferenceEquals(open.Flyout, flyout))
+                _open = null;
+        };
         control.SetValue(FlyoutProperty, flyout);
         control.ContextFlyout = flyout;
         control.AddHandler(Control.ContextRequestedEvent, (_, e) =>

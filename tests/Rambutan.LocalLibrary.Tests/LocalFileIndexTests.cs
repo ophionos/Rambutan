@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Rambutan.Core.Local;
 
 namespace Rambutan.LocalLibrary.Tests;
@@ -21,8 +22,10 @@ public sealed class LocalFileIndexTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
-    private LocalFileIndex Library(Func<CancellationToken, Task>? ready = null, int threads = 2) =>
-        new(_data, _reader, ready ?? (_ => Task.CompletedTask), () => _folders, threads: threads);
+    private LocalFileIndex Library(
+        Func<CancellationToken, Task>? ready = null, int threads = 2, IReadOnlySet<string>? queued = null) =>
+        new(_data, _reader, ready ?? (_ => Task.CompletedTask), () => _folders, threads: threads,
+            queued: queued is null ? null : () => queued);
 
     /// <summary>The fake reader takes a file's text as its title; "bad" isn't audio,
     /// and "cover:X" carries a cover of the bytes of X.</summary>
@@ -77,6 +80,7 @@ public sealed class LocalFileIndexTests : IDisposable
     public async Task ADeletedFile_IsMissing_AndKeepsItsIdWhenItComesBack()
     {
         var a = Write("a.mp3", "A");
+        Write("b.mp3", "B");
         using var library = Library();
         await library.ScanAsync();
         var id = ByPath(library, a).Id;
@@ -109,6 +113,29 @@ public sealed class LocalFileIndexTests : IDisposable
 
         Assert.False(ByPath(library, song).IsMissing);
         Assert.Equal([usb], library.Status.UnavailableFolders);
+    }
+
+    [Fact]
+    public async Task AFolderThatListsEmpty_LeavesItsFilesAsTheyWere_UntilOneComesBack()
+    {
+        // On Linux, a mount whose drive is down is an empty folder.
+        var a = Write("a.mp3", "A");
+        var b = Write(Path.Combine("x", "b.mp3"), "B");
+        using var library = Library();
+        await library.ScanAsync();
+
+        File.Delete(a);
+        File.Delete(b);
+        await library.ScanAsync();
+        Assert.False(ByPath(library, a).IsMissing);
+        Assert.False(ByPath(library, b).IsMissing);
+        Assert.Equal([_music], library.Status.UnavailableFolders);
+
+        Write("a.mp3", "A");
+        await library.ScanAsync();
+        Assert.False(ByPath(library, a).IsMissing);
+        Assert.True(ByPath(library, b).IsMissing);
+        Assert.Empty(library.Status.UnavailableFolders);
     }
 
     [Fact]
@@ -301,6 +328,288 @@ public sealed class LocalFileIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task AScanOfOneFolder_LeavesTheOthersAsTheyWere()
+    {
+        var other = Path.Combine(_root, "other");
+        var usb = Path.Combine(_root, "usb");
+        Directory.CreateDirectory(other);
+        var song = Path.Combine(other, "b.mp3");
+        File.WriteAllText(song, "B");
+        File.WriteAllText(Path.Combine(other, "d.mp3"), "D");
+        _folders.Add(other);
+        _folders.Add(usb); // not there: unavailable
+        Write("a.mp3", "A");
+        using var library = Library();
+        await library.ScanAsync();
+        Assert.Equal([usb], library.Status.UnavailableFolders);
+
+        File.Delete(song);
+        var added = Write("c.mp3", "C");
+        _reader.Reads.Clear();
+        await library.ScanAsync([_music]);
+
+        Assert.Equal([added], _reader.Reads);
+        Assert.False(ByPath(library, song).IsMissing); // its folder wasn't looked at
+        Assert.Equal([usb], library.Status.UnavailableFolders);
+
+        await library.ScanAsync([other]);
+        Assert.True(ByPath(library, song).IsMissing);
+    }
+
+    [Fact]
+    public async Task AFolderScan_ThatStopsAFullOne_ScansEveryFolder()
+    {
+        var other = Path.Combine(_root, "other");
+        Directory.CreateDirectory(other);
+        var song = Path.Combine(other, "b.mp3");
+        File.WriteAllText(song, "B");
+        _folders.Add(other);
+        Write("a.mp3", "A");
+        var ready = new TaskCompletionSource();
+        using var library = Library(ct => ready.Task.WaitAsync(ct));
+
+        var full = library.ScanAsync();
+        var folder = library.ScanAsync([_music]);
+        ready.SetResult();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => full);
+        await folder;
+        Assert.Equal(2, library.Files().Count);
+    }
+
+    [Fact]
+    public async Task AScanOfAFolderNoLongerWatched_ScansNothing()
+    {
+        Write("a.mp3", "A");
+        using var library = Library();
+
+        await library.ScanAsync([Path.Combine(_root, "gone")]);
+
+        Assert.Empty(library.Files());
+    }
+
+    [Fact]
+    public async Task AFolderPicture_IsTheCover_OfTracksThatEmbedNone()
+    {
+        var plain = Write(Path.Combine("Album", "a.mp3"), "A");
+        var embedded = Write(Path.Combine("Album", "b.mp3"), "cover:own");
+        var picture = Write(Path.Combine("Album", "cover.jpg"), "folder picture");
+        using var library = Library();
+
+        await library.ScanAsync();
+
+        var a = ByPath(library, plain);
+        Assert.Equal("folder picture", File.ReadAllText(a.CoverPath!));
+        Assert.Equal(picture, a.FolderCover?.Path);
+        Assert.Equal("own", File.ReadAllText(ByPath(library, embedded).CoverPath!)); // embedded wins
+        Assert.Null(ByPath(library, embedded).FolderCover);
+    }
+
+    [Fact]
+    public async Task AChangedOrRemovedFolderPicture_IsNoticed_WithoutReadingTheTracks()
+    {
+        var song = Write(Path.Combine("Album", "a.mp3"), "A");
+        var picture = Write(Path.Combine("Album", "folder.jpg"), "old");
+        using var library = Library();
+        await library.ScanAsync();
+        _reader.Reads.Clear();
+
+        File.WriteAllText(picture, "newer picture");
+        await library.ScanAsync();
+        Assert.Equal("newer picture", File.ReadAllText(ByPath(library, song).CoverPath!));
+        Assert.Empty(_reader.Reads);
+
+        File.Delete(picture);
+        await library.ScanAsync();
+        Assert.Null(ByPath(library, song).CoverPath);
+        Assert.Null(ByPath(library, song).FolderCover);
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_data, LocalFileIndex.CoverFolderName)));
+    }
+
+    [Fact]
+    public async Task AFolderPicture_IsKeptAcrossStarts()
+    {
+        var song = Write(Path.Combine("Album", "a.mp3"), "A");
+        var picture = Write(Path.Combine("Album", "cover.png"), "picture");
+        using (var first = Library())
+            await first.ScanAsync();
+
+        using var library = Library();
+        Assert.Equal(picture, ByPath(library, song).FolderCover?.Path);
+        _reader.Reads.Clear();
+        await library.ScanAsync();
+        Assert.Empty(_reader.Reads);
+        Assert.Equal("picture", File.ReadAllText(ByPath(library, song).CoverPath!));
+    }
+
+    [Fact]
+    public async Task AHiddenFolderPicture_IsFound_ButHiddenAudioIsNot()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Hidden is an attribute on Windows only.");
+        var song = Write(Path.Combine("Album", "a.mp3"), "A");
+        var hiddenSong = Write(Path.Combine("Album", "b.mp3"), "B");
+        var picture = Write(Path.Combine("Album", "Folder.jpg"), "picture");
+        File.SetAttributes(picture, FileAttributes.Hidden | FileAttributes.System);
+        File.SetAttributes(hiddenSong, FileAttributes.Hidden);
+        using var library = Library();
+
+        await library.ScanAsync();
+
+        Assert.Equal(picture, ByPath(library, song).FolderCover?.Path);
+        Assert.DoesNotContain(library.Files(), f => f.Path == hiddenSong);
+        File.SetAttributes(picture, FileAttributes.Normal);
+    }
+
+    private string WriteElsewhere(string relative, string content)
+    {
+        var path = Path.Combine(_root, "elsewhere", relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+        return path;
+    }
+
+    [Fact]
+    public async Task AnOpenedFile_OutsideTheWatchedFolders_GetsAnId_ButIsNotListed()
+    {
+        var song = WriteElsewhere("a.mp3", "A");
+        using var library = Library();
+
+        var opened = Assert.Single(await library.OpenAsync([song]));
+
+        Assert.True(LocalIds.IsLocal(opened.Id));
+        Assert.True(opened.IsOpened);
+        Assert.Equal("A", opened.Tags?.Title);
+        Assert.Same(opened, library.Find(opened.Id));
+        Assert.Empty(library.Files());
+    }
+
+    [Fact]
+    public async Task AnOpenedFile_InAWatchedFolder_KeepsItsId_AndIsNotReadAgain()
+    {
+        var song = Write("a.mp3", "A");
+        using var library = Library();
+        await library.ScanAsync();
+        var id = ByPath(library, song).Id;
+        _reader.Reads.Clear();
+
+        var opened = Assert.Single(await library.OpenAsync([song]));
+
+        Assert.Equal(id, opened.Id);
+        Assert.False(opened.IsOpened);
+        Assert.Empty(_reader.Reads);
+    }
+
+    [Fact]
+    public async Task AnOpenedFile_IsReadAgain_WhenItChanged()
+    {
+        var song = WriteElsewhere("a.mp3", "A");
+        using var library = Library();
+        var id = Assert.Single(await library.OpenAsync([song])).Id;
+
+        File.WriteAllText(song, "A, longer");
+        File.SetLastWriteTimeUtc(song, DateTime.UtcNow.AddMinutes(1));
+        var again = Assert.Single(await library.OpenAsync([song]));
+
+        Assert.Equal(id, again.Id);
+        Assert.Equal("A, longer", again.Tags?.Title);
+        Assert.True(again.IsOpened);
+    }
+
+    [Fact]
+    public async Task AnOpenedFolder_GivesItsAudioFiles_SubfoldersIncluded_InPathOrder()
+    {
+        var b = WriteElsewhere(Path.Combine("Album", "b.mp3"), "B");
+        var a = WriteElsewhere(Path.Combine("Album", "a.flac"), "A");
+        var inner = WriteElsewhere(Path.Combine("Album", "CD2", "c.mp3"), "C");
+        var upper = WriteElsewhere(Path.Combine("Album", "Zed.mp3"), "Z");
+        WriteElsewhere(Path.Combine("Album", "notes.txt"), "notes");
+        var single = WriteElsewhere("single.mp3", "S");
+        using var library = Library();
+
+        var opened = await library.OpenAsync([single, Path.GetDirectoryName(a)!, b]);
+
+        Assert.Equal([single, a, b, inner, upper], opened.Select(f => f.Path));
+    }
+
+    [Fact]
+    public async Task AnOpenedFile_ThatIsNotAudio_OrNotThere_IsLeftOut_AndNotKept()
+    {
+        var bad = WriteElsewhere("bad.mp3", "bad");
+        var song = WriteElsewhere("a.mp3", "A");
+        using var library = Library();
+
+        var opened = await library.OpenAsync([bad, Path.Combine(_root, "gone.mp3"), song]);
+
+        Assert.Equal([song], opened.Select(f => f.Path));
+        Assert.Null(library.Find(LocalIds.Format(1)));
+    }
+
+    [Fact]
+    public async Task OpenedFiles_AreKeptAcrossStarts_UntilNoQueueHoldsThem()
+    {
+        var kept = WriteElsewhere("kept.mp3", "K");
+        var dropped = WriteElsewhere("dropped.mp3", "D");
+        string keptId, droppedId;
+        using (var first = Library())
+        {
+            var opened = await first.OpenAsync([kept, dropped]);
+            (keptId, droppedId) = (opened[0].Id, opened[1].Id);
+        }
+
+        using (var library = Library())
+            Assert.NotNull(library.Find(droppedId));
+        using (var library = Library(queued: new HashSet<string> { keptId }))
+        {
+            Assert.Equal(kept, library.Find(keptId)?.Path);
+            Assert.Null(library.Find(droppedId));
+        }
+
+        using var restarted = Library();
+        Assert.Null(restarted.Find(droppedId));
+        Assert.NotEqual(droppedId, Assert.Single(await restarted.OpenAsync([dropped])).Id);
+    }
+
+    [Fact]
+    public async Task AnOpenedFile_InAFolderWatchedSince_IsNotForgotten()
+    {
+        var song = WriteElsewhere("a.mp3", "A");
+        string id;
+        using (var first = Library())
+            id = Assert.Single(await first.OpenAsync([song])).Id;
+        _folders.Add(Path.GetDirectoryName(song)!);
+
+        using var library = Library(queued: new HashSet<string>());
+
+        Assert.False(library.Find(id)!.IsOpened);
+        Assert.Equal([id], library.Files().Select(f => f.Id));
+    }
+
+    [Fact]
+    public async Task AnOpenedFile_ThatAScanIsReading_GetsTheScansId()
+    {
+        var song = Write("a.mp3", "A");
+        using var library = Library();
+        _reader.Hold = new ManualResetEventSlim(false);
+
+        var scan = library.ScanAsync();
+        var waited = Stopwatch.StartNew();
+        while (!_reader.Reads.Contains(song) && waited.Elapsed < TimeSpan.FromSeconds(10))
+            await Task.Delay(10);
+        var open = library.OpenAsync([song]);
+        // A second read means the open found no entry for the path and went on
+        // with the id the scan holds for it.
+        while (_reader.Reads.Count(r => r == song) < 2 && waited.Elapsed < TimeSpan.FromSeconds(10))
+            await Task.Delay(10);
+        Assert.Equal(2, _reader.Reads.Count(r => r == song));
+        _reader.Hold.Set();
+        var opened = Assert.Single(await open);
+        await scan;
+
+        Assert.Equal(ByPath(library, song).Id, opened.Id);
+        Assert.Single(library.Files());
+    }
+
+    [Fact]
     public async Task Changed_IsRaised_AsTheScanGoes()
     {
         Write("a.mp3", "A");
@@ -317,9 +626,13 @@ public sealed class LocalFileIndexTests : IDisposable
     {
         public ConcurrentQueue<string> Reads { get; } = new();
 
+        /// <summary>When set, a read waits for it.</summary>
+        public ManualResetEventSlim? Hold { get; set; }
+
         public LocalFileTags? Read(string path)
         {
             Reads.Enqueue(path);
+            Hold?.Wait(TimeSpan.FromSeconds(10));
             var text = File.ReadAllText(path);
             if (text == "bad")
                 return null;

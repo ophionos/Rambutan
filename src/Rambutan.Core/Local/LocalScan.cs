@@ -125,6 +125,30 @@ public static class LocalScan
         return new LocalScanPlan(toRead, nowMissing, unchanged, nextId);
     }
 
+    /// <summary>
+    /// The listed watched folders that count as unavailable all the same: ones
+    /// that hold no audio file now while the index has files present under them.
+    /// On Linux a mount whose drive or share is down is an ordinary empty folder,
+    /// and listing it would mark all its files missing at once. The maintainer's
+    /// decision, with its cost: a folder emptied on purpose keeps its files listed
+    /// until it is removed or a file comes back. A folder inside another listed
+    /// folder that isn't emptied doesn't count: that one's scan covers its files.
+    /// </summary>
+    public static IReadOnlyList<string> EmptiedRoots(
+        IEnumerable<KnownFile> known, IReadOnlyCollection<FoundFile> found,
+        IReadOnlyList<string> listed, LocalPaths paths)
+    {
+        var empty = listed.Where(root => !found.Any(f => paths.IsUnder(f.Path, root))).ToList();
+        if (empty.Count == 0)
+            return [];
+        var present = known.Where(k => !k.IsMissing).ToList();
+        var emptied = empty.Where(root => present.Any(k => paths.IsUnder(k.Path, root))).ToList();
+        return emptied
+            .Where(root => !listed.Any(outer => !emptied.Contains(outer, paths.Comparer)
+                && !paths.Comparer.Equals(outer, root) && paths.IsUnder(root, outer)))
+            .ToList();
+    }
+
     /// <summary>The extensions a scan looks at. Only to keep it from opening
     /// every file in the folder: the reader still goes by the content.</summary>
     public static IReadOnlySet<string> AudioExtensions { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -146,9 +170,15 @@ public static class LocalScan
 /// has none.</param>
 /// <param name="IsMissing">The file was there and isn't now. It keeps its id, so
 /// a queue or playlist entry shows it as missing.</param>
+/// <param name="FolderCover">The folder's picture that <paramref name="CoverPath"/>
+/// is a copy of (<see cref="LocalFolderCovers"/>); null when the cover is
+/// embedded or there is none.</param>
+/// <param name="IsOpened">The user opened or dropped the file, outside the watched
+/// folders: it is kept only while a queue holds it.</param>
 public sealed record LocalFile(
     string Id, string Path, long Size, DateTimeOffset ModifiedAt,
-    LocalFileTags? Tags, string? CoverPath = null, bool IsMissing = false)
+    LocalFileTags? Tags, string? CoverPath = null, bool IsMissing = false, FoundFile? FolderCover = null,
+    bool IsOpened = false)
 {
     public bool IsUnreadable => Tags is null;
 

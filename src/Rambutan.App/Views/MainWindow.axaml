@@ -188,7 +188,7 @@
                       Command="{Binding Actions.GoToAlbumCommand}"
                       CommandParameter="{Binding Player.ShownTrack}"
                       Classes.inert="{Binding Player.ShownTrack.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}"
-                      ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.Album}}">
+                      ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.DisplayedTrack.Album}}">
                 <TextBlock x:Name="BarTitle" Text="{Binding Player.Title}" TextTrimming="CharacterEllipsis" />
               </Button>
               <Grid ColumnDefinitions="Auto,Auto,*" TextElement.Foreground="{StaticResource Token.Brush.Text.Muted}">
@@ -196,19 +196,19 @@
                         Command="{Binding Actions.GoToArtistCommand}"
                         CommandParameter="{Binding Player.ShownTrack.PrimaryArtist}"
                         Classes.inert="{Binding Player.ShownTrack.PrimaryArtist, Converter={x:Static ObjectConverters.IsNull}}"
-                        ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.PrimaryArtist.Name}}">
-                  <TextBlock Text="{Binding Player.ShownTrack.ArtistDisplay}" TextTrimming="CharacterEllipsis" />
+                        ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.DisplayedTrack.PrimaryArtist.Name}}">
+                  <TextBlock Text="{Binding Player.DisplayedTrack.ArtistDisplay}" TextTrimming="CharacterEllipsis" />
                 </Button>
                 <TextBlock Grid.Column="1" Text=" • " FontSize="{StaticResource Token.Font.Meta}" VerticalAlignment="Center"
-                           IsVisible="{Binding Player.ShownTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                           IsVisible="{Binding Player.DisplayedTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 <Button Grid.Column="2" Classes="link" FontSize="{StaticResource Token.Font.Meta}" FontWeight="Normal"
                         HorizontalAlignment="Left"
                         Command="{Binding Actions.GoToAlbumCommand}"
                         CommandParameter="{Binding Player.ShownTrack}"
                         Classes.inert="{Binding Player.ShownTrack.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}"
-                        IsVisible="{Binding Player.ShownTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                        ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.ShownTrack.Album}}">
-                  <TextBlock Text="{Binding Player.ShownTrack.Album}" TextTrimming="CharacterEllipsis" />
+                        IsVisible="{Binding Player.DisplayedTrack.Album, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                        ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.DisplayedTrack.Album}}">
+                  <TextBlock Text="{Binding Player.DisplayedTrack.Album}" TextTrimming="CharacterEllipsis" />
                 </Button>
               </Grid>
             </StackPanel>
@@ -613,6 +613,7 @@
                 </MenuItem>
                 <MenuItem Header="{l:T profiles.manage}" Command="{Binding Profiles.ManageCommand, FallbackValue={x:Null}}" />
                 <Separator />
+                <MenuItem Header="{l:T shell.openFiles}" InputGesture="Ctrl+O" Command="{Binding OpenFilesCommand}" />
                 <MenuItem Header="{l:T nav.settings}" Command="{Binding GoSettingsCommand}" />
               </MenuFlyout>
             </Button.Flyout>
@@ -693,8 +694,9 @@
       </DockPanel>
     </Border>
 
-    <!-- Queue panel (collapsible from its own close button or the player bar). -->
-    <Border DockPanel.Dock="Right" Width="300" Margin="0,0,8,0"
+    <!-- Queue panel (collapsible from its own close button or the player bar).
+         Files dropped on it go to the end of the queue. -->
+    <Border x:Name="QueuePane" DockPanel.Dock="Right" Width="300" Margin="0,0,8,0"
             Background="{StaticResource Token.Brush.Surface.Panel}"
             CornerRadius="{StaticResource Token.Radius.Panel}" Padding="12,12,12,4"
             KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="2">
@@ -755,7 +757,7 @@
                         Margin="0,0,12,0" VerticalAlignment="Center" Background="{StaticResource Token.Brush.Overlay.14}">
                   <Panel>
                     <PathIcon Data="{StaticResource Icon.MusicNote}" Width="16" Height="16" Opacity="0.35" />
-                    <controls:RemoteImage Url="{Binding Track, Converter={x:Static conv:ArtworkConverter.Instance}}" Stretch="UniformToFill" DecodeWidth="96" />
+                    <controls:RemoteImage Url="{Binding ArtworkUrl}" Stretch="UniformToFill" DecodeWidth="96" />
                     <Panel Background="#99000000" IsVisible="{Binding IsCurrent}">
                       <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16"
                                 Foreground="{StaticResource Token.Brush.Accent}" />
@@ -847,5 +849,15 @@
        so they show over the bar there, until they expire or are dismissed. -->
   <views:ToastHost Classes="miniOnly" DataContext="{Binding Toasts}" VerticalAlignment="Center" Margin="8"
                    ReduceMotion="{Binding $parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion}" />
+
+  <!-- While files are dragged over the window: what a drop there does. It takes
+       no input, so the drop lands on what is under it. -->
+  <Border x:Name="DropHint" IsVisible="False" IsHitTestVisible="False"
+          HorizontalAlignment="Center" VerticalAlignment="Center"
+          Background="{DynamicResource Token.Brush.Accent}" CornerRadius="{StaticResource Token.Radius.Panel}"
+          Padding="20,12">
+    <TextBlock x:Name="DropHintText" Foreground="{DynamicResource Token.Brush.OnAccent}"
+               FontSize="16" FontWeight="SemiBold" />
+  </Border>
   </Panel>
 </Window>

@@ -152,6 +152,14 @@ public sealed class PlaybackCoordinator : IDisposable
     /// it (the player bar, a shortcut, the phone remote), on the setter's thread.</summary>
     public event Action<double>? VolumeChanged;
 
+    /// <summary>
+    /// The YouTube Music id whose radio autoplay continues a track that isn't on
+    /// YouTube (a local file) with: its match, waited for when a search is under
+    /// way. Null, or a null answer, stops autoplay with a notice; a throw is a
+    /// failed autoplay. Unset, such a track always stops it.
+    /// </summary>
+    public Func<TrackInfo, CancellationToken, Task<string?>>? RadioSeedFor { get; set; }
+
     public event Action<PlaybackState>? StateChanged;
     public event Action<TrackInfo?>? NowPlayingChanged;
     public event Action<PlaybackProgress>? ProgressChanged;
@@ -175,6 +183,22 @@ public sealed class PlaybackCoordinator : IDisposable
         {
             _queue.SetQueue(tracks, startIndex);
             if (!IsSuperseded(seq))
+                await PlayCurrentAsync(TimeSpan.Zero, seq, token);
+        }, ct);
+
+    /// <summary>
+    /// Puts <paramref name="tracks"/> right after the current track, in their
+    /// order, and plays the first of them; the rest of the queue stays. With no
+    /// current track the first becomes it.
+    /// </summary>
+    public Task PlayAfterCurrentAsync(IReadOnlyList<TrackInfo> tracks, CancellationToken ct = default) =>
+        RunCommandAsync(async (seq, token) =>
+        {
+            if (tracks.Count == 0)
+                return;
+            var current = _queue.CurrentIndex;
+            _queue.EnqueueNextRange(tracks);
+            if (_queue.JumpTo(current < 0 ? 0 : current + 1) is not null && !IsSuperseded(seq))
                 await PlayCurrentAsync(TimeSpan.Zero, seq, token);
         }, ct);
 
@@ -1036,16 +1060,16 @@ public sealed class PlaybackCoordinator : IDisposable
     {
         if (AutoplayApplies() is not { } seed)
             return false;
-        if (!YouTubeIds.IsVideoId(seed.VideoId))
-        {
-            Notification?.Invoke(new(PlaybackNoticeKind.AutoplayNoRadio, seed.Title));
-            return false;
-        }
 
         int added;
         try
         {
-            added = await ExtendWithAutoplayAsync(seed, ct);
+            if (await RadioIdOfAsync(seed, ct) is not { } radioId)
+            {
+                Notification?.Invoke(new(PlaybackNoticeKind.AutoplayNoRadio, seed.Title));
+                return false;
+            }
+            added = await ExtendWithAutoplayAsync(seed, radioId, ct);
         }
         catch (OperationCanceledException)
         {
@@ -1066,12 +1090,20 @@ public sealed class PlaybackCoordinator : IDisposable
         return _queue.NextTrack(reason) is not null;
     }
 
+    /// <summary>The id whose radio continues <paramref name="seed"/>: its own on
+    /// YouTube, else its match (<see cref="RadioSeedFor"/>); null for none.</summary>
+    private async Task<string?> RadioIdOfAsync(TrackInfo seed, CancellationToken ct) =>
+        YouTubeIds.IsVideoId(seed.VideoId) ? seed.VideoId
+        : RadioSeedFor is { } seedFor && await seedFor(seed, ct) is { } id && YouTubeIds.IsVideoId(id) ? id
+        : null;
+
     /// <summary>
-    /// Appends the autoplay continuation of <paramref name="seed"/> to the queue.
-    /// The radio request is shared: the fetch-ahead and the queue's end ask for the
-    /// same seed at most once, unless the first attempt failed.
+    /// Appends the autoplay continuation of <paramref name="seed"/>, the radio of
+    /// <paramref name="radioId"/>, to the queue. The radio request is shared: the
+    /// fetch-ahead and the queue's end ask for the same seed at most once, unless
+    /// the first attempt failed.
     /// </summary>
-    private async Task<int> ExtendWithAutoplayAsync(TrackInfo seed, CancellationToken ct)
+    private async Task<int> ExtendWithAutoplayAsync(TrackInfo seed, string radioId, CancellationToken ct)
     {
         Task<IReadOnlyList<TrackInfo>> fetch;
         lock (_sync)
@@ -1085,7 +1117,7 @@ public sealed class PlaybackCoordinator : IDisposable
             {
                 // The coordinator's lifetime, not the caller's token: a seek or a
                 // superseded reaction stops waiting, but the answer is still wanted.
-                fetch = _radio!.GetRadioAsync(seed.VideoId, _lifetime.Token);
+                fetch = _radio!.GetRadioAsync(radioId, _lifetime.Token);
                 _autoplayFetch = (seed, fetch);
             }
         }
@@ -1094,6 +1126,8 @@ public sealed class PlaybackCoordinator : IDisposable
         HashSet<string> played;
         lock (_sync) played = [.. _playedThisSession];
         var queued = _queue.Items.Select(t => t.VideoId).ToHashSet();
+        // A matched local file's song would follow it as the same song again.
+        queued.Add(radioId);
         return _queue.AppendAutoplay(seed, AutoplayPolicy.SelectContinuation(seed, radio, queued, played));
     }
 
@@ -1105,12 +1139,14 @@ public sealed class PlaybackCoordinator : IDisposable
     /// </summary>
     private async Task AutoplayAheadAsync()
     {
-        // A seed without radio is said once, at the queue's end.
-        if (AutoplayApplies() is not { } seed || !YouTubeIds.IsVideoId(seed.VideoId))
+        if (AutoplayApplies() is not { } seed)
             return;
         try
         {
-            if (await ExtendWithAutoplayAsync(seed, _lifetime.Token) > 0)
+            // A seed without radio is said once, at the queue's end.
+            if (await RadioIdOfAsync(seed, _lifetime.Token) is not { } radioId)
+                return;
+            if (await ExtendWithAutoplayAsync(seed, radioId, _lifetime.Token) > 0)
                 RearmPreloadIfIdle();
         }
         catch (OperationCanceledException)

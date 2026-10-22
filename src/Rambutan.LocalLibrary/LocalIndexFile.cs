@@ -68,7 +68,11 @@ internal sealed class LocalIndexFile(string dataDirectory, string coverDirectory
             TrackNumber: f.TrackNumber, DiscNumber: f.DiscNumber, Year: f.Year,
             TrackGainDb: f.TrackGainDb, AlbumGainDb: f.AlbumGainDb),
         f.Cover is { Length: > 0 } cover ? Path.Combine(covers, Path.GetFileName(cover)) : null,
-        f.Missing == true);
+        f.Missing == true,
+        f.FolderCover is { Length: > 0 } picture
+            ? new FoundFile(picture, f.FolderCoverSize ?? 0, f.FolderCoverModifiedAt ?? default)
+            : null,
+        f.Opened == true);
 
     private static SavedLocalFile ToSaved(LocalFile f) => new()
     {
@@ -77,6 +81,7 @@ internal sealed class LocalIndexFile(string dataDirectory, string coverDirectory
         Size = f.Size,
         ModifiedAt = f.ModifiedAt,
         Missing = f.IsMissing ? true : null,
+        Opened = f.IsOpened ? true : null,
         Unreadable = f.IsUnreadable ? true : null,
         Codec = f.Tags?.Codec,
         DurationSeconds = f.Tags?.Duration?.TotalSeconds,
@@ -91,6 +96,9 @@ internal sealed class LocalIndexFile(string dataDirectory, string coverDirectory
         TrackGainDb = f.Tags?.TrackGainDb,
         AlbumGainDb = f.Tags?.AlbumGainDb,
         Cover = f.CoverPath is { } cover ? Path.GetFileName(cover) : null,
+        FolderCover = f.FolderCover?.Path,
+        FolderCoverSize = f.FolderCover?.Size,
+        FolderCoverModifiedAt = f.FolderCover?.ModifiedAt,
     };
 }
 
@@ -119,6 +127,10 @@ public sealed class SavedLocalFile
     public DateTimeOffset ModifiedAt { get; set; }
     public bool? Missing { get; set; }
 
+    /// <summary>The user opened the file from outside the watched folders; it
+    /// stays only while a queue holds it.</summary>
+    public bool? Opened { get; set; }
+
     /// <summary>The file isn't audio the reader could open; it has no tags.</summary>
     public bool? Unreadable { get; set; }
 
@@ -140,6 +152,14 @@ public sealed class SavedLocalFile
     /// <summary>The cover's file name in the cover cache, which is beside the
     /// index, so the profile's folder can move.</summary>
     public string? Cover { get; set; }
+
+    /// <summary>The full path of the folder's picture that <see cref="Cover"/>
+    /// copies, with its size and time, so a changed picture is noticed; null
+    /// when the cover is embedded or there is none.</summary>
+    public string? FolderCover { get; set; }
+
+    public long? FolderCoverSize { get; set; }
+    public DateTimeOffset? FolderCoverModifiedAt { get; set; }
 }
 
 [JsonSourceGenerationOptions(

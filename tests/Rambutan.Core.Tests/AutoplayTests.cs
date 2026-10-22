@@ -295,6 +295,65 @@ public class AutoplayTests
     }
 
     [Fact]
+    public async Task AMatchedLocalSeed_ContinuesWithItsMatchsRadio_WithoutTheMatchItself()
+    {
+        _radio.Tracks["m"] = [T("m"), T("r1"), T("r2")];
+        var asked = new List<string>();
+        using var coordinator = Create();
+        coordinator.RadioSeedFor = (track, _) =>
+        {
+            lock (asked) asked.Add(track.VideoId);
+            return Task.FromResult<string?>("m");
+        };
+        await coordinator.PlayQueueAsync([T("local:1")]);
+
+        _player.RaiseProgress(TimeSpan.FromSeconds(10));
+        _player.RaiseProgress(TimeSpan.FromSeconds(11));
+        await TestTracks.WaitUntilAsync(() => _queue.Items.Count == 3);
+        End();
+
+        await TestTracks.WaitUntilAsync(() => _queue.CurrentIndex == 1);
+        Assert.Equal(["local:1", "r1", "r2"], _queue.Items.Select(t => t.VideoId));
+        Assert.Equal(["m"], _radio.Requests);
+        Assert.True(_queue.IsAutoplay(_queue.Items[1]));
+        lock (asked)
+            Assert.All(asked, id => Assert.Equal("local:1", id));
+    }
+
+    [Fact]
+    public async Task ALocalSeedWithoutAMatch_EndsTheQueueSayingWhy()
+    {
+        var messages = new List<PlaybackNotice>();
+        using var coordinator = Create();
+        coordinator.RadioSeedFor = (_, _) => Task.FromResult<string?>(null);
+        coordinator.Notification += m => { lock (messages) messages.Add(m); };
+        await coordinator.PlayQueueAsync([T("local:1")]);
+
+        End();
+
+        await TestTracks.WaitUntilAsync(() => coordinator.State == PlaybackState.Stopped);
+        Assert.Empty(_radio.Requests);
+        lock (messages)
+            Assert.Contains(messages, m => m.Kind == PlaybackNoticeKind.AutoplayNoRadio);
+    }
+
+    [Fact]
+    public async Task ALocalSeedWhoseSearchFails_SaysAutoplayFailed()
+    {
+        var messages = new List<PlaybackNotice>();
+        using var coordinator = Create();
+        coordinator.RadioSeedFor = (_, _) => Task.FromException<string?>(new HttpRequestException("offline"));
+        coordinator.Notification += m => { lock (messages) messages.Add(m); };
+        await coordinator.PlayQueueAsync([T("local:1")]);
+
+        End();
+
+        await TestTracks.WaitUntilAsync(() => coordinator.State == PlaybackState.Stopped);
+        lock (messages)
+            Assert.Contains(messages, m => m.Kind == PlaybackNoticeKind.AutoplayFailed && m.Subject == "Title local:1");
+    }
+
+    [Fact]
     public async Task FetchAhead_QueuesAndArmsTheFirstAutoplayTrack_Once()
     {
         _radio.Tracks["a"] = [T("a"), T("r1")];

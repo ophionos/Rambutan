@@ -257,12 +257,23 @@ file sink), never to files directly.
   falls back to the listed video.
 - Local library: the watched folders are a setting (`AppSettings.WatchedFolders`,
   per profile like every setting). `LocalLibrary/LocalFileIndex` scans them at
-  startup, when a folder is added, and on Rescan, with no live watcher.
+  startup, when a folder is added, and on Rescan. While the app runs,
+  `LocalLibrary/LocalFolderWatcher` watches them (the outermost ones only:
+  on Linux each costs one of few inotify instances) and scans a folder again
+  once it has been quiet for 2 s; the rules, which events count and what an
+  error means, are `Core/Local/LocalWatch`. The app's own folders never
+  count, or its log writes would start a scan after each scan. A scan of
+  some folders leaves the others, and their unavailable state, as they were,
+  and one that stops a running scan takes on its folders. A watcher that
+  fails stops, and Settings says the folder isn't watched until a later scan
+  arms it again.
   The rules are in Core (`Core/Local/LocalScan`): a file is read again only when
   its size or modified time changed; its `local:<n>` id stays with its path and
   is never given again; a file that is gone stays in the index as missing; a
   watched folder that can't be listed (an unplugged drive) leaves its files as
-  they were; files of a folder no longer watched stay in the index, unlisted.
+  they were, and so does one that lists no audio file while the index has
+  files present under it (a Linux mount whose drive is down lists empty);
+  files of a folder no longer watched stay in the index, unlisted.
   The reader detects the format from the content after any ID3v2 tag, never the
   extension, and reads stream info only when the open gives no length. Its tests
   need the ffmpeg shared libraries (`RAMBUTAN_FFMPEG_LIBS`, else the app's tools
@@ -273,13 +284,45 @@ file sink), never to files directly.
   gone throws `LocalFileMissingException`, and the queue marks it. Playback and
   scans wait only for ffmpeg (`SidecarBootstrapper.AudioReady`), not yt-dlp,
   so they work offline on a first start. ReplayGain's track gain becomes
-  YouTube's loudness (`LocalTracks.LoudnessDb`). Covers come by id through
+  YouTube's loudness (`LocalTracks.LoudnessDb`). An embedded cover always
+  wins; a track without one takes its folder's picture (`cover`, `folder`,
+  `front` or `AlbumArt*`, hidden ones too: `Core/Local/LocalFolderCovers`),
+  copied into the cover cache, and a changed picture updates it without
+  reading the track again. Covers come by id through
   `Services/KeptCovers`, never as a URL in the track, so no file path reaches
-  Discord or `queue.json`. The YouTube-only actions (radio, like, library,
+  Discord or `queue.json`; when the index changes, the player bar, the queue
+  rows and the media session read the playing file's cover again
+  (`IMediaSessionService.UpdateArtwork`). The YouTube-only actions (radio, like, library,
   playlists, download, share) are off for such a track
-  (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice.
+  (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice,
+  unless the track has a YouTube Music match.
+  Matching is an outbound integration, off by default
+  (`AppSettings.MatchLocalOnYouTubeMusic`): `Core/Local/LocalMatcher` searches
+  a file's title and artist tags (never its file name; none without a title
+  tag) through the stations' signed-out `InnerTubeClient`, when it plays, when
+  its menu opens and when autoplay needs its radio, never the whole library.
+  It picks with `TrackMatcher` without the last resort, so another version
+  never matches. `App/Services/YouTubeMatches` keeps the answers by local id
+  and tag key (`local-matches.json`, versioned, dropped on a new
+  `TrackMatcher.RulesVersion`). A match drives the menu's YouTube Music group
+  (a line naming the song or saying why there is none, then Start a mix, Like
+  and Save to playlist acting on the song), autoplay's radio
+  (`PlaybackCoordinator.RadioSeedFor`, which leaves the matched song out of
+  what follows), and what the tags lack as shown, never written: the artist and
+  album names in the player bar, Now Playing and the media session
+  (`YouTubeMatches.Fill`, without the song's links) and, for a file with no
+  cover of its own or its folder's, the song's cover, kept in
+  `local-match-covers` and found through `KeptCovers`. The queue keeps the
+  file's own track, so turning matching off takes all of it back.
   Library has two sources, YouTube Music and On this computer
   (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
+  A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
+  `LocalFileIndex.OpenAsync`) keeps the id the index has for its path, else
+  gets a new `local:<n>`; one outside the watched folders is kept as opened
+  (`LocalFile.IsOpened`), never listed, and forgotten at the next start when
+  the queue no longer holds it (`ForgetOpened`). A drop on the queue pane adds
+  to its end; elsewhere the files play after the current track
+  (`PlaybackCoordinator.PlayAfterCurrentAsync`); the queue is never replaced.
   Its lyrics cache file is `local.<n>.json`; its own lyrics (below, under
   Lyrics) come before it. Search's All tab puts the
   index's matches (`Core/Local/LocalSearch`) on a shelf above YouTube Music's

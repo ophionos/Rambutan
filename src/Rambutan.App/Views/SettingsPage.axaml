@@ -321,6 +321,8 @@
                         <SelectableTextBlock Classes="settinglabel" Text="{Binding Path}" TextWrapping="Wrap" />
                         <TextBlock Classes="settinghelp" Text="{l:T settings.local.unavailable}" TextWrapping="Wrap"
                                    Foreground="{StaticResource Token.Brush.Error}" IsVisible="{Binding IsUnavailable}" />
+                        <TextBlock Classes="settinghelp" Text="{l:T settings.local.notWatched}" TextWrapping="Wrap"
+                                   IsVisible="{Binding IsNotWatched}" />
                       </StackPanel>
                       <Button Grid.Column="1" Content="{l:T settings.local.remove}" VerticalAlignment="Center"
                               Command="{Binding $parent[ItemsControl].((vm:LocalFilesSettingsViewModel)DataContext).RemoveFolderCommand}"
@@ -344,6 +346,16 @@
                 </StackPanel>
                 <Button Grid.Column="1" Content="{l:T settings.local.rescan}" Command="{Binding RescanCommand}"
                         IsEnabled="{Binding !IsScanning}" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.local.match}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.local.matchHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding MatchOnYouTubeMusic}"
+                              AutomationProperties.Name="{l:T settings.local.match}" />
               </Grid>
             </Border>
           </StackPanel>

@@ -144,6 +144,16 @@ public sealed class MprisMediaSessionService : IMediaSessionService, IPathMethod
         EmitChanged(TrackProperties);
     }
 
+    public void UpdateArtwork()
+    {
+        lock (_sync)
+        {
+            if (_state.Track is null)
+                return;
+        }
+        EmitChanged(["Metadata"]);
+    }
+
     public void UpdatePlaybackState(SessionPlaybackStatus status)
     {
         lock (_sync)
