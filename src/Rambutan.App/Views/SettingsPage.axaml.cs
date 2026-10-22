@@ -23,20 +23,24 @@ public partial class SettingsPage : UserControl
             }
             if (DataContext is SettingsPageViewModel { Overlay: { } overlay })
                 AttachOverlay(overlay);
+            if (DataContext is SettingsPageViewModel { Local: { } local })
+                local.PickFolder = () => PickFolderAsync("settings.local.pickTitle");
             if (DataContext is not SettingsPageViewModel { Downloads: { } downloads })
                 return;
-            downloads.PickFolder = async () =>
-            {
-                if (TopLevel.GetTopLevel(this)?.StorageProvider is not { CanPickFolder: true } storage)
-                    return null;
-                var picked = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
-                {
-                    Title = Strings.Get("settings.downloads.pickTitle"),
-                    AllowMultiple = false,
-                });
-                return picked.FirstOrDefault()?.TryGetLocalPath();
-            };
+            downloads.PickFolder = () => PickFolderAsync("settings.downloads.pickTitle");
         };
+    }
+
+    private async System.Threading.Tasks.Task<string?> PickFolderAsync(string titleKey)
+    {
+        if (TopLevel.GetTopLevel(this)?.StorageProvider is not { CanPickFolder: true } storage)
+            return null;
+        var picked = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = Strings.Get(titleKey),
+            AllowMultiple = false,
+        });
+        return picked.FirstOrDefault()?.TryGetLocalPath();
     }
 
     /// <summary>The clipboard and the style file pickers, which need a TopLevel.</summary>

@@ -295,6 +295,61 @@
         </Border>
       </StackPanel>
 
+      <StackPanel Spacing="8" DataContext="{Binding Local}" x:DataType="vm:LocalFilesSettingsViewModel"
+                  IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.local.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.local.folders}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.local.foldersHelp}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.local.none}" Margin="0,6,0,0"
+                             IsVisible="{Binding !HasFolders}" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="{l:T settings.local.add}" Command="{Binding AddFolderCommand}"
+                        VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+            <ItemsControl ItemsSource="{Binding Folders}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:WatchedFolderRow">
+                  <Border Classes="settingrow">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel VerticalAlignment="Center">
+                        <SelectableTextBlock Classes="settinglabel" Text="{Binding Path}" TextWrapping="Wrap" />
+                        <TextBlock Classes="settinghelp" Text="{l:T settings.local.unavailable}" TextWrapping="Wrap"
+                                   Foreground="{StaticResource Token.Brush.Error}" IsVisible="{Binding IsUnavailable}" />
+                      </StackPanel>
+                      <Button Grid.Column="1" Content="{l:T settings.local.remove}" VerticalAlignment="Center"
+                              Command="{Binding $parent[ItemsControl].((vm:LocalFilesSettingsViewModel)DataContext).RemoveFolderCommand}"
+                              CommandParameter="{Binding}"
+                              AutomationProperties.Name="{Binding RemoveName}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Border Classes="settingrow" IsVisible="{Binding HasFolders}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.local.status}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Status}" TextWrapping="Wrap" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Problems}" TextWrapping="Wrap"
+                             IsVisible="{Binding Problems, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Error}" TextWrapping="Wrap"
+                             Foreground="{StaticResource Token.Brush.Error}"
+                             IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <Button Grid.Column="1" Content="{l:T settings.local.rescan}" Command="{Binding RescanCommand}"
+                        IsEnabled="{Binding !IsScanning}" VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
       <StackPanel Spacing="8">
         <TextBlock Classes="settingsheader" Text="{l:T settings.appearance.header}" />
         <Border Classes="settingsgroup">

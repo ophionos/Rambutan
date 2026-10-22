@@ -1,3 +1,4 @@
+using Rambutan.Core.Models;
 using Rambutan.Core.Settings;
 
 namespace Rambutan.Streams.Tests;
@@ -57,6 +58,17 @@ public sealed class StreamResolverTests
         private Action? _finish;
 
         public void FinishLast() => _finish!();
+    }
+
+    [Fact]
+    public async Task An_id_that_is_not_YouTubes_is_refused_before_yt_dlp_runs()
+    {
+        var ytDlp = new ScriptedYtDlp { Immediate = true };
+        var resolver = new StreamResolver(ytDlp.Resolve);
+
+        await Assert.ThrowsAsync<NotAYouTubeTrackException>(() => resolver.ResolveAsync("local:1"));
+        await Assert.ThrowsAsync<NotAYouTubeTrackException>(() => resolver.ResolveAsync("local:1", bypassCache: true));
+        Assert.Empty(ytDlp.Runs);
     }
 
     [Fact]

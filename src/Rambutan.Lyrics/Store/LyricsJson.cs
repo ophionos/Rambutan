@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Rambutan.Core.Local;
 using Rambutan.Lyrics.Models;
 
 namespace Rambutan.Lyrics.Store;
@@ -109,12 +110,19 @@ internal sealed partial class LyricsJsonContext : JsonSerializerContext;
 internal static class LyricsFiles
 {
     /// <summary>
-    /// The file name for a video id, or null when the id isn't safe to use as
+    /// The file name for a track id, or null when the id isn't safe to use as
     /// one. YouTube ids are [A-Za-z0-9_-]; anything else is refused rather than
-    /// escaped, so no id can name a path outside the store.
+    /// escaped, so no id can name a path outside the store. A local file's
+    /// <c>local:n</c> id is <c>local.n.json</c>: a dot is never in a YouTube id,
+    /// so the two can't name the same file.
     /// </summary>
     public static string? FileName(string videoId)
     {
+        if (LocalIds.IsLocal(videoId))
+        {
+            var number = videoId[LocalIds.Prefix.Length..];
+            return number.Length is > 0 and <= 20 && number.All(char.IsAsciiDigit) ? $"local.{number}.json" : null;
+        }
         if (string.IsNullOrEmpty(videoId) || videoId.Length > 64)
             return null;
         foreach (var c in videoId)

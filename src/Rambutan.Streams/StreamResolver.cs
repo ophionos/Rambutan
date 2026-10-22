@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Web;
+using Rambutan.Core.Models;
 using Rambutan.Core.Settings;
 
 namespace Rambutan.Streams;
@@ -91,6 +92,8 @@ public sealed partial class StreamResolver
     public async Task<ResolvedStream> ResolveAsync(
         string videoId, bool bypassCache = false, CancellationToken ct = default)
     {
+        // yt-dlp gets the id inside a music.youtube.com URL.
+        YouTubeIds.Require(videoId);
         var quality = _quality();
         if (bypassCache)
             return await ResolveAndCacheAsync(videoId, quality, ct);

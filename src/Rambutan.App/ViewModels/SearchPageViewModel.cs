@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Rambutan.App.Localization;
 using Rambutan.App.Services;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Diagnostics;
@@ -37,6 +38,7 @@ public partial class SearchPageViewModel : ViewModelBase
     private readonly PlaybackCoordinator _coordinator;
     private readonly NavigationService _navigation;
     private readonly SearchHistory _history;
+    private readonly LocalSearchFunc? _searchLocal;
 
     [ObservableProperty] private string _query = "";
     [ObservableProperty] private bool _isBusy;
@@ -88,6 +90,32 @@ public partial class SearchPageViewModel : ViewModelBase
 
     public ObservableCollection<CatalogEntry> Results { get; } = [];
 
+    /// <summary>Searches the local index: the query, how many rows to return at
+    /// most, and the search's token. Null where there is no local library.</summary>
+    public delegate Task<(IReadOnlyList<LocalTrackRow> Rows, int Total)> LocalSearchFunc(
+        string query, int limit, CancellationToken ct);
+
+    /// <summary>The On this computer shelf's rows before and after Show more. It is
+    /// part of a plain panel that builds every row, so it never holds thousands.</summary>
+    internal const int LocalShownCollapsed = 5;
+    internal const int LocalKept = 50;
+
+    /// <summary>The local matches on the shelf, on the All tab only.</summary>
+    public ObservableCollection<LocalTrackRow> LocalResults { get; } = [];
+
+    private IReadOnlyList<LocalTrackRow> _localFound = [];
+    private int _localTotal;
+
+    [ObservableProperty] private bool _hasLocalResults;
+
+    /// <summary>"12 songs": every local match, shown or not.</summary>
+    [ObservableProperty] private string _localCount = "";
+
+    [ObservableProperty] private bool _canShowMoreLocal;
+
+    /// <summary>Says the shelf stops short of every match; null when it doesn't.</summary>
+    [ObservableProperty] private string? _localCapped;
+
     // Design-time
     public SearchPageViewModel() : this(null!, null!, null!)
     {
@@ -109,12 +137,13 @@ public partial class SearchPageViewModel : ViewModelBase
 
     public SearchPageViewModel(
         ICatalog catalog, PlaybackCoordinator coordinator, NavigationService navigation,
-        SearchHistory? history = null)
+        SearchHistory? history = null, LocalSearchFunc? searchLocal = null)
     {
         _catalog = catalog;
         _coordinator = coordinator;
         _navigation = navigation;
         _history = history ?? new SearchHistory(null);
+        _searchLocal = searchLocal;
     }
 
     // With the box empty it lists recent queries; while typing, the recent ones
@@ -346,6 +375,7 @@ public partial class SearchPageViewModel : ViewModelBase
         {
             Results.Clear();
             TopResult = null;
+            ShowLocal([], 0, expanded: false);
             HasSearched = false;
             IsBusy = false;
             LoadError = null;
@@ -365,22 +395,15 @@ public partial class SearchPageViewModel : ViewModelBase
         try
         {
             var query = Query.Trim();
-            TopResult? top = null;
-            IReadOnlyList<CatalogEntry> entries;
-            (string, SearchFilter, ContinuationToken)? next = null;
-            if (SelectedTab.Filter is { } filter)
-            {
-                var page = await _catalog.SearchPagedAsync(query, filter, search.Token);
-                entries = page.Items;
-                if (page.Continuation is { } token)
-                    next = (query, filter, token);
-            }
+            // Both start at once: the local shelf shows in moments, and it stays
+            // when YouTube Music can't answer (offline is when it matters most).
+            var remote = FetchAsync(query, SelectedTab.Filter, search.Token);
+            if (SelectedTab.Filter is null && _searchLocal is not null)
+                await ShowLocalAsync(_searchLocal(query, LocalKept, search.Token), search);
             else
-            {
-                var overview = await _catalog.SearchAllAsync(query, search.Token);
-                (top, entries) = (overview.TopResult, overview.Results);
-            }
+                ShowLocal([], 0, expanded: false);
 
+            var (top, entries, next) = await remote;
             if (search.IsCancellationRequested)
                 return;
 
@@ -413,6 +436,68 @@ public partial class SearchPageViewModel : ViewModelBase
                 IsBusy = false;
             }
         }
+    }
+
+    private async Task<(TopResult? Top, IReadOnlyList<CatalogEntry> Entries,
+        (string, SearchFilter, ContinuationToken)? Next)> FetchAsync(
+        string query, SearchFilter? filter, CancellationToken ct)
+    {
+        if (filter is { } f)
+        {
+            var page = await _catalog.SearchPagedAsync(query, f, ct);
+            return (null, page.Items, page.Continuation is { } token ? (query, f, token) : null);
+        }
+
+        var overview = await _catalog.SearchAllAsync(query, ct);
+        return (overview.TopResult, overview.Results, null);
+    }
+
+    /// <summary>Puts the local matches on the shelf, unless a newer search has
+    /// started. A local search that fails empties the shelf and is logged: the
+    /// YouTube Music results still come.</summary>
+    private async Task ShowLocalAsync(
+        Task<(IReadOnlyList<LocalTrackRow> Rows, int Total)> local, CancellationTokenSource search)
+    {
+        try
+        {
+            var (rows, total) = await local;
+            if (!search.IsCancellationRequested)
+                ShowLocal(rows, total, expanded: false);
+        }
+        catch (Exception ex)
+        {
+            if (search.IsCancellationRequested)
+                return;
+            AppLog.Write("search", $"searching the local files failed: {ex.Message}");
+            ShowLocal([], 0, expanded: false);
+        }
+    }
+
+    private void ShowLocal(IReadOnlyList<LocalTrackRow> found, int total, bool expanded)
+    {
+        _localFound = found;
+        _localTotal = total;
+        LocalResults.Clear();
+        foreach (var row in expanded ? found : found.Take(LocalShownCollapsed))
+            LocalResults.Add(row);
+        HasLocalResults = LocalResults.Count > 0;
+        CanShowMoreLocal = LocalResults.Count < found.Count;
+        LocalCount = Strings.Format("search.local.count", ("count", total));
+        LocalCapped = expanded && total > LocalResults.Count
+            ? Strings.Format("search.local.capped", ("shown", LocalResults.Count), ("total", total))
+            : null;
+    }
+
+    [RelayCommand]
+    private void ShowMoreLocal() => ShowLocal(_localFound, _localTotal, expanded: true);
+
+    /// <summary>A local row plays with the shelf's rows as its queue.</summary>
+    [RelayCommand]
+    private async Task PlayLocalAsync(LocalTrackRow? row)
+    {
+        var index = row is null ? -1 : LocalResults.IndexOf(row);
+        if (index >= 0)
+            await _coordinator.PlayQueueAsync(LocalResults.Select(r => r.Track).ToList(), index);
     }
 
     /// <summary>The page fetch in flight; a new search cancels it.</summary>

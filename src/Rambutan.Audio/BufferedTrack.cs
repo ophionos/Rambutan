@@ -86,14 +86,16 @@ public sealed class BufferedTrack : IDisposable
         return read;
     }
 
-    /// <summary>Waits until at least <paramref name="ahead"/> of audio is buffered (or the track ends).</summary>
+    /// <summary>Waits until at least <paramref name="ahead"/> of audio is buffered (or the decoder has finished).</summary>
     public async Task PrebufferAsync(TimeSpan ahead, CancellationToken ct = default)
     {
         var target = Math.Min(
             (int)(ahead.TotalSeconds * FfmpegDecoder.SampleRate * FfmpegDecoder.Channels),
             _ring.Capacity);
 
-        while (_ring.Count < target && !_ring.IsCompleted)
+        // IsClosed, not IsCompleted: a track shorter than the target is all in
+        // the ring once decoded, and IsCompleted waits for the ring to drain.
+        while (_ring.Count < target && !_ring.IsClosed)
         {
             ThrowIfFaulted();
             await Task.Delay(25, ct);

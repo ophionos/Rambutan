@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Rambutan.Core.Diagnostics;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.LocalApi;
 using Rambutan.Streams;
@@ -18,10 +19,17 @@ namespace Rambutan.App.Services;
 /// which tracks they may serve; this only fetches.
 /// </summary>
 /// <param name="fetch">A cover's bytes by URL (the artwork cache).</param>
-/// <param name="local">A downloaded track's kept cover, by video id.</param>
+/// <param name="local">A track's cover kept on this computer, by id (<see cref="KeptCovers"/>).</param>
 public sealed class CoverSource(
     Func<string, CancellationToken, Task<byte[]>> fetch, Func<string, string?> local)
 {
+    /// <summary>
+    /// Whether the track has a cover to serve. Cheap: the remote asks it under the
+    /// coordinator's lock, so only a local file's cover is looked up (in memory).
+    /// </summary>
+    public bool Has(TrackInfo track) =>
+        track.ThumbnailUrl is not null || (LocalIds.IsLocal(track.VideoId) && local(track.VideoId) is not null);
+
     /// <summary>The track's cover, or null when it has none or it can't be read.</summary>
     public async Task<RemoteArtwork?> GetAsync(TrackInfo? track, ArtworkSize size, string area, CancellationToken ct)
     {

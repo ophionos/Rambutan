@@ -119,6 +119,7 @@
           <Binding Path="HasSearched" />
           <Binding Path="!IsBusy" />
           <Binding Path="!Results.Count" />
+          <Binding Path="!HasLocalResults" />
           <Binding Path="TopResult" Converter="{x:Static ObjectConverters.IsNull}" />
           <Binding Path="LoadError" Converter="{x:Static ObjectConverters.IsNull}" />
         </MultiBinding>
@@ -286,6 +287,87 @@
 
       </StackPanel.DataTemplates>
 
+      <!-- Matches among the watched folders' files, on the All tab. They come
+           first: they arrive before YouTube Music's results, which then don't
+           push them down. YouTube Music's failure shows here, compact, so the
+           matches stay on screen when it can't be reached. -->
+      <StackPanel Margin="0,0,0,12" Spacing="4" IsVisible="{Binding HasLocalResults}">
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="4,0">
+          <TextBlock Classes="topcaption" Text="{l:T search.local.title}" VerticalAlignment="Center" />
+          <TextBlock Classes="rowmeta" Text="{Binding LocalCount}" VerticalAlignment="Center" />
+        </StackPanel>
+        <ListBox Classes="tracks" Background="Transparent"
+                 AutomationProperties.Name="{l:T search.local.listName}"
+                 ItemsSource="{Binding LocalResults}"
+                 controls:ItemActivation.Command="{Binding PlayLocalCommand}">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:LocalTrackRow">
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+                    Background="Transparent"
+                    controls:TrackMenu.Track="{Binding Track}">
+                <Border Classes="rowart">
+                  <Panel>
+                    <PathIcon Data="{StaticResource Icon.MusicNote}" Width="16" Height="16" Opacity="0.35" />
+                    <controls:RemoteImage Url="{Binding Track, Converter={x:Static conv:ArtworkConverter.Instance}}"
+                                          Stretch="UniformToFill" DecodeWidth="96" />
+                  </Panel>
+                </Border>
+                <Panel Grid.Column="1" Width="14">
+                  <PathIcon Data="{StaticResource Icon.Play}" Width="12" Height="12"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource Token.Brush.Accent}">
+                    <PathIcon.IsVisible>
+                      <MultiBinding Converter="{x:Static conv:IsPlayingTrackConverter.Instance}">
+                        <Binding Path="Track.Identity" />
+                        <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Player.NowPlaying.Identity" />
+                      </MultiBinding>
+                    </PathIcon.IsVisible>
+                  </PathIcon>
+                </Panel>
+                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                  <TextBlock Classes="rowtitle" Text="{Binding Title}" />
+                  <TextBlock Classes="rowmeta" Text="{Binding Subtitle}"
+                             IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <TextBlock Grid.Column="4" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                           MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                <!-- Play and queue only: the rest acts on YouTube Music. -->
+                <Panel Grid.Column="3" Width="112">
+                  <StackPanel Classes="rowactions" Orientation="Horizontal"
+                              HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
+                            Command="{Binding #Root.((vm:SearchPageViewModel)DataContext).PlayLocalCommand}"
+                            CommandParameter="{Binding}">
+                      <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" />
+                    </Button>
+                    <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToQueue}"
+                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToQueueCommand}"
+                            CommandParameter="{Binding Track}">
+                      <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+                    </Button>
+                  </StackPanel>
+                </Panel>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+        <Button Classes="textlink" Margin="4,0" HorizontalAlignment="Left"
+                Content="{l:T search.local.showMore}"
+                Command="{Binding ShowMoreLocalCommand}"
+                IsVisible="{Binding CanShowMoreLocal}" />
+        <TextBlock Classes="rowmeta" Margin="4,0" Text="{Binding LocalCapped}"
+                   IsVisible="{Binding LocalCapped, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <ContentControl Content="{Binding LoadError}"
+                        ContentTemplate="{StaticResource ErrorState.Compact}"
+                        HorizontalAlignment="Left" Margin="4,8,4,0"
+                        IsVisible="{Binding LoadError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      </StackPanel>
+
       <!-- YTM's top result: the entity it thinks you meant, then
            the rows it shows inside the card, such as an artist's top songs. -->
       <Border Classes="topresult" Margin="0,0,0,8"
@@ -361,6 +443,7 @@
          swallow clicks on Try again and Details. -->
     <ContentControl Margin="0,0,12,0" Grid.Row="3" Content="{Binding LoadError}"
                     ContentTemplate="{StaticResource ErrorState.Full}"
-                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsVisible="{Binding !HasLocalResults}" />
   </Grid>
 </UserControl>

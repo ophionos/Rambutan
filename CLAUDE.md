@@ -89,7 +89,7 @@ so say which checks were impossible.
 
 ## Architecture
 
-Eight projects under `src/`. **Feature libraries reference `Rambutan.Core` only;
+Nine projects under `src/`. **Feature libraries reference `Rambutan.Core` only;
 `Rambutan.App` composes everything.** Never add a reference between feature
 libraries; a type two of them share belongs in Core.
 
@@ -98,7 +98,8 @@ libraries; a type two of them share belongs in Core.
 | `Rambutan.Core` | Playback coordinator + state machine, queue, ports (`ICatalog`, `IStreamSource`, `IAudioPlayer`), `AppLog`. **Pure C#, zero I/O, no package refs** without discussion. |
 | `Rambutan.InnerTube` | YTM API client implementing `ICatalog`. Parsers tested against recorded fixtures. |
 | `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, download store (kept apart from the cache: no cap, no eviction), export through the ffmpeg executable. The **only** project that touches stream extraction. |
-| `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). |
+| `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). Also reads local files' tags, length and cover (`FfmpegMediaFileReader`), so libav stays in one project. |
+| `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`, and plays them (`LocalFirstSource`). |
 | `Rambutan.Lyrics` | Lyrics model + timing rules, LRC parser/writer, Lyricsfile (YAML subset) parser for LRCLIB's word-synced records, LRCLIB provider + chain, per-track cache, custom-lyrics store, `LyricsService`. |
 | `Rambutan.Integrations` | SMTC (Windows), MPRIS and the tray-host check (Linux, over D-Bus), single-instance, Velopack updates, Discord Rich Presence (hand-rolled IPC), Last.fm scrobbling and stations. |
 | `Rambutan.LocalApi` | Kestrel host started on demand: `/remote` (the phone remote, on the LAN only while its setting is on; token pairing, state over SSE) and `/overlay` (the OBS overlay, in its own host on loopback only, port 41742 for the installed app's data folder, with its own read-only key; style file `overlay-style.json`, versioned). |
@@ -229,6 +230,11 @@ file sink), never to files directly.
   and error states draw yellow and red, which read as warnings.
 - Lyrics degrade in explicit states: word-synced → line-synced → plain → "no
   lyrics found". Imported custom lyrics always win over providers.
+  A local track's own lyrics come next (`Lyrics/Store/LocalLyrics`): the
+  `.lrc` beside the file, then its tags (read through
+  `FfmpegMediaFileReader.ReadLyrics`, which waits for ffmpeg); a text that
+  parses as synced LRC shows synced. They are read on each lookup, never cached, and
+  whatever the online-lookup setting; the cache and LRCLIB come after them.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.
 - Card menus: a song card has the track menu (`TrackMenuModel`); album,
   playlist and artist cards have their own (`CollectionMenuModel`, acting
@@ -249,6 +255,42 @@ file sink), never to files directly.
   video it lists. Lyrics, downloads and the now-playing marker follow the id that
   plays. `Core/Models/AlbumAudio` swaps the ids and `PlaybackCoordinator`
   falls back to the listed video.
+- Local library: the watched folders are a setting (`AppSettings.WatchedFolders`,
+  per profile like every setting). `LocalLibrary/LocalFileIndex` scans them at
+  startup, when a folder is added, and on Rescan, with no live watcher.
+  The rules are in Core (`Core/Local/LocalScan`): a file is read again only when
+  its size or modified time changed; its `local:<n>` id stays with its path and
+  is never given again; a file that is gone stays in the index as missing; a
+  watched folder that can't be listed (an unplugged drive) leaves its files as
+  they were; files of a folder no longer watched stay in the index, unlisted.
+  The reader detects the format from the content after any ID3v2 tag, never the
+  extension, and reads stream info only when the open gives no length. Its tests
+  need the ffmpeg shared libraries (`RAMBUTAN_FFMPEG_LIBS`, else the app's tools
+  folder on Windows or the system's on Linux) and skip without them, as on CI.
+  A local track is `Core/Local/LocalTracks.ToTrack` under its `local:<n>` id.
+  `LocalFirstSource` sits outermost on `IStreamSource`: a local id plays its
+  file and never reaches the streams, even on a fault retry; a file that is
+  gone throws `LocalFileMissingException`, and the queue marks it. Playback and
+  scans wait only for ffmpeg (`SidecarBootstrapper.AudioReady`), not yt-dlp,
+  so they work offline on a first start. ReplayGain's track gain becomes
+  YouTube's loudness (`LocalTracks.LoudnessDb`). Covers come by id through
+  `Services/KeptCovers`, never as a URL in the track, so no file path reaches
+  Discord or `queue.json`. The YouTube-only actions (radio, like, library,
+  playlists, download, share) are off for such a track
+  (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice.
+  Library has two sources, YouTube Music and On this computer
+  (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
+  Its lyrics cache file is `local.<n>.json`; its own lyrics (below, under
+  Lyrics) come before it. Search's All tab puts the
+  index's matches (`Core/Local/LocalSearch`) on a shelf above YouTube Music's
+  results, at most `SearchPageViewModel.LocalKept` rows, since that list
+  doesn't virtualize; the shelf stays when YouTube Music can't be reached.
+- Ids sent to YouTube: InnerTube's track calls (radio, mix, rating, playlist
+  edits) and the stream resolver refuse any id that isn't YouTube-shaped
+  (`Core/Models/YouTubeIds`, `NotAYouTubeTrackException`) before any request,
+  so a track from elsewhere never reaches YouTube Music. Copy link and MPRIS's
+  `xesam:url` go through `Core/Links/ShareLinks.ForTrack`, which has no link
+  for such an id; MPRIS gives a local file's `file://` URL instead.
 - Last.fm stations on Home, and artists' stations from their pages:
   `Integrations/LastFm/LastFmStationClient` reads the web player's
   undocumented station endpoint (`user/<name>/…`, `music/<artist>/+similar`;

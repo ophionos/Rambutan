@@ -11,9 +11,14 @@ using Rambutan.App.Localization;
 
 namespace Rambutan.App.ViewModels;
 
+/// <summary>Where Library's music comes from.</summary>
+public enum LibrarySource { YouTubeMusic, ThisComputer }
+
 /// <summary>
-/// The Library: saved playlists, saved songs, saved albums and subscribed
-/// artists, one tab each. A tab loads when first shown; a save or subscribe
+/// The Library, from two sources. YouTube Music's: saved playlists, saved songs,
+/// saved albums and subscribed artists, one tab each. On this computer: the
+/// watched folders' files (<see cref="LocalLibraryViewModel"/>), signed in or not.
+/// YouTube Music's tabs: A tab loads when first shown; a save or subscribe
 /// elsewhere marks its tab stale, so it reloads when next shown. A song removed
 /// from the library leaves the Songs tab at once.
 /// </summary>
@@ -38,7 +43,7 @@ public partial class LibraryPageViewModel : ViewModelBase
                 return;
             OnPropertyChanged(nameof(IsPlaylists));
             OnPropertyChanged(nameof(IsSongs));
-            if (_shown && _catalog is not null)
+            if (_shown && _catalog is not null && IsYouTubeMusic)
                 _ = value.EnsureLoadedAsync();
         }
     }
@@ -55,17 +60,60 @@ public partial class LibraryPageViewModel : ViewModelBase
 
     public LibrarySection Songs => Section(LibrarySectionKind.Songs);
 
+    /// <summary>On this computer; null where the local library isn't composed,
+    /// and then the source switch doesn't show.</summary>
+    public LocalLibraryViewModel? Local { get; }
+
+    public bool HasLocal => Local is not null;
+
+    public IReadOnlyList<LibrarySource> Sources { get; } = Enum.GetValues<LibrarySource>();
+
+    private LibrarySource _source;
+
+    /// <summary>The source on screen. Switching to On this computer lists the
+    /// files and follows the scan; switching away stops following it.</summary>
+    public LibrarySource Source
+    {
+        get => _source;
+        set
+        {
+            if (!SetProperty(ref _source, value))
+                return;
+            OnPropertyChanged(nameof(IsYouTubeMusic));
+            OnPropertyChanged(nameof(IsThisComputer));
+            if (!_shown)
+                return;
+            if (IsThisComputer)
+                _ = Local?.ShowAsync();
+            else
+            {
+                Local?.Hide();
+                if (_catalog is not null)
+                    _ = SelectedSection.EnsureLoadedAsync();
+            }
+        }
+    }
+
+    public bool IsYouTubeMusic => Source == LibrarySource.YouTubeMusic;
+
+    public bool IsThisComputer => Source == LibrarySource.ThisComputer && Local is not null;
+
     // Design-time
     public LibraryPageViewModel() : this(null!, null!, null!, null!) { }
 
+    /// <param name="source">The source to open on: the one the page showed
+    /// before the session changed.</param>
     public LibraryPageViewModel(
         ICatalog catalog, NavigationService navigation, TrackActionsViewModel actions,
-        PlaybackCoordinator coordinator)
+        PlaybackCoordinator coordinator, LocalLibraryViewModel? local = null,
+        LibrarySource source = LibrarySource.YouTubeMusic)
     {
         _catalog = catalog;
         _navigation = navigation;
         _actions = actions;
         _coordinator = coordinator;
+        Local = local;
+        _source = local is null ? LibrarySource.YouTubeMusic : source;
         Sections = Enum.GetValues<LibrarySectionKind>()
             .Select(kind => LibrarySection.For(kind, catalog))
             .ToList();
@@ -108,8 +156,22 @@ public partial class LibraryPageViewModel : ViewModelBase
         if (_catalog is null)
             return;
         _shown = true;
-        await SelectedSection.EnsureLoadedAsync();
+        if (IsThisComputer)
+            await Local!.ShowAsync();
+        else
+            await SelectedSection.EnsureLoadedAsync();
     }
+
+    /// <summary>Another page took the screen: the local list stops following the scan.</summary>
+    public void OnHidden()
+    {
+        _shown = false;
+        Local?.Hide();
+    }
+
+    /// <summary>The empty state's way to the watched folders.</summary>
+    [RelayCommand]
+    private void OpenSettings() => _navigation.GoSettings?.Invoke();
 
     [RelayCommand]
     private Task OpenEntryAsync(CatalogEntry entry) => _navigation.OpenEntryAsync(entry);

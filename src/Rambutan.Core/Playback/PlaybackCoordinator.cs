@@ -1036,6 +1036,11 @@ public sealed class PlaybackCoordinator : IDisposable
     {
         if (AutoplayApplies() is not { } seed)
             return false;
+        if (!YouTubeIds.IsVideoId(seed.VideoId))
+        {
+            Notification?.Invoke(new(PlaybackNoticeKind.AutoplayNoRadio, seed.Title));
+            return false;
+        }
 
         int added;
         try
@@ -1100,7 +1105,8 @@ public sealed class PlaybackCoordinator : IDisposable
     /// </summary>
     private async Task AutoplayAheadAsync()
     {
-        if (AutoplayApplies() is not { } seed)
+        // A seed without radio is said once, at the queue's end.
+        if (AutoplayApplies() is not { } seed || !YouTubeIds.IsVideoId(seed.VideoId))
             return;
         try
         {

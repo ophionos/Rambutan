@@ -135,4 +135,37 @@ public class OfflineQueueTests
 
         Assert.Equal([false, true], Marks(vm));
     });
+
+    [Fact]
+    public void Online_ALocalFileThatIsGone_IsMarkedMissing_NotAsNeedingAConnection() => Headless.Run(() =>
+    {
+        var queue = new QueueModel();
+        queue.SetQueue(new[] { "a", "local:1", "local:2" }.Select(Track));
+        var (_, vm, _) = Create(new PlaysOffline("local:2"), queue: queue);
+        Settle(vm);
+
+        Assert.Equal([false, false, false], Marks(vm));
+        Assert.Equal([false, true, false], vm.Items.Select(i => i.IsFileMissing));
+        Assert.Equal(
+            Strings.Format("queue.row.fileMissing", ("row", "LOCAL:1, Artist")),
+            vm.Items[1].AccessibleName);
+    });
+
+    [Fact]
+    public void ALocalFileThatComesBack_LosesItsMark() => Headless.Run(() =>
+    {
+        var queue = new QueueModel();
+        queue.SetQueue(new[] { "local:1" }.Select(Track));
+        var playsOffline = new PlaysOffline();
+        Action? changed = null;
+        var vm = new QueueViewModel(queue, null, null, playsOffline, subscribe => changed = subscribe);
+        Settle(vm);
+        Assert.True(vm.Items[0].IsFileMissing);
+
+        playsOffline.Ids.Add("local:1");
+        changed!();
+        Settle(vm);
+
+        Assert.False(vm.Items[0].IsFileMissing);
+    });
 }

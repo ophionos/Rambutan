@@ -274,6 +274,27 @@ public class AutoplayTests
     }
 
     [Fact]
+    public async Task ALocalSeed_AsksForNoRadio_AndEndsTheQueueSayingWhy()
+    {
+        var messages = new List<PlaybackNotice>();
+        using var coordinator = Create();
+        coordinator.Notification += m => { lock (messages) messages.Add(m); };
+        await coordinator.PlayQueueAsync([T("local:1")]);
+
+        _player.RaiseProgress(TimeSpan.FromSeconds(10));
+        _player.RaiseProgress(TimeSpan.FromSeconds(11));
+        End();
+
+        await TestTracks.WaitUntilAsync(() => coordinator.State == PlaybackState.Stopped);
+        Assert.Empty(_radio.Requests);
+        lock (messages)
+        {
+            Assert.Contains(messages, m => m.Kind == PlaybackNoticeKind.AutoplayNoRadio && m.Subject == "Title local:1");
+            Assert.DoesNotContain(messages, m => m.Kind == PlaybackNoticeKind.AutoplayFailed);
+        }
+    }
+
+    [Fact]
     public async Task FetchAhead_QueuesAndArmsTheFirstAutoplayTrack_Once()
     {
         _radio.Tracks["a"] = [T("a"), T("r1")];

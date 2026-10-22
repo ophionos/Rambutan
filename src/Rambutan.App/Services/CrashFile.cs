@@ -42,8 +42,9 @@ public sealed class CrashFile(string dataDirectory)
 {
     public string Path { get; } = System.IO.Path.Combine(dataDirectory, "crash.json");
 
-    /// <summary>Folders the user chose (downloads, export), read when the crash
-    /// happens; they can sit outside the home folder and still name the person.</summary>
+    /// <summary>Folders the user chose (downloads, export, watched folders), read
+    /// when the crash happens; they can sit outside the home folder and still name
+    /// the person.</summary>
     public Func<IEnumerable<string?>>? UserFolders { get; set; }
 
     /// <summary>Keeps <paramref name="exception"/> as the last crash, its text

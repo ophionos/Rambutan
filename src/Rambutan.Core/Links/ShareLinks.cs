@@ -11,7 +11,10 @@ public static class ShareLinks
 {
     private const string Base = "https://music.youtube.com/";
 
-    public static string ForTrack(TrackInfo track) => $"{Base}watch?v={Uri.EscapeDataString(track.VideoId)}";
+    /// <summary>The track's watch link; null when its id isn't YouTube's
+    /// (<see cref="YouTubeIds"/>), since no YouTube page plays it.</summary>
+    public static string? ForTrack(TrackInfo track) =>
+        YouTubeIds.IsVideoId(track.VideoId) ? $"{Base}watch?v={Uri.EscapeDataString(track.VideoId)}" : null;
 
     /// <summary>The link for an album, playlist or artist card; null for a song
     /// card (its track has <see cref="ForTrack"/>) and for an id whose link

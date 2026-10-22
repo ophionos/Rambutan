@@ -1,4 +1,6 @@
 using System.Text;
+using Rambutan.Core.Links;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Queue;
 
@@ -11,7 +13,10 @@ namespace Rambutan.Integrations.Linux;
 /// told about.
 /// Not thread-safe; <see cref="MprisMediaSessionService"/> locks around it.
 /// </summary>
-public sealed class MprisPlayerState(TimeProvider clock)
+/// <param name="localFile">A local track's file path and cover path, by its
+/// <c>local:</c> id; null when the index doesn't know it.</param>
+public sealed class MprisPlayerState(
+    TimeProvider clock, Func<string, (string Path, string? Cover)?>? localFile = null)
 {
     /// <summary>The object-path prefix for track ids (the spec keeps
     /// /org/mpris for its own use).</summary>
@@ -182,16 +187,22 @@ public sealed class MprisPlayerState(TimeProvider clock)
             new("mpris:trackid", MprisValue.OfPath(TrackId)),
             new("xesam:title", MprisValue.OfText(track.Title)),
             new("xesam:artist", MprisValue.OfTextList([.. track.Artists.Select(a => a.Name)])),
-            new("xesam:url", MprisValue.OfText("https://music.youtube.com/watch?v=" + Uri.EscapeDataString(track.VideoId))),
         };
+        // A local file is named by its file:// URL, as local players do, and so is its cover.
+        var local = LocalIds.IsLocal(track.VideoId) ? localFile?.Invoke(track.VideoId) : null;
+        if ((ShareLinks.ForTrack(track) ?? FileUrl(local?.Path)) is { } url)
+            entries.Add(new("xesam:url", MprisValue.OfText(url)));
         if (!string.IsNullOrWhiteSpace(track.Album))
             entries.Add(new("xesam:album", MprisValue.OfText(track.Album)));
         if (Duration is { } length)
             entries.Add(new("mpris:length", MprisValue.OfMicroseconds(length)));
-        if (track.ThumbnailUrl is { } art && Uri.TryCreate(art, UriKind.Absolute, out _))
+        if ((FileUrl(local?.Cover) ?? track.ThumbnailUrl) is { } art && Uri.TryCreate(art, UriKind.Absolute, out _))
             entries.Add(new("mpris:artUrl", MprisValue.OfText(art)));
         return entries;
     }
+
+    private static string? FileUrl(string? path) =>
+        path is not null && Uri.TryCreate(path, UriKind.Absolute, out var uri) && uri.IsFile ? uri.AbsoluteUri : null;
 
     /// <summary>MPRIS times are whole microseconds in an int64.</summary>
     public static long ToMicroseconds(TimeSpan time) => time.Ticks / TimeSpan.TicksPerMicrosecond;

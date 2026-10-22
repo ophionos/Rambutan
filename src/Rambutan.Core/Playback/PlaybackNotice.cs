@@ -18,6 +18,9 @@ public enum PlaybackNoticeKind
     AutoplayFailed,
     /// <summary>Autoplay found nothing that hasn't played. Subject: the seed's title.</summary>
     AutoplayEmpty,
+    /// <summary>The queue ran out on a track that isn't YouTube Music's (a local
+    /// file), which has no radio to continue with. Subject: its title.</summary>
+    AutoplayNoRadio,
     /// <summary>Offline: a track that needs the network couldn't play, so playback
     /// skipped to the next track that plays offline. Subject: the first title skipped.</summary>
     SkippedOffline,

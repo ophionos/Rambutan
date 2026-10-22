@@ -44,6 +44,54 @@ public class TrackMenuTests
     }
 
     [Fact]
+    public void ALocalFile_GetsTheQueueMoves_AndNothingThatActsOnYouTubeMusic()
+    {
+        var groups = TrackMenuModel.Build(Track("local:1", artistBrowseId: null, albumBrowseId: null), Actions);
+
+        Assert.Equal(
+            [
+                ["Play next", "Add to queue"],
+                ["Go to album", "Go to artist", "Share"],
+            ],
+            Headers(groups));
+        Assert.All(groups[1], e => Assert.False(e.IsEnabled));
+    }
+
+    [Fact]
+    public void TheCommandsThatActOnYouTubeMusic_AreDisabledForALocalFile()
+    {
+        var local = Track("local:1");
+        var onYouTube = Track("a");
+        System.Windows.Input.ICommand[] youTubeOnly =
+        [
+            Actions.LikeCommand, Actions.DislikeCommand, Actions.StartRadioCommand, Actions.DownloadCommand,
+            Actions.ShareCommand, Actions.ToggleInLibraryCommand, Actions.AddToPlaylistCommand,
+        ];
+
+        Assert.All(youTubeOnly, command => Assert.False(command.CanExecute(local)));
+        Assert.All(youTubeOnly, command => Assert.True(command.CanExecute(onYouTube)));
+        Assert.True(Actions.PlayNextCommand.CanExecute(local));
+        Assert.True(Actions.AddToQueueCommand.CanExecute(local));
+    }
+
+    [Fact]
+    public async Task Share_IsDisabled_AndCopiesNothing_ForAnIdThatIsNotYouTubes()
+    {
+        var copied = new List<string>();
+        var actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, new ToastHostViewModel())
+        {
+            CopyToClipboard = text => { copied.Add(text); return Task.CompletedTask; },
+        };
+        var track = Track("local:1");
+
+        var share = TrackMenuModel.Build(track, actions).SelectMany(g => g).Single(e => e.Header == "Share");
+        await actions.ShareCommand.ExecuteAsync(track);
+
+        Assert.False(share.IsEnabled);
+        Assert.Empty(copied);
+    }
+
+    [Fact]
     public void GoToArtist_IsDisabled_WithoutAnArtistLink()
     {
         var entry = TrackMenuModel.Build(Track("a", artistBrowseId: null), Actions)

@@ -107,6 +107,11 @@ public sealed class AppSettings
     /// cache directory. Changing it leaves existing downloads where they are.</summary>
     public string? DownloadsFolder { get; set; }
 
+    /// <summary>The folders whose music files the local library reads. Replaced as
+    /// a whole when it changes, never changed in place: scans read it from their
+    /// own thread.</summary>
+    public List<string>? WatchedFolders { get; set; }
+
     /// <summary>Export of downloads as ordinary files: off by default.
     /// The format is "original" (remux) or "mp3"; the folder is the last one
     /// exported to, null until the first export.</summary>

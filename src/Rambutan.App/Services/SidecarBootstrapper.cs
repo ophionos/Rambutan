@@ -23,6 +23,7 @@ public sealed class SidecarBootstrapper(YtDlpManager ytDlp, FfmpegManager ffmpeg
 {
     private readonly Lock _sync = new();
     private Task? _run;
+    private Task? _audio;
 
     /// <summary>
     /// The single preparation run, started on first request. A faulted run is not
@@ -42,11 +43,34 @@ public sealed class SidecarBootstrapper(YtDlpManager ytDlp, FfmpegManager ffmpeg
     /// <summary>Awaited by anything that actually needs the sidecars (playback).</summary>
     public Task Ready => RunAsync();
 
+    /// <summary>
+    /// ffmpeg alone: what local files need to be read and played. It doesn't wait
+    /// for yt-dlp, which a first start without the network can't fetch. Like
+    /// <see cref="RunAsync"/>, a faulted preparation is tried again by the next caller.
+    /// </summary>
+    public Task AudioReady
+    {
+        get
+        {
+            lock (_sync)
+            {
+                if (_audio is { IsFaulted: false })
+                    return _audio;
+                return _audio = PrepareAudioAsync();
+            }
+        }
+    }
+
+    private async Task PrepareAudioAsync()
+    {
+        var ffmpegDir = await ffmpeg.EnsureAsync();
+        FfmpegRuntime.Initialize(ffmpegDir);
+    }
+
     private async Task PrepareAsync(IProgress<string>? status)
     {
         status?.Report(Strings.Get("sidecar.preparingAudio"));
-        var ffmpegDir = await ffmpeg.EnsureAsync();
-        FfmpegRuntime.Initialize(ffmpegDir);
+        await AudioReady;
 
         if (!needsYtDlp)
         {

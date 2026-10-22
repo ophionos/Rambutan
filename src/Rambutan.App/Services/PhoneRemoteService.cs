@@ -145,9 +145,8 @@ public sealed class PhoneRemoteService
     {
         Set(PhoneRemoteStatus.Starting);
         _token ??= await Task.Run(_vault.LoadOrCreate).ConfigureAwait(false);
-        // A cheap field check: the session asks this under the coordinator's lock.
         _session = new RemoteSession(
-            _coordinator, _dispatch, track => track.ThumbnailUrl is not null, searchSongs: _searchSongs)
+            _coordinator, _dispatch, _covers.Has, searchSongs: _searchSongs)
         {
             Accent = _accent,
         };

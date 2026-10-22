@@ -29,6 +29,7 @@ using Rambutan.InnerTube;
 using Rambutan.Integrations;
 using Rambutan.Integrations.Discord;
 using Rambutan.Integrations.LastFm;
+using Rambutan.LocalLibrary;
 using Rambutan.Lyrics.Providers;
 using Rambutan.Lyrics.Store;
 using Rambutan.Streams;
@@ -85,7 +86,7 @@ public partial class App : Application
             var downloads = _services.GetRequiredService<DownloadStore>();
             _services.GetRequiredService<PlaybackCoordinator>().NowPlayingChanged +=
                 _ => Task.Run(downloads.RetryLeftovers);
-            Converters.ArtworkConverter.LocalArtwork = downloads.ArtworkPathFor;
+            Converters.ArtworkConverter.LocalArtwork = _services.GetRequiredService<KeptCovers>().PathFor;
             // Downloads made before covers were kept get theirs, in the background.
             _ = Task.Run(() => downloads.FillMissingArtworkAsync(CancellationToken.None));
             // Linux has no install step, so the AppImage registers rambutan:// as it
@@ -185,6 +186,18 @@ public partial class App : Application
                 _ = _services.GetRequiredService<PhoneRemoteService>().SetEnabledAsync(true);
             if (_services.GetRequiredService<AppSettings>().OverlayEnabled)
                 _ = _services.GetRequiredService<ObsOverlayService>().SetEnabledAsync(true);
+            // The watched folders are compared with the index once the window is up;
+            // only what changed while the app was closed is read.
+            if (_services.GetRequiredService<AppSettings>().WatchedFolders is { Count: > 0 })
+            {
+                // Once: a window hidden to the tray opens again when it comes back.
+                void ScanOnce(object? sender, EventArgs e)
+                {
+                    window.Opened -= ScanOnce;
+                    _services.GetRequiredService<LocalLibraryScans>().Start();
+                }
+                window.Opened += ScanOnce;
+            }
 
             // A second launch surfaces the running window, and acts on a
             // rambutan:// link it carries.
@@ -239,7 +252,7 @@ public partial class App : Application
 
         var store = new AppSettingsStore(dataDir);
         var settings = store.Load();
-        crashFile.UserFolders = () => [settings.DownloadsFolder, settings.ExportFolder];
+        crashFile.UserFolders = () => [settings.DownloadsFolder, settings.ExportFolder, .. settings.WatchedFolders ?? []];
 
         // The language is chosen before any view model or window exists, so
         // everything built from here on is built in it. The env var is a session
@@ -333,6 +346,15 @@ public partial class App : Application
                 : new DemoAudioFetcher(Demo),
             // Each download keeps its cover beside its audio, so it shows offline.
             sp.GetRequiredService<ArtworkCache>().GetBytesAsync));
+        // The watched folders' music, read through libav once ffmpeg is ready
+        // (not yt-dlp, which a first start offline can't fetch).
+        services.AddSingleton<FfmpegMediaFileReader>();
+        services.AddSingleton(sp => new LocalLibraryScans(new LocalFileIndex(
+            dataDir, sp.GetRequiredService<FfmpegMediaFileReader>(),
+            ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct),
+            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [])));
+        services.AddSingleton(sp => new KeptCovers(
+            sp.GetRequiredService<DownloadStore>(), sp.GetRequiredService<LocalLibraryScans>().Index));
         services.AddSingleton(sp =>
         {
             var queue = new DownloadQueue(sp.GetRequiredService<DownloadStore>());
@@ -360,15 +382,19 @@ public partial class App : Application
                 _ => Reachability.Unknown,
             }
             : _ => Task.FromResult(Demo.Fails("streams") ? Reachability.Unreachable : Reachability.Reachable)));
-        services.AddSingleton<IStreamSource>(sp => new SidecarGate(
-            new DownloadsFirstSource(
-                Demo is null
-                    ? new OfflineAwareSource(
-                        sp.GetRequiredService<CachingStreamSource>(),
-                        sp.GetRequiredService<ConnectivityProbe>().CheckAsync)
-                    : sp.GetRequiredService<DemoStreamSource>(),
-                sp.GetRequiredService<DownloadStore>()),
-            sp.GetRequiredService<SidecarBootstrapper>()));
+        // Local files go round the gate: they need ffmpeg, not yt-dlp.
+        services.AddSingleton<IStreamSource>(sp => new LocalFirstSource(
+            new SidecarGate(
+                new DownloadsFirstSource(
+                    Demo is null
+                        ? new OfflineAwareSource(
+                            sp.GetRequiredService<CachingStreamSource>(),
+                            sp.GetRequiredService<ConnectivityProbe>().CheckAsync)
+                        : sp.GetRequiredService<DemoStreamSource>(),
+                    sp.GetRequiredService<DownloadStore>()),
+                sp.GetRequiredService<SidecarBootstrapper>()),
+            sp.GetRequiredService<LocalLibraryScans>().Index,
+            ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct)));
 
         // Hover warm-up: the gate passes it to a source that can warm.
         services.AddSingleton(sp => new HoverWarmup((IStreamWarmer)sp.GetRequiredService<IStreamSource>()));
@@ -427,10 +453,14 @@ public partial class App : Application
         _ = System.Threading.Tasks.Task.Run(artwork.TrimDiskCache);
 
 #if WINDOWS
-        services.AddSingleton<IMediaSessionService, SmtcMediaSessionService>();
+        services.AddSingleton<IMediaSessionService>(sp =>
+            new SmtcMediaSessionService(sp.GetRequiredService<KeptCovers>().PathFor));
 #else
-        services.AddSingleton<IMediaSessionService>(OperatingSystem.IsLinux()
-            ? new Rambutan.Integrations.Linux.MprisMediaSessionService("Rambutan")
+        services.AddSingleton<IMediaSessionService>(sp => OperatingSystem.IsLinux()
+            ? new Rambutan.Integrations.Linux.MprisMediaSessionService("Rambutan",
+                localFile: id => sp.GetRequiredService<LocalLibraryScans>().Index.Find(id) is { } file
+                    ? (file.Path, file.CoverPath)
+                    : null)
             : new NullMediaSessionService());
 #endif
 
@@ -485,14 +515,23 @@ public partial class App : Application
             return hub;
         });
 
-        // Lyrics: custom → cache → LRCLIB, stored under the data directory
-        // like the other stores. A demo answers LRCLIB from invented lyrics.
+        // Lyrics: custom → a local file's own → cache → LRCLIB, stored under the
+        // data directory like the other stores. A demo answers LRCLIB from
+        // invented lyrics. The tags are read through libav, so that waits for
+        // ffmpeg, as playback does: a restored local track asks at startup.
         services.AddSingleton(sp => LyricsService.Create(dataDir,
         [
             new LrcLibProvider(Demo is null
                 ? null
                 : new HttpClient(new DemoLyricsHandler(Demo, sp.GetRequiredService<QueueModel>()))),
-        ]));
+        ],
+        new LocalLyrics(
+            id => sp.GetRequiredService<LocalLibraryScans>().Index.Find(id) is { IsMissing: false } file ? file.Path : null,
+            async (path, ct) =>
+            {
+                await sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct);
+                return sp.GetRequiredService<FfmpegMediaFileReader>().ReadLyrics(path);
+            })));
         services.AddSingleton(sp => new LyricsViewModel(
             sp.GetRequiredService<LyricsService>(),
             sp.GetRequiredService<PlaybackCoordinator>(),
@@ -525,10 +564,14 @@ public partial class App : Application
                 new FfmpegExportWriter(sp.GetRequiredService<FfmpegManager>().EnsureExecutableAsync), File.Exists),
             exportSource: sp.GetRequiredService<DownloadStore>().ExportSourceFor));
         services.AddSingleton(new SearchHistory(new SearchHistoryStore(dataDir)));
+        services.AddSingleton(sp => new LocalLibraryViewModel(
+            sp.GetRequiredService<LocalLibraryScans>(), sp.GetRequiredService<PlaybackCoordinator>(),
+            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []));
         services.AddSingleton<NavigationService>();
         services.AddSingleton(sp => new QueueViewModel(
             sp.GetRequiredService<QueueModel>(), sp.GetRequiredService<PlaybackCoordinator>(),
-            sp.GetRequiredService<NetworkStatus>(), sp.GetRequiredService<IStreamSource>() as IOfflineAvailability));
+            sp.GetRequiredService<NetworkStatus>(), sp.GetRequiredService<IStreamSource>() as IOfflineAvailability,
+            changed => sp.GetRequiredService<LocalLibraryScans>().Changed += changed));
         services.AddSingleton(sp => new NowPlayingViewModel(
             sp.GetRequiredService<PlayerBarViewModel>(),
             sp.GetRequiredService<LyricsViewModel>(),
@@ -557,7 +600,7 @@ public partial class App : Application
             signInChanged: sp.GetRequiredService<NavigationService>().OnSignInChanged));
         // The phone remote listens only while its setting is on.
         services.AddSingleton(sp => new CoverSource(
-            sp.GetRequiredService<ArtworkCache>().GetBytesAsync, sp.GetRequiredService<DownloadStore>().ArtworkPathFor));
+            sp.GetRequiredService<ArtworkCache>().GetBytesAsync, sp.GetRequiredService<KeptCovers>().PathFor));
         services.AddSingleton(sp => new PhoneRemoteService(
             sp.GetRequiredService<PlaybackCoordinator>(),
             action => Dispatcher.UIThread.Post(action),
@@ -596,6 +639,9 @@ public partial class App : Application
             Downloads = new DownloadsSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<DownloadStore>(),
                 defaultDownloads, () => RequestPersist(sp), sp.GetRequiredService<ExportSettings>()),
+            Local = new LocalFilesSettingsViewModel(
+                sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<LocalLibraryScans>(),
+                () => RequestPersist(sp)),
             Remote = new RemoteSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PhoneRemoteService>(),
                 () => RequestPersist(sp)),
@@ -1037,6 +1083,7 @@ public partial class App : Application
         _services.GetRequiredService<TrackActionsViewModel>().FlushPendingRemovals();
         // Saves the jobs still waiting, so they resume at the next start.
         _services.GetRequiredService<DownloadStore>().Dispose();
+        _services.GetRequiredService<LocalLibraryScans>().Index.Dispose();
         _services.GetRequiredService<PlaybackCoordinator>().Dispose();
         (_services.GetRequiredService<IAudioPlayer>() as IDisposable)?.Dispose();
         _services.Dispose();

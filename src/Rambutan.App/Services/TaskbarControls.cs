@@ -156,7 +156,7 @@ internal sealed class TaskbarControls : IDisposable
                 _ = _coordinator.NextAsync();
                 break;
             case TaskbarButton.Like:
-                if ((_coordinator.NowPlaying ?? queue.Current) is { } track)
+                if ((_coordinator.NowPlaying ?? queue.Current) is { } track && _actions.LikeCommand.CanExecute(track))
                     _actions.LikeCommand.Execute(track);
                 break;
             case TaskbarButton.Shuffle:

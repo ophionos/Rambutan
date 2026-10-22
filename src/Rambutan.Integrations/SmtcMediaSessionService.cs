@@ -1,4 +1,5 @@
 #if WINDOWS
+using System.Runtime.InteropServices.WindowsRuntime;
 using Rambutan.Core.Models;
 using Rambutan.Core.Queue;
 using Windows.Media;
@@ -13,7 +14,9 @@ namespace Rambutan.Integrations;
 /// ISystemMediaTransportControlsInterop hwnd plumbing. The player itself never
 /// plays anything; Rambutan.Audio renders all audio.
 /// </summary>
-public sealed class SmtcMediaSessionService : IMediaSessionService
+/// <param name="localCover">A local track's kept cover by id (null for none);
+/// SMTC gets it as bytes, since it has no URL.</param>
+public sealed class SmtcMediaSessionService(Func<string, string?>? localCover = null) : IMediaSessionService
 {
     private MediaPlayer? _player;
     private SystemMediaTransportControls? _smtc;
@@ -89,11 +92,37 @@ public sealed class SmtcMediaSessionService : IMediaSessionService
         updater.MusicProperties.Title = track.Title;
         updater.MusicProperties.Artist = track.ArtistDisplay;
         updater.MusicProperties.AlbumTitle = track.Album ?? "";
-        updater.Thumbnail =
-            track.ThumbnailUrl is { } url && Uri.TryCreate(url, UriKind.Absolute, out var uri)
-                ? RandomAccessStreamReference.CreateFromUri(uri)
-                : null;
+        updater.Thumbnail = Thumbnail(SmtcArtwork.For(track, localCover));
         updater.Update();
+    }
+
+    /// <summary>
+    /// A cover file is read here, once per track, rather than handed over as a
+    /// file: <c>CreateFromUri</c> isn't documented to take <c>file:</c>, and a
+    /// <c>StorageFile</c> only comes asynchronously. The bytes go into a WinRT
+    /// <see cref="InMemoryRandomAccessStream"/>: Windows showed no picture from
+    /// a stream over a <see cref="MemoryStream"/>. Writing to it completes at
+    /// once, so waiting for it here doesn't hold the UI thread. A file that
+    /// can't be read leaves the overlay without a picture.
+    /// </summary>
+    private static RandomAccessStreamReference? Thumbnail(SmtcArtwork artwork)
+    {
+        if (artwork.Url is { } url)
+            return RandomAccessStreamReference.CreateFromUri(url);
+        if (artwork.File is not { } path)
+            return null;
+        try
+        {
+            var bytes = File.ReadAllBytes(path);
+            var stream = new InMemoryRandomAccessStream();
+            stream.WriteAsync(bytes.AsBuffer()).AsTask().GetAwaiter().GetResult();
+            stream.Seek(0);
+            return RandomAccessStreamReference.CreateFromStream(stream);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     public void UpdatePlaybackState(SessionPlaybackStatus status)

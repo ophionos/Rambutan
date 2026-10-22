@@ -55,7 +55,7 @@ internal sealed class FakeRemoteLibrary : IRemoteLibrary
         return true;
     }
 
-    public bool HasCover(string videoId) => videoId == "queued";
+    public bool HasCover(string videoId) => videoId is "queued" or "local:1";
 }
 
 /// <summary>The queue and search routes the phone remote uses.</summary>
@@ -330,6 +330,15 @@ public sealed class LibraryEndpointsTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, queued.StatusCode);
         Assert.Equal("queued", await queued.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.NotFound, other.StatusCode);
+    }
+
+    [Fact]
+    public async Task Artwork_ServesATrackWhoseIdIsNotYouTubes()
+    {
+        var local = await _http.GetAsync("/api/v1/artwork?v=local%3A1");
+
+        Assert.Equal(HttpStatusCode.OK, local.StatusCode);
+        Assert.Equal("local:1", await local.Content.ReadAsStringAsync());
     }
 
     [Fact]

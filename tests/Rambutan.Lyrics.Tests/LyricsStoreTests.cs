@@ -79,11 +79,24 @@ public sealed class LyricsCacheTests : IDisposable
         Assert.Null(Cache().TryGet("vid"));
     }
 
+    [Fact]
+    public void A_local_file_has_its_own_entry_beside_youtube_ids()
+    {
+        Cache().Put("local:12", LyricsLookup.From(LyricsResult.Instrumental("lrclib")));
+
+        Assert.Equal(LyricsStatus.Instrumental, Cache().TryGet("local:12")?.Status);
+        Assert.Null(Cache().TryGet("local12"));
+        Assert.True(File.Exists(Path.Combine(_dir.Path, "local.12.json")));
+    }
+
     [Theory]
     [InlineData("../escape")]
     [InlineData("a/b")]
     [InlineData("")]
     [InlineData("con.json")]
+    [InlineData("local:")]
+    [InlineData("local:../x")]
+    [InlineData("local:1.2")]
     public void Unsafe_ids_are_neither_read_nor_written(string videoId)
     {
         Cache().Put(videoId, LyricsLookup.NotFound);

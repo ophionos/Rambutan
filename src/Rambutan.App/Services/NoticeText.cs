@@ -27,6 +27,7 @@ public static class NoticeText
             PlaybackNoticeKind.OutputLost => Strings.Get("toast.playback.outputLost"),
             PlaybackNoticeKind.AutoplayFailed => Strings.Format("toast.playback.autoplayFailed", title, detail),
             PlaybackNoticeKind.AutoplayEmpty => Strings.Format("toast.playback.autoplayEmpty", title),
+            PlaybackNoticeKind.AutoplayNoRadio => Strings.Format("toast.playback.autoplayNoRadio", title),
             PlaybackNoticeKind.SkippedOffline => Strings.Format("toast.playback.skippedOffline", title),
             PlaybackNoticeKind.StoppedOffline => Strings.Format("toast.playback.stoppedOffline", title),
             // A code added in Core without text here still shows something.

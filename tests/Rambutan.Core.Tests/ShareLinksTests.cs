@@ -17,6 +17,10 @@ public class ShareLinksTests
         Assert.Equal(new PlayLink("khnokW3Mw24"), DeepLinkParser.Parse(link).Link);
     }
 
+    [Fact]
+    public void ATrackWhoseIdIsNotYouTubes_HasNoLink() =>
+        Assert.Null(ShareLinks.ForTrack(TestTracks.Track("local:1")));
+
     public static TheoryData<CatalogEntry, string, DeepLink> Entries => new()
     {
         {
