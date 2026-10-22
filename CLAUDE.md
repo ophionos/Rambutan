@@ -297,6 +297,13 @@ file sink), never to files directly.
   (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice.
   Library has two sources, YouTube Music and On this computer
   (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
+  A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
+  `LocalFileIndex.OpenAsync`) keeps the id the index has for its path, else
+  gets a new `local:<n>`; one outside the watched folders is kept as opened
+  (`LocalFile.IsOpened`), never listed, and forgotten at the next start when
+  the queue no longer holds it (`ForgetOpened`). A drop on the queue pane adds
+  to its end; elsewhere the files play after the current track
+  (`PlaybackCoordinator.PlayAfterCurrentAsync`); the queue is never replaced.
   Its lyrics cache file is `local.<n>.json`; its own lyrics (below, under
   Lyrics) come before it. Search's All tab puts the
   index's matches (`Core/Local/LocalSearch`) on a shelf above YouTube Music's

@@ -36,6 +36,9 @@ public sealed class LocalFileIndex : IDisposable
     private readonly int _threads;
     private readonly Lock _lock = new();
     private readonly Dictionary<string, LocalFile> _files = new(StringComparer.Ordinal);
+    // The new files a running scan has given ids to and not read yet, by path,
+    // so a file opened meanwhile gets the same id.
+    private readonly Dictionary<string, string> _reading;
     private readonly SemaphoreSlim _scanGate = new(1, 1);
     private long _nextId;
     private LocalScanStatus _status = LocalScanStatus.Idle;
@@ -57,6 +60,7 @@ public sealed class LocalFileIndex : IDisposable
         _readerReady = readerReady;
         _folders = folders;
         _paths = paths ?? LocalPaths.Platform;
+        _reading = new Dictionary<string, string>(_paths.Comparer);
         _threads = threads ?? LocalScan.ReadThreads(Environment.ProcessorCount);
 
         var (files, nextId) = _file.Load();
@@ -157,6 +161,7 @@ public sealed class LocalFileIndex : IDisposable
                     _scanCts = null;
                     _scanScope = null;
                 }
+                _reading.Clear();
                 _status = _status with { IsScanning = false };
             }
             SaveIfDirty();
@@ -197,6 +202,8 @@ public sealed class LocalFileIndex : IDisposable
             plan = LocalScan.Plan(_files.Values.Select(f => f.Known), found, scanned, _paths, _nextId);
             // Taken now, so a scan that stops early never hands out the same id twice.
             _nextId = plan.NextId;
+            foreach (var item in plan.ToRead.Where(r => r.IsNew))
+                _reading[item.File.Path] = item.Id;
             foreach (var id in plan.NowMissing)
                 _files[id] = _files[id] with { IsMissing = true };
             _dirty |= plan.NowMissing.Count > 0 || plan.ToRead.Count > 0;
@@ -303,6 +310,166 @@ public sealed class LocalFileIndex : IDisposable
             scanned.Add(root);
         }
         return (found, pictures, scanned, unavailable);
+    }
+
+    /// <summary>
+    /// Files the user opened or dropped, to play. <paramref name="paths"/> are
+    /// files or folders; a folder gives its audio files, subfolders included, in
+    /// path order. A file keeps the id the index has for its path, else gets a new
+    /// one; a new file outside the watched folders is kept as opened, unlisted,
+    /// until <see cref="ForgetOpened"/>. A file is read again only when it changed.
+    /// Files that aren't there or can't be read as audio are left out.
+    /// </summary>
+    public async Task<IReadOnlyList<LocalFile>> OpenAsync(IReadOnlyList<string> paths, CancellationToken ct = default)
+    {
+        await _readerReady(ct);
+        var found = await Task.Run(() => ListOpened(paths, ct), ct);
+        if (found.Count == 0)
+            return [];
+        var roots = Roots(_folders());
+
+        var items = new List<(FileToRead Item, bool Read)>(found.Count);
+        lock (_lock)
+        {
+            var byPath = new Dictionary<string, LocalFile>(_paths.Comparer);
+            foreach (var file in _files.Values)
+                byPath.TryAdd(file.Path, file);
+            foreach (var file in found)
+            {
+                if (byPath.TryGetValue(file.Path, out var known))
+                {
+                    var unchanged = known is { IsMissing: false } && known.Size == file.Size && known.ModifiedAt == file.ModifiedAt;
+                    items.Add((new FileToRead(file, known.Id, IsNew: false), !unchanged));
+                }
+                else if (_reading.TryGetValue(file.Path, out var id))
+                    items.Add((new FileToRead(file, id, IsNew: false), true));
+                else
+                {
+                    items.Add((new FileToRead(file, LocalIds.Format(_nextId++), IsNew: true), true));
+                    _dirty = true;
+                }
+            }
+        }
+
+        var read = await Task.Run(() =>
+        {
+            var pictures = FolderPictures(items.Where(x => x.Read).Select(x => x.Item.File.Path));
+            var copies = new ConcurrentDictionary<string, string?>(_paths.Comparer);
+            return items.Select(x => x.Read ? ReadFile(x.Item, pictures, copies) : null).ToList();
+        }, ct);
+
+        List<LocalFile> opened = [];
+        lock (_lock)
+        {
+            for (var i = 0; i < items.Count; i++)
+            {
+                var item = items[i].Item;
+                if (read[i] is { } file)
+                {
+                    var outside = !roots.Any(r => _paths.IsUnder(file.Path, r));
+                    if (_files.TryGetValue(item.Id, out var was))
+                        file = file with { IsOpened = was.IsOpened };
+                    else if (outside && file.IsUnreadable)
+                        continue;
+                    else
+                        file = file with { IsOpened = outside };
+                    // A scan that read it meanwhile found the same file.
+                    _files[item.Id] = file;
+                    _dirty = true;
+                }
+                if (_files.GetValueOrDefault(item.Id) is { IsMissing: false, IsUnreadable: false } now)
+                    opened.Add(now);
+            }
+        }
+        SaveIfDirty();
+        RaiseChanged();
+        return opened;
+    }
+
+    /// <summary>
+    /// Forgets the opened files (<see cref="OpenAsync"/>) whose ids aren't in
+    /// <paramref name="kept"/>, the ids a queue still holds; their ids aren't
+    /// given again. A file in a watched folder by now stays, as a scanned one.
+    /// </summary>
+    public void ForgetOpened(IReadOnlySet<string> kept)
+    {
+        var roots = Roots(_folders());
+        lock (_lock)
+        {
+            foreach (var file in _files.Values.Where(f => f.IsOpened && !kept.Contains(f.Id)).ToList())
+            {
+                if (roots.Any(r => _paths.IsUnder(file.Path, r)))
+                    _files[file.Id] = file with { IsOpened = false };
+                else
+                    _files.Remove(file.Id);
+                _dirty = true;
+            }
+        }
+        SaveIfDirty();
+        RemoveUnusedCovers();
+    }
+
+    /// <summary>The files under <paramref name="paths"/>, each once: a file as it
+    /// is, a folder's audio files (<see cref="LocalScan.AudioExtensions"/>), not
+    /// hidden ones, in path order. A path that isn't there is skipped.</summary>
+    private List<FoundFile> ListOpened(IReadOnlyList<string> paths, CancellationToken ct)
+    {
+        const FileAttributes skipped = FileAttributes.Hidden | FileAttributes.System;
+        var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 };
+        var byPath = Comparer<FoundFile>.Create((a, b) => _paths.Comparer.Compare(a.Path, b.Path));
+        var seen = new HashSet<string>(_paths.Comparer);
+        var found = new List<FoundFile>();
+        foreach (var path in paths)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                var full = Path.GetFullPath(path);
+                if (Directory.Exists(full))
+                {
+                    var files = new FileSystemEnumerable<FoundFile>(full,
+                        (ref FileSystemEntry e) => new FoundFile(e.ToFullPath(), e.Length, e.LastWriteTimeUtc), options)
+                    {
+                        ShouldRecursePredicate = (ref FileSystemEntry e) => (e.Attributes & skipped) == 0,
+                        ShouldIncludePredicate = (ref FileSystemEntry e) =>
+                            !e.IsDirectory && (e.Attributes & skipped) == 0
+                            && LocalScan.AudioExtensions.Contains(Path.GetExtension(e.FileName).ToString()),
+                    };
+                    found.AddRange(files.Order(byPath).Where(f => seen.Add(f.Path)));
+                }
+                else if (new FileInfo(full) is { Exists: true } info && seen.Add(info.FullName))
+                    found.Add(new FoundFile(info.FullName, info.Length, info.LastWriteTimeUtc));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException
+                                           or NotSupportedException)
+            {
+                AppLog.Write("local", $"couldn't open a file: {ex.GetType().Name}");
+            }
+        }
+        return found;
+    }
+
+    /// <summary>The pictures that may be the covers of these files' folders, by
+    /// folder, as a scan picks them; a folder that can't be listed has none.</summary>
+    private Dictionary<string, FoundFile> FolderPictures(IEnumerable<string> files)
+    {
+        var options = new EnumerationOptions { IgnoreInaccessible = true, AttributesToSkip = 0 };
+        var pictures = new Dictionary<string, FoundFile>(_paths.Comparer);
+        foreach (var folder in files.Select(f => Path.GetDirectoryName(f) ?? "").Distinct(_paths.Comparer))
+        {
+            try
+            {
+                var candidates = new DirectoryInfo(folder).EnumerateFiles("*", options)
+                    .Where(f => LocalFolderCovers.IsCandidate(f.Name))
+                    .Select(f => new FoundFile(f.FullName, f.Length, f.LastWriteTimeUtc));
+                if (LocalFolderCovers.Pick(candidates) is { } picture)
+                    pictures[folder] = picture;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+            }
+        }
+        return pictures;
     }
 
     private LocalFile ReadFile(

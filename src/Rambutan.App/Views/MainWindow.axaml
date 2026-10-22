@@ -613,6 +613,7 @@
                 </MenuItem>
                 <MenuItem Header="{l:T profiles.manage}" Command="{Binding Profiles.ManageCommand, FallbackValue={x:Null}}" />
                 <Separator />
+                <MenuItem Header="{l:T shell.openFiles}" InputGesture="Ctrl+O" Command="{Binding OpenFilesCommand}" />
                 <MenuItem Header="{l:T nav.settings}" Command="{Binding GoSettingsCommand}" />
               </MenuFlyout>
             </Button.Flyout>
@@ -693,8 +694,9 @@
       </DockPanel>
     </Border>
 
-    <!-- Queue panel (collapsible from its own close button or the player bar). -->
-    <Border DockPanel.Dock="Right" Width="300" Margin="0,0,8,0"
+    <!-- Queue panel (collapsible from its own close button or the player bar).
+         Files dropped on it go to the end of the queue. -->
+    <Border x:Name="QueuePane" DockPanel.Dock="Right" Width="300" Margin="0,0,8,0"
             Background="{StaticResource Token.Brush.Surface.Panel}"
             CornerRadius="{StaticResource Token.Radius.Panel}" Padding="12,12,12,4"
             KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="2">
@@ -847,5 +849,15 @@
        so they show over the bar there, until they expire or are dismissed. -->
   <views:ToastHost Classes="miniOnly" DataContext="{Binding Toasts}" VerticalAlignment="Center" Margin="8"
                    ReduceMotion="{Binding $parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion}" />
+
+  <!-- While files are dragged over the window: what a drop there does. It takes
+       no input, so the drop lands on what is under it. -->
+  <Border x:Name="DropHint" IsVisible="False" IsHitTestVisible="False"
+          HorizontalAlignment="Center" VerticalAlignment="Center"
+          Background="{DynamicResource Token.Brush.Accent}" CornerRadius="{StaticResource Token.Radius.Panel}"
+          Padding="20,12">
+    <TextBlock x:Name="DropHintText" Foreground="{DynamicResource Token.Brush.OnAccent}"
+               FontSize="16" FontWeight="SemiBold" />
+  </Border>
   </Panel>
 </Window>

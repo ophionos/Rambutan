@@ -45,6 +45,8 @@ your own YouTube Music account to use your library.
   finds them too, with no connection. Their lyrics come from an `.lrc` file
   beside the song, or from its tags. A song without a cover of its own shows
   its folder's picture (`cover.jpg`, `folder.jpg` and the like).
+- Any other music file plays too: open it (Ctrl+O), or drop files or a folder
+  on the window to play them, or on the queue to add them to its end.
 
 **Now Playing**
 - The artwork and the lyrics side by side, or either one alone, over a

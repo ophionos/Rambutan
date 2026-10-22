@@ -1,14 +1,19 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
+using Avalonia.Platform.Storage;
 using Rambutan.App.Controls;
+using Rambutan.App.Localization;
 using Rambutan.App.Services;
 using Rambutan.App.ViewModels;
+using Rambutan.Core.Local;
 
 namespace Rambutan.App.Views;
 
@@ -17,6 +22,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        FollowFileDrops();
 
         DataContextChanged += (_, _) =>
         {
@@ -37,6 +43,7 @@ public partial class MainWindow : Window
                     new LyricsEditorDialog(editor).ShowDialog(this);
                 vm.Actions.CopyToClipboard = text =>
                     Clipboard?.SetTextAsync(text) ?? System.Threading.Tasks.Task.CompletedTask;
+                vm.OpenFilesRequested += () => _ = PickFilesToOpenAsync(vm);
 
                 // A new track brings its row into view. Posted: the row
                 // the VM just placed isn't laid out yet in the same turn.
@@ -587,6 +594,73 @@ public partial class MainWindow : Window
             ? Math.Clamp(x / SeekArea.Bounds.Width, 0, 1) * PositionSlider.Maximum
             : PositionSlider.Value;
 
+    /// <summary>Opens music files the user picks, to play now.</summary>
+    private async Task PickFilesToOpenAsync(MainViewModel vm)
+    {
+        if (vm.Opener is not { } opener || !StorageProvider.CanOpen)
+            return;
+        // Both cases: on Linux a file dialog's patterns can match case-sensitively.
+        var patterns = LocalScan.AudioExtensions
+            .SelectMany(e => new[] { "*" + e, "*" + e.ToUpperInvariant() })
+            .ToList();
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Strings.Get("shell.openFilesTitle"),
+            AllowMultiple = true,
+            FileTypeFilter = [new FilePickerFileType(Strings.Get("shell.musicFiles")) { Patterns = patterns }, FilePickerFileTypes.All],
+        });
+        await opener.OpenAsync(LocalPaths(files), playNow: true);
+    }
+
+    private static List<string> LocalPaths(IEnumerable<IStorageItem> items) =>
+        items.Select(i => i.TryGetLocalPath()).OfType<string>().ToList();
+
+    /// <summary>Files dropped on the queue pane go to the end of the queue; on the
+    /// rest of the window they play after the current track.</summary>
+    private void FollowFileDrops()
+    {
+        // AllowDrop is inherited, so the events come from the element under the
+        // pointer, and moving onto another one raises DragEnter, not DragOver.
+        DragDrop.SetAllowDrop(this, true);
+        AddHandler(DragDrop.DragEnterEvent, OnFileDragOver);
+        AddHandler(DragDrop.DragOverEvent, OnFileDragOver);
+        void OnFileDragOver(object? sender, DragEventArgs e)
+        {
+            if (DataContext is not MainViewModel { Opener: not null } || !e.DataTransfer.Contains(DataFormat.File))
+            {
+                e.DragEffects = DragDropEffects.None;
+                ShowDropHint(null);
+                return;
+            }
+            e.DragEffects = DragDropEffects.Copy;
+            ShowDropHint(IsOverQueue(e) ? "shell.dropToQueue" : "shell.dropToPlay");
+        }
+        AddHandler(DragDrop.DragLeaveEvent, (_, e) =>
+        {
+            // Raised as the pointer crosses from one element to the next as well.
+            if (!new Rect(Bounds.Size).Contains(e.GetPosition(this)))
+                ShowDropHint(null);
+        });
+        AddHandler(DragDrop.DropEvent, (_, e) =>
+        {
+            ShowDropHint(null);
+            if (DataContext is not MainViewModel { Opener: { } opener } || e.DataTransfer.TryGetFiles() is not { } items)
+                return;
+            e.DragEffects = DragDropEffects.Copy;
+            _ = opener.OpenAsync(LocalPaths(items), playNow: !IsOverQueue(e));
+        });
+    }
+
+    private bool IsOverQueue(DragEventArgs e) =>
+        QueuePane.IsEffectivelyVisible && new Rect(QueuePane.Bounds.Size).Contains(e.GetPosition(QueuePane));
+
+    private void ShowDropHint(string? key)
+    {
+        DropHint.IsVisible = key is not null;
+        if (key is not null)
+            DropHintText.Text = Strings.Get(key);
+    }
+
     /// <summary>Keyboard shortcuts; the reference sheet is on F1.</summary>
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -653,6 +727,9 @@ public partial class MainWindow : Window
                 break;
             case (Key.Escape, KeyModifiers.None) when vm.NowPlaying.IsOpen && !vm.IsMiniPlayer:
                 vm.NowPlaying.CloseCommand.Execute(null);
+                break;
+            case (Key.O, KeyModifiers.Control):
+                Run(vm.OpenFilesCommand);
                 break;
             case (Key.F1, KeyModifiers.None):
                 _ = new ShortcutsDialog().ShowDialog(this);

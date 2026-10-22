@@ -71,7 +71,8 @@ internal sealed class LocalIndexFile(string dataDirectory, string coverDirectory
         f.Missing == true,
         f.FolderCover is { Length: > 0 } picture
             ? new FoundFile(picture, f.FolderCoverSize ?? 0, f.FolderCoverModifiedAt ?? default)
-            : null);
+            : null,
+        f.Opened == true);
 
     private static SavedLocalFile ToSaved(LocalFile f) => new()
     {
@@ -80,6 +81,7 @@ internal sealed class LocalIndexFile(string dataDirectory, string coverDirectory
         Size = f.Size,
         ModifiedAt = f.ModifiedAt,
         Missing = f.IsMissing ? true : null,
+        Opened = f.IsOpened ? true : null,
         Unreadable = f.IsUnreadable ? true : null,
         Codec = f.Tags?.Codec,
         DurationSeconds = f.Tags?.Duration?.TotalSeconds,
@@ -124,6 +126,10 @@ public sealed class SavedLocalFile
     public long Size { get; set; }
     public DateTimeOffset ModifiedAt { get; set; }
     public bool? Missing { get; set; }
+
+    /// <summary>The user opened the file from outside the watched folders; it
+    /// stays only while a queue holds it.</summary>
+    public bool? Opened { get; set; }
 
     /// <summary>The file isn't audio the reader could open; it has no tags.</summary>
     public bool? Unreadable { get; set; }

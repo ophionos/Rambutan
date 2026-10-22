@@ -18,6 +18,18 @@ public partial class MainViewModel : ViewModelBase
     private readonly AppSettings? _settings;
     private readonly DownloadsPageViewModel? _downloads;
 
+    /// <summary>Plays or queues opened and dropped files; null where there is
+    /// no local library (the designer).</summary>
+    public LocalFileOpener? Opener { get; init; }
+
+    /// <summary>Asks the window for files to open: it owns the picker.</summary>
+    public event Action? OpenFilesRequested;
+
+    private bool CanOpenFiles => Opener is not null;
+
+    [RelayCommand(CanExecute = nameof(CanOpenFiles))]
+    private void OpenFiles() => OpenFilesRequested?.Invoke();
+
     // The status strip is a state line, not a message log:
     // it shows only conditions that are true right now, each in its own slot with
     // its own affordance, and hides when there are none. Outcomes ("Added to
@@ -201,9 +213,11 @@ public partial class MainViewModel : ViewModelBase
         Func<SettingsPageViewModel> settingsFactory,
         AppSettings settings,
         AppearanceSettings appearance,
-        DownloadsPageViewModel? downloads = null)
+        DownloadsPageViewModel? downloads = null,
+        LocalFileOpener? opener = null)
     {
         _downloads = downloads;
+        Opener = opener;
         Appearance = appearance;
         Navigation = navigation;
         Player = player;

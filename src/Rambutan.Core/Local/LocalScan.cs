@@ -173,9 +173,12 @@ public static class LocalScan
 /// <param name="FolderCover">The folder's picture that <paramref name="CoverPath"/>
 /// is a copy of (<see cref="LocalFolderCovers"/>); null when the cover is
 /// embedded or there is none.</param>
+/// <param name="IsOpened">The user opened or dropped the file, outside the watched
+/// folders: it is kept only while a queue holds it.</param>
 public sealed record LocalFile(
     string Id, string Path, long Size, DateTimeOffset ModifiedAt,
-    LocalFileTags? Tags, string? CoverPath = null, bool IsMissing = false, FoundFile? FolderCover = null)
+    LocalFileTags? Tags, string? CoverPath = null, bool IsMissing = false, FoundFile? FolderCover = null,
+    bool IsOpened = false)
 {
     public bool IsUnreadable => Tags is null;
 

@@ -178,6 +178,22 @@ public sealed class PlaybackCoordinator : IDisposable
                 await PlayCurrentAsync(TimeSpan.Zero, seq, token);
         }, ct);
 
+    /// <summary>
+    /// Puts <paramref name="tracks"/> right after the current track, in their
+    /// order, and plays the first of them; the rest of the queue stays. With no
+    /// current track the first becomes it.
+    /// </summary>
+    public Task PlayAfterCurrentAsync(IReadOnlyList<TrackInfo> tracks, CancellationToken ct = default) =>
+        RunCommandAsync(async (seq, token) =>
+        {
+            if (tracks.Count == 0)
+                return;
+            var current = _queue.CurrentIndex;
+            _queue.EnqueueNextRange(tracks);
+            if (_queue.JumpTo(current < 0 ? 0 : current + 1) is not null && !IsSuperseded(seq))
+                await PlayCurrentAsync(TimeSpan.Zero, seq, token);
+        }, ct);
+
     /// <summary>Plays the queue's track at <paramref name="queueIndex"/>, from
     /// <paramref name="startAt"/> (a lyric line picked before anything was loaded).</summary>
     public Task JumpToAsync(int queueIndex, TimeSpan startAt = default, CancellationToken ct = default) =>
