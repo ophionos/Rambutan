@@ -86,6 +86,29 @@ public sealed class LocalFileIndex : IDisposable
             return _files.Values.Where(f => roots.Any(r => _paths.IsUnder(f.Path, r))).ToList();
     }
 
+    /// <summary>How many of <see cref="Files"/> are readable, unreadable and
+    /// missing (a missing file counts only as missing), in one pass.</summary>
+    public (int Readable, int Unreadable, int Missing) Counts()
+    {
+        var roots = Roots(_folders());
+        int readable = 0, unreadable = 0, missing = 0;
+        lock (_lock)
+        {
+            foreach (var file in _files.Values)
+            {
+                if (!roots.Any(r => _paths.IsUnder(file.Path, r)))
+                    continue;
+                if (file.IsMissing)
+                    missing++;
+                else if (file.IsUnreadable)
+                    unreadable++;
+                else
+                    readable++;
+            }
+        }
+        return (readable, unreadable, missing);
+    }
+
     /// <summary>The file with this id, wherever it is; null when the index has none.</summary>
     public LocalFile? Find(string id)
     {

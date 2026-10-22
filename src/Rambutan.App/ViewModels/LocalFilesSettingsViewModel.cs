@@ -45,13 +45,16 @@ public partial class LocalFilesSettingsViewModel : ViewModelBase
     /// <summary>Set by the view: the platform folder picker, null when cancelled.</summary>
     public Func<Task<string?>>? PickFolder { get; set; }
 
-    public LocalFilesSettingsViewModel(AppSettings app, LocalLibraryScans scans, Action persist, LocalPaths? paths = null)
+    /// <param name="post">Runs a refresh on the UI thread; tests pass their own.</param>
+    public LocalFilesSettingsViewModel(
+        AppSettings app, LocalLibraryScans scans, Action persist, LocalPaths? paths = null, Action<Action>? post = null)
     {
         _app = app;
         _scans = scans;
         _persist = persist;
         _paths = paths ?? LocalPaths.Platform;
-        scans.Changed += () => Dispatcher.UIThread.Post(Refresh);
+        post ??= action => Dispatcher.UIThread.Post(action);
+        scans.Changed += () => post(Refresh);
         Refresh();
     }
 
@@ -106,15 +109,13 @@ public partial class LocalFilesSettingsViewModel : ViewModelBase
         IsScanning = status.IsScanning;
         Error = _scans.LastError is { } reason ? Strings.Format("settings.local.scanFailed", ("reason", reason)) : null;
 
-        var files = _scans.Index.Files();
+        var (readable, unreadable, missing) = _scans.Index.Counts();
         Status = status switch
         {
             { IsScanning: true, ToRead: 0 } => Strings.Get("settings.local.statusLooking"),
             { IsScanning: true } => Strings.Format("settings.local.statusReading", ("read", status.Read), ("total", status.ToRead)),
-            _ => Strings.Format("settings.local.statusFiles", ("count", files.Count(f => !f.IsMissing && !f.IsUnreadable))),
+            _ => Strings.Format("settings.local.statusFiles", ("count", readable)),
         };
-        var unreadable = files.Count(f => !f.IsMissing && f.IsUnreadable);
-        var missing = files.Count(f => f.IsMissing);
         Problems = string.Join(" ", new List<string>
         {
             unreadable > 0 ? Strings.Format("settings.local.statusUnreadable", ("count", unreadable)) : "",

@@ -21,7 +21,8 @@ public sealed class LocalFilesSettingsTests : IDisposable
         _scans = new LocalLibraryScans(new LocalFileIndex(
             Path.Combine(_dir, "data"), new TitleReader(), _ => Task.CompletedTask,
             () => _app.WatchedFolders ?? []));
-        _vm = new LocalFilesSettingsViewModel(_app, _scans, () => _persisted++);
+        // Refreshed by hand: a scan thread's refresh would race the test's.
+        _vm = new LocalFilesSettingsViewModel(_app, _scans, () => _persisted++, post: _ => { });
     }
 
     public void Dispose()

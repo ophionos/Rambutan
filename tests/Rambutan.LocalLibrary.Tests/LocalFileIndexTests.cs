@@ -112,6 +112,20 @@ public sealed class LocalFileIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task Counts_SplitTheListedFiles()
+    {
+        Write("a.mp3", "A");
+        Write("bad.mp3", "bad");
+        var gone = Write("gone.mp3", "G");
+        using var library = Library();
+        await library.ScanAsync();
+        File.Delete(gone);
+        await library.ScanAsync();
+
+        Assert.Equal((1, 1, 1), library.Counts());
+    }
+
+    [Fact]
     public async Task AnUnreadableFile_IsKept_AndNotReadAgainUntilItChanges()
     {
         var bad = Write("bad.mp3", "bad");
