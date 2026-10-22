@@ -155,6 +155,15 @@ public sealed class MprisPlayerStateTests
     }
 
     [Fact]
+    public void Metadata_gives_no_YouTube_url_for_an_id_that_is_not_YouTubes()
+    {
+        var (state, _) = Create();
+        state.SetTrack(Track() with { VideoId = "local:1" });
+
+        Assert.DoesNotContain(state.Metadata(), e => e.Key == "xesam:url");
+    }
+
+    [Fact]
     public void Metadata_leaves_out_what_is_unknown()
     {
         var (state, _) = Create();

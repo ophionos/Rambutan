@@ -480,7 +480,7 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
     {
         // Anonymous responses always say INDIFFERENT, which would read as a real
         // "not rated"; signed out, the honest answer is "unknown" and costs nothing.
-        if (_session is null)
+        if (_session is null || !YouTubeIds.IsVideoId(videoId))
             return null;
 
         // The same request the web player makes on every track; its player
@@ -586,6 +586,7 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
 
     public async Task RateAsync(string videoId, Rating rating, CancellationToken ct = default)
     {
+        YouTubeIds.Require(videoId);
         RequireSession();
         var endpoint = rating switch
         {
@@ -671,6 +672,15 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         string playlistId, IReadOnlyList<PlaylistEditAction> actions, CancellationToken ct,
         Func<JsonElement, T> read)
     {
+        // One id that isn't YouTube's refuses the whole edit, rather than
+        // quietly adding the rest.
+        foreach (var action in actions)
+        {
+            if (action.AddedVideoId is not null)
+                YouTubeIds.Require(action.AddedVideoId);
+            if (action.RemovedVideoId is not null)
+                YouTubeIds.Require(action.RemovedVideoId);
+        }
         RequireSession();
         var request = new EditPlaylistRequest(Context(), StripVl(playlistId), actions);
         using var doc = await PostAsync(
@@ -755,6 +765,7 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
     internal Task<JsonDocument> NextAsync(
         string videoId, CancellationToken ct = default, string? playlistId = null, string? @params = null)
     {
+        YouTubeIds.Require(videoId);
         var request = new NextRequest(Context(), videoId, playlistId ?? "RDAMVM" + videoId,
             EnablePersistentPlaylistPanel: true, IsAudioOnly: true,
             TunerSettingValue: "AUTOMIX_SETTING_NORMAL", Params: @params);

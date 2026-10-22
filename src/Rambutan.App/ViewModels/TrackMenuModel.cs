@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Windows.Input;
+using Rambutan.Core.Links;
 using Rambutan.Core.Models;
 using Rambutan.App.Localization;
 
@@ -89,7 +90,8 @@ public static class TrackMenuModel
                 IsEnabled: track.AlbumBrowseId is not null),
             new(Strings.Get("common.goToArtist"), "Icon.Person", actions.GoToArtistCommand, track.PrimaryArtist,
                 IsEnabled: track.PrimaryArtist is not null),
-            new(Strings.Get("menu.share"), "Icon.Share", actions.ShareCommand, track),
+            new(Strings.Get("menu.share"), "Icon.Share", actions.ShareCommand, track,
+                IsEnabled: ShareLinks.ForTrack(track) is not null),
         ];
 
         var groups = new List<IReadOnlyList<MenuEntry>> { play, library, navigate };

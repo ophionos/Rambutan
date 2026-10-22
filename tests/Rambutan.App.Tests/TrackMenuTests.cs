@@ -44,6 +44,23 @@ public class TrackMenuTests
     }
 
     [Fact]
+    public async Task Share_IsDisabled_AndCopiesNothing_ForAnIdThatIsNotYouTubes()
+    {
+        var copied = new List<string>();
+        var actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, new ToastHostViewModel())
+        {
+            CopyToClipboard = text => { copied.Add(text); return Task.CompletedTask; },
+        };
+        var track = Track("local:1");
+
+        var share = TrackMenuModel.Build(track, actions).SelectMany(g => g).Single(e => e.Header == "Share");
+        await actions.ShareCommand.ExecuteAsync(track);
+
+        Assert.False(share.IsEnabled);
+        Assert.Empty(copied);
+    }
+
+    [Fact]
     public void GoToArtist_IsDisabled_WithoutAnArtistLink()
     {
         var entry = TrackMenuModel.Build(Track("a", artistBrowseId: null), Actions)

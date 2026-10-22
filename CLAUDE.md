@@ -249,6 +249,12 @@ file sink), never to files directly.
   video it lists. Lyrics, downloads and the now-playing marker follow the id that
   plays. `Core/Models/AlbumAudio` swaps the ids and `PlaybackCoordinator`
   falls back to the listed video.
+- Ids sent to YouTube: InnerTube's track calls (radio, mix, rating, playlist
+  edits) and the stream resolver refuse any id that isn't YouTube-shaped
+  (`Core/Models/YouTubeIds`, `NotAYouTubeTrackException`) before any request,
+  so a track from elsewhere never reaches YouTube Music. Copy link and MPRIS's
+  `xesam:url` go through `Core/Links/ShareLinks.ForTrack`, which has no link
+  for such an id.
 - Last.fm stations on Home, and artists' stations from their pages:
   `Integrations/LastFm/LastFmStationClient` reads the web player's
   undocumented station endpoint (`user/<name>/…`, `music/<artist>/+similar`;

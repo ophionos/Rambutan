@@ -394,10 +394,10 @@ public partial class TrackActionsViewModel : ViewModelBase
     [RelayCommand]
     private async Task ShareAsync(TrackInfo? track)
     {
-        if (track is null || CopyToClipboard is null)
+        if (track is null || CopyToClipboard is null || ShareLinks.ForTrack(track) is not { } link)
             return;
 
-        await CopyToClipboard(ShareLinks.ForTrack(track));
+        await CopyToClipboard(link);
         Report(Strings.Format("toast.track.linkCopied", ("title", track.Title)));
     }
 

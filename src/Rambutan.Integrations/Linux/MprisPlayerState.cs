@@ -1,4 +1,5 @@
 using System.Text;
+using Rambutan.Core.Links;
 using Rambutan.Core.Models;
 using Rambutan.Core.Queue;
 
@@ -182,8 +183,9 @@ public sealed class MprisPlayerState(TimeProvider clock)
             new("mpris:trackid", MprisValue.OfPath(TrackId)),
             new("xesam:title", MprisValue.OfText(track.Title)),
             new("xesam:artist", MprisValue.OfTextList([.. track.Artists.Select(a => a.Name)])),
-            new("xesam:url", MprisValue.OfText("https://music.youtube.com/watch?v=" + Uri.EscapeDataString(track.VideoId))),
         };
+        if (ShareLinks.ForTrack(track) is { } url)
+            entries.Add(new("xesam:url", MprisValue.OfText(url)));
         if (!string.IsNullOrWhiteSpace(track.Album))
             entries.Add(new("xesam:album", MprisValue.OfText(track.Album)));
         if (Duration is { } length)

@@ -74,6 +74,8 @@ public class DeepLinkParserTests
     [InlineData("rambutan://play/short")]
     [InlineData("rambutan://play/khnokW3Mw245")]
     [InlineData("rambutan://play/khnokW3Mw2.")]
+    [InlineData("rambutan://play/local:1")]
+    [InlineData("rambutan://play/local%3A12345")]
     [InlineData("rambutan://play/" + Video + "/extra")]
     [InlineData("rambutan://play//" + Video)]
     [InlineData("rambutan://play/" + Video + "//")]
