@@ -18,7 +18,7 @@ public class LocalWatchTests
     [Theory]
     [InlineData(WatcherChange.Created, "/m/a/song.flac", false, true)]
     [InlineData(WatcherChange.Created, "/m/New Album", true, true)]
-    [InlineData(WatcherChange.Created, "/m/a/cover.jpg", false, false)]
+    [InlineData(WatcherChange.Created, "/m/a/back.jpg", false, false)]
     [InlineData(WatcherChange.Changed, "/m/a/song.MP3", false, true)]
     [InlineData(WatcherChange.Changed, "/m/a", true, false)] // any write inside it
     [InlineData(WatcherChange.Changed, "/m/a/song.flac.part", false, false)]

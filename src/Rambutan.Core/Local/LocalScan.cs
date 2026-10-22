@@ -146,9 +146,12 @@ public static class LocalScan
 /// has none.</param>
 /// <param name="IsMissing">The file was there and isn't now. It keeps its id, so
 /// a queue or playlist entry shows it as missing.</param>
+/// <param name="FolderCover">The folder's picture that <paramref name="CoverPath"/>
+/// is a copy of (<see cref="LocalFolderCovers"/>); null when the cover is
+/// embedded or there is none.</param>
 public sealed record LocalFile(
     string Id, string Path, long Size, DateTimeOffset ModifiedAt,
-    LocalFileTags? Tags, string? CoverPath = null, bool IsMissing = false)
+    LocalFileTags? Tags, string? CoverPath = null, bool IsMissing = false, FoundFile? FolderCover = null)
 {
     public bool IsUnreadable => Tags is null;
 

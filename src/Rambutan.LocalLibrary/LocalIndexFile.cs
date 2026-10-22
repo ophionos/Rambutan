@@ -68,7 +68,10 @@ internal sealed class LocalIndexFile(string dataDirectory, string coverDirectory
             TrackNumber: f.TrackNumber, DiscNumber: f.DiscNumber, Year: f.Year,
             TrackGainDb: f.TrackGainDb, AlbumGainDb: f.AlbumGainDb),
         f.Cover is { Length: > 0 } cover ? Path.Combine(covers, Path.GetFileName(cover)) : null,
-        f.Missing == true);
+        f.Missing == true,
+        f.FolderCover is { Length: > 0 } picture
+            ? new FoundFile(picture, f.FolderCoverSize ?? 0, f.FolderCoverModifiedAt ?? default)
+            : null);
 
     private static SavedLocalFile ToSaved(LocalFile f) => new()
     {
@@ -91,6 +94,9 @@ internal sealed class LocalIndexFile(string dataDirectory, string coverDirectory
         TrackGainDb = f.Tags?.TrackGainDb,
         AlbumGainDb = f.Tags?.AlbumGainDb,
         Cover = f.CoverPath is { } cover ? Path.GetFileName(cover) : null,
+        FolderCover = f.FolderCover?.Path,
+        FolderCoverSize = f.FolderCover?.Size,
+        FolderCoverModifiedAt = f.FolderCover?.ModifiedAt,
     };
 }
 
@@ -140,6 +146,14 @@ public sealed class SavedLocalFile
     /// <summary>The cover's file name in the cover cache, which is beside the
     /// index, so the profile's folder can move.</summary>
     public string? Cover { get; set; }
+
+    /// <summary>The full path of the folder's picture that <see cref="Cover"/>
+    /// copies, with its size and time, so a changed picture is noticed; null
+    /// when the cover is embedded or there is none.</summary>
+    public string? FolderCover { get; set; }
+
+    public long? FolderCoverSize { get; set; }
+    public DateTimeOffset? FolderCoverModifiedAt { get; set; }
 }
 
 [JsonSourceGenerationOptions(

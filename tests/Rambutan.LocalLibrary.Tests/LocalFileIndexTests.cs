@@ -361,6 +361,78 @@ public sealed class LocalFileIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task AFolderPicture_IsTheCover_OfTracksThatEmbedNone()
+    {
+        var plain = Write(Path.Combine("Album", "a.mp3"), "A");
+        var embedded = Write(Path.Combine("Album", "b.mp3"), "cover:own");
+        var picture = Write(Path.Combine("Album", "cover.jpg"), "folder picture");
+        using var library = Library();
+
+        await library.ScanAsync();
+
+        var a = ByPath(library, plain);
+        Assert.Equal("folder picture", File.ReadAllText(a.CoverPath!));
+        Assert.Equal(picture, a.FolderCover?.Path);
+        Assert.Equal("own", File.ReadAllText(ByPath(library, embedded).CoverPath!)); // embedded wins
+        Assert.Null(ByPath(library, embedded).FolderCover);
+    }
+
+    [Fact]
+    public async Task AChangedOrRemovedFolderPicture_IsNoticed_WithoutReadingTheTracks()
+    {
+        var song = Write(Path.Combine("Album", "a.mp3"), "A");
+        var picture = Write(Path.Combine("Album", "folder.jpg"), "old");
+        using var library = Library();
+        await library.ScanAsync();
+        _reader.Reads.Clear();
+
+        File.WriteAllText(picture, "newer picture");
+        await library.ScanAsync();
+        Assert.Equal("newer picture", File.ReadAllText(ByPath(library, song).CoverPath!));
+        Assert.Empty(_reader.Reads);
+
+        File.Delete(picture);
+        await library.ScanAsync();
+        Assert.Null(ByPath(library, song).CoverPath);
+        Assert.Null(ByPath(library, song).FolderCover);
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_data, LocalFileIndex.CoverFolderName)));
+    }
+
+    [Fact]
+    public async Task AFolderPicture_IsKeptAcrossStarts()
+    {
+        var song = Write(Path.Combine("Album", "a.mp3"), "A");
+        var picture = Write(Path.Combine("Album", "cover.png"), "picture");
+        using (var first = Library())
+            await first.ScanAsync();
+
+        using var library = Library();
+        Assert.Equal(picture, ByPath(library, song).FolderCover?.Path);
+        _reader.Reads.Clear();
+        await library.ScanAsync();
+        Assert.Empty(_reader.Reads);
+        Assert.Equal("picture", File.ReadAllText(ByPath(library, song).CoverPath!));
+    }
+
+    [Fact]
+    public async Task AHiddenFolderPicture_IsFound_ButHiddenAudioIsNot()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Hidden is an attribute on Windows only.");
+        var song = Write(Path.Combine("Album", "a.mp3"), "A");
+        var hiddenSong = Write(Path.Combine("Album", "b.mp3"), "B");
+        var picture = Write(Path.Combine("Album", "Folder.jpg"), "picture");
+        File.SetAttributes(picture, FileAttributes.Hidden | FileAttributes.System);
+        File.SetAttributes(hiddenSong, FileAttributes.Hidden);
+        using var library = Library();
+
+        await library.ScanAsync();
+
+        Assert.Equal(picture, ByPath(library, song).FolderCover?.Path);
+        Assert.DoesNotContain(library.Files(), f => f.Path == hiddenSong);
+        File.SetAttributes(picture, FileAttributes.Normal);
+    }
+
+    [Fact]
     public async Task Changed_IsRaised_AsTheScanGoes()
     {
         Write("a.mp3", "A");

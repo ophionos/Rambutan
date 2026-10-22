@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Enumeration;
@@ -177,7 +178,13 @@ public sealed class LocalFileIndex : IDisposable
         var watched = Roots(_folders());
         var roots = LocalWatch.Within(watched, scope, _paths);
 
-        var (found, scanned, notListed) = await Task.Run(() => List(roots, ct), ct);
+        var (found, pictureFiles, scanned, notListed) = await Task.Run(() => List(roots, ct), ct);
+        var pictures = pictureFiles
+            .GroupBy(f => Path.GetDirectoryName(f.Path) ?? "", _paths.Comparer)
+            .Select(g => LocalFolderCovers.Pick(g))
+            .OfType<FoundFile>()
+            .ToDictionary(p => Path.GetDirectoryName(p.Path) ?? "", _paths.Comparer);
+        var copies = new ConcurrentDictionary<string, string?>(_paths.Comparer);
 
         LocalScanPlan plan;
         IReadOnlyList<string> unavailable;
@@ -202,7 +209,7 @@ public sealed class LocalFileIndex : IDisposable
             plan.ToRead, new ParallelOptions { MaxDegreeOfParallelism = _threads, CancellationToken = ct },
             (item, token) =>
             {
-                var file = ReadFile(item);
+                var file = ReadFile(item, pictures, copies);
                 if (file.IsUnreadable)
                     Interlocked.Increment(ref unreadable);
 
@@ -227,6 +234,7 @@ public sealed class LocalFileIndex : IDisposable
                 return ValueTask.CompletedTask;
             });
 
+        UpdateFolderCovers(scanned, pictures, copies);
         RemoveUnusedCovers();
         AppLog.Write("local",
             $"scan: {found.Count} files in {roots.Count} folders ({notListed.Count} unavailable), " +
@@ -234,39 +242,50 @@ public sealed class LocalFileIndex : IDisposable
             $"{Stopwatch.GetElapsedTime(started).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)} s");
     }
 
-    /// <summary>The audio files under each folder. A folder that doesn't exist or
-    /// can't be listed is unavailable, and left out of the scanned roots.</summary>
-    private (List<FoundFile> Found, List<string> Scanned, List<string> Unavailable) List(
+    /// <summary>The audio files under each folder, and the pictures that may be a
+    /// folder's cover. A folder that doesn't exist or can't be listed is
+    /// unavailable, and left out of the scanned roots.</summary>
+    private (List<FoundFile> Found, List<FoundFile> Pictures, List<string> Scanned, List<string> Unavailable) List(
         IReadOnlyList<string> roots, CancellationToken ct)
     {
         var found = new List<FoundFile>();
+        var pictures = new List<FoundFile>();
         var scanned = new List<string>();
         var unavailable = new List<string>();
+        // Hidden and system entries are skipped by hand, not by the options:
+        // Windows Media Player keeps its folder.jpg and AlbumArt files hidden.
+        const FileAttributes skipped = FileAttributes.Hidden | FileAttributes.System;
         var options = new EnumerationOptions
         {
             RecurseSubdirectories = true,
             IgnoreInaccessible = true,
-            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System,
+            AttributesToSkip = 0,
         };
         foreach (var root in roots)
         {
             ct.ThrowIfCancellationRequested();
             var files = new List<FoundFile>();
+            var images = new List<FoundFile>();
             try
             {
                 if (!Directory.Exists(root))
                     throw new DirectoryNotFoundException();
-                var entries = new FileSystemEnumerable<FoundFile>(root,
-                    (ref FileSystemEntry e) => new FoundFile(e.ToFullPath(), e.Length, e.LastWriteTimeUtc),
+                var entries = new FileSystemEnumerable<(FoundFile File, bool IsAudio)>(root,
+                    (ref FileSystemEntry e) => (new FoundFile(e.ToFullPath(), e.Length, e.LastWriteTimeUtc),
+                        LocalScan.AudioExtensions.Contains(Path.GetExtension(e.FileName).ToString())),
                     options)
                 {
+                    ShouldRecursePredicate = (ref FileSystemEntry e) => (e.Attributes & skipped) == 0,
                     ShouldIncludePredicate = (ref FileSystemEntry e) =>
-                        !e.IsDirectory && LocalScan.AudioExtensions.Contains(Path.GetExtension(e.FileName).ToString()),
+                        !e.IsDirectory
+                        && (((e.Attributes & skipped) == 0
+                                && LocalScan.AudioExtensions.Contains(Path.GetExtension(e.FileName).ToString()))
+                            || LocalFolderCovers.IsCandidate(e.FileName.ToString())),
                 };
-                foreach (var file in entries)
+                foreach (var (file, isAudio) in entries)
                 {
                     ct.ThrowIfCancellationRequested();
-                    files.Add(file);
+                    (isAudio ? files : images).Add(file);
                 }
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -276,22 +295,91 @@ public sealed class LocalFileIndex : IDisposable
                 continue;
             }
             found.AddRange(files);
+            pictures.AddRange(images);
             scanned.Add(root);
         }
-        return (found, scanned, unavailable);
+        return (found, pictures, scanned, unavailable);
     }
 
-    private LocalFile ReadFile(FileToRead item)
+    private LocalFile ReadFile(
+        FileToRead item, Dictionary<string, FoundFile> pictures, ConcurrentDictionary<string, string?> copies)
     {
         var tags = _reader.Read(item.File.Path);
         string? cover = null;
-        if (tags?.Cover is { } picture)
+        FoundFile? fromFolder = null;
+        if (tags?.Cover is { } embedded)
         {
-            cover = SaveCover(picture);
+            cover = SaveCover(embedded);
             tags = tags with { Cover = null };
         }
-        return new LocalFile(item.Id, item.File.Path, item.File.Size, item.File.ModifiedAt, tags, cover);
+        else if (tags is not null && PictureFor(item.File.Path, pictures) is { } picture
+                 && CopyFolderCover(picture, copies) is { } copy)
+        {
+            cover = copy;
+            fromFolder = picture;
+        }
+        return new LocalFile(item.Id, item.File.Path, item.File.Size, item.File.ModifiedAt, tags, cover,
+            FolderCover: fromFolder);
     }
+
+    private static FoundFile? PictureFor(string audioPath, Dictionary<string, FoundFile> pictures) =>
+        pictures.TryGetValue(Path.GetDirectoryName(audioPath) ?? "", out var picture) ? picture : null;
+
+    /// <summary>
+    /// Gives the files the scan didn't read their folder's picture as it is now:
+    /// a picture added, changed or removed changes no audio file, so the plan
+    /// doesn't read them. Files with an embedded cover keep it.
+    /// </summary>
+    private void UpdateFolderCovers(
+        IReadOnlyList<string> scanned, Dictionary<string, FoundFile> pictures,
+        ConcurrentDictionary<string, string?> copies)
+    {
+        List<(LocalFile File, FoundFile? Picture)> stale;
+        lock (_lock)
+        {
+            stale = _files.Values
+                .Where(f => f is { IsMissing: false, IsUnreadable: false }
+                    && scanned.Any(root => _paths.IsUnder(f.Path, root)))
+                .Select(f => (File: f, Picture: PictureFor(f.Path, pictures)))
+                .Where(x => LocalFolderCovers.NeedsUpdate(x.File.CoverPath is not null, x.File.FolderCover, x.Picture))
+                .ToList();
+        }
+        if (stale.Count == 0)
+            return;
+
+        var updated = stale.Select(x =>
+        {
+            var copy = x.Picture is { } picture ? CopyFolderCover(picture, copies) : null;
+            return x.File with { CoverPath = copy, FolderCover = copy is null ? null : x.Picture };
+        }).ToList();
+        lock (_lock)
+        {
+            foreach (var file in updated)
+            {
+                // A file read again meanwhile has the newer answer.
+                if (_files.TryGetValue(file.Id, out var now) && now.ModifiedAt == file.ModifiedAt && now.Size == file.Size)
+                    _files[file.Id] = file;
+            }
+            _dirty = true;
+        }
+    }
+
+    /// <summary>The folder's picture in the cover cache, read once per scan; null
+    /// when it can't be read.</summary>
+    private string? CopyFolderCover(FoundFile picture, ConcurrentDictionary<string, string?> copies) =>
+        copies.GetOrAdd(picture.Path, path =>
+        {
+            try
+            {
+                var extension = Path.GetExtension(path).ToLowerInvariant() is ".png" ? ".png" : ".jpg";
+                return SaveCover(new LocalCover(File.ReadAllBytes(path), extension));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                AppLog.Write("local", $"couldn't read a folder's picture: {ex.GetType().Name}");
+                return null;
+            }
+        });
 
     /// <summary>Covers are kept once per picture, named by its hash: an album's
     /// tracks usually carry the same one. Null when it can't be written; the

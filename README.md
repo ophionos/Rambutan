@@ -43,7 +43,8 @@ your own YouTube Music account to use your library.
 - Music files on your computer: choose the folders that hold them, and play
   their songs beside YouTube Music, under Library, On this computer. Search
   finds them too, with no connection. Their lyrics come from an `.lrc` file
-  beside the song, or from its tags.
+  beside the song, or from its tags. A song without a cover of its own shows
+  its folder's picture (`cover.jpg`, `folder.jpg` and the like).
 
 **Now Playing**
 - The artwork and the lyrics side by side, or either one alone, over a

@@ -282,7 +282,11 @@ file sink), never to files directly.
   gone throws `LocalFileMissingException`, and the queue marks it. Playback and
   scans wait only for ffmpeg (`SidecarBootstrapper.AudioReady`), not yt-dlp,
   so they work offline on a first start. ReplayGain's track gain becomes
-  YouTube's loudness (`LocalTracks.LoudnessDb`). Covers come by id through
+  YouTube's loudness (`LocalTracks.LoudnessDb`). An embedded cover always
+  wins; a track without one takes its folder's picture (`cover`, `folder`,
+  `front` or `AlbumArt*`, hidden ones too: `Core/Local/LocalFolderCovers`),
+  copied into the cover cache, and a changed picture updates it without
+  reading the track again. Covers come by id through
   `Services/KeptCovers`, never as a URL in the track, so no file path reaches
   Discord or `queue.json`. The YouTube-only actions (radio, like, library,
   playlists, download, share) are off for such a track

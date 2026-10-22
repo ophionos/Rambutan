@@ -40,6 +40,9 @@ public static class LocalWatch
         if (ignored.Any(folder => paths.IsUnder(path, folder)))
             return false;
         var extension = Path.GetExtension(path);
+        // A folder's picture is a track's cover.
+        if (LocalFolderCovers.IsCandidate(Path.GetFileName(path)))
+            return true;
         return change switch
         {
             WatcherChange.Created => isDirectory || LocalScan.AudioExtensions.Contains(extension),
