@@ -271,7 +271,9 @@ file sink), never to files directly.
   its size or modified time changed; its `local:<n>` id stays with its path and
   is never given again; a file that is gone stays in the index as missing; a
   watched folder that can't be listed (an unplugged drive) leaves its files as
-  they were; files of a folder no longer watched stay in the index, unlisted.
+  they were, and so does one that lists no audio file while the index has
+  files present under it (a Linux mount whose drive is down lists empty);
+  files of a folder no longer watched stay in the index, unlisted.
   The reader detects the format from the content after any ID3v2 tag, never the
   extension, and reads stream info only when the open gives no length. Its tests
   need the ffmpeg shared libraries (`RAMBUTAN_FFMPEG_LIBS`, else the app's tools

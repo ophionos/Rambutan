@@ -125,6 +125,25 @@ public static class LocalScan
         return new LocalScanPlan(toRead, nowMissing, unchanged, nextId);
     }
 
+    /// <summary>
+    /// The listed watched folders that count as unavailable all the same: ones
+    /// that hold no audio file now while the index has files present under them.
+    /// On Linux a mount whose drive or share is down is an ordinary empty folder,
+    /// and listing it would mark all its files missing at once. The maintainer's
+    /// decision, with its cost: a folder emptied on purpose keeps its files listed
+    /// until it is removed or a file comes back.
+    /// </summary>
+    public static IReadOnlyList<string> EmptiedRoots(
+        IEnumerable<KnownFile> known, IReadOnlyCollection<FoundFile> found,
+        IReadOnlyList<string> listed, LocalPaths paths)
+    {
+        var empty = listed.Where(root => !found.Any(f => paths.IsUnder(f.Path, root))).ToList();
+        if (empty.Count == 0)
+            return [];
+        var present = known.Where(k => !k.IsMissing).ToList();
+        return empty.Where(root => present.Any(k => paths.IsUnder(k.Path, root))).ToList();
+    }
+
     /// <summary>The extensions a scan looks at. Only to keep it from opening
     /// every file in the folder: the reader still goes by the content.</summary>
     public static IReadOnlySet<string> AudioExtensions { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

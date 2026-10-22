@@ -77,6 +77,7 @@ public sealed class LocalFileIndexTests : IDisposable
     public async Task ADeletedFile_IsMissing_AndKeepsItsIdWhenItComesBack()
     {
         var a = Write("a.mp3", "A");
+        Write("b.mp3", "B");
         using var library = Library();
         await library.ScanAsync();
         var id = ByPath(library, a).Id;
@@ -109,6 +110,29 @@ public sealed class LocalFileIndexTests : IDisposable
 
         Assert.False(ByPath(library, song).IsMissing);
         Assert.Equal([usb], library.Status.UnavailableFolders);
+    }
+
+    [Fact]
+    public async Task AFolderThatListsEmpty_LeavesItsFilesAsTheyWere_UntilOneComesBack()
+    {
+        // On Linux, a mount whose drive is down is an empty folder.
+        var a = Write("a.mp3", "A");
+        var b = Write(Path.Combine("x", "b.mp3"), "B");
+        using var library = Library();
+        await library.ScanAsync();
+
+        File.Delete(a);
+        File.Delete(b);
+        await library.ScanAsync();
+        Assert.False(ByPath(library, a).IsMissing);
+        Assert.False(ByPath(library, b).IsMissing);
+        Assert.Equal([_music], library.Status.UnavailableFolders);
+
+        Write("a.mp3", "A");
+        await library.ScanAsync();
+        Assert.False(ByPath(library, a).IsMissing);
+        Assert.True(ByPath(library, b).IsMissing);
+        Assert.Empty(library.Status.UnavailableFolders);
     }
 
     [Fact]
@@ -308,6 +332,7 @@ public sealed class LocalFileIndexTests : IDisposable
         Directory.CreateDirectory(other);
         var song = Path.Combine(other, "b.mp3");
         File.WriteAllText(song, "B");
+        File.WriteAllText(Path.Combine(other, "d.mp3"), "D");
         _folders.Add(other);
         _folders.Add(usb); // not there: unavailable
         Write("a.mp3", "A");

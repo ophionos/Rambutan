@@ -87,6 +87,37 @@ public class LocalScanTests
     }
 
     [Fact]
+    public void AListedFolder_WithNoAudioLeft_ButFilesPresentInTheIndex_IsEmptied()
+    {
+        // A mount whose drive is down lists as an ordinary empty folder.
+        var emptied = LocalScan.EmptiedRoots(
+            [Known("local:1", "/mnt/nas/a.mp3"), Known("local:2", "/m/b.mp3")],
+            [Found("/m/b.mp3")], ["/mnt/nas", "/m"], Linux);
+
+        Assert.Equal(["/mnt/nas"], emptied);
+    }
+
+    [Fact]
+    public void AnEmptyFolder_WhoseFilesAreAllMissingOrUnknown_IsNotEmptied()
+    {
+        var emptied = LocalScan.EmptiedRoots(
+            [Known("local:1", "/mnt/nas/a.mp3", missing: true), Known("local:2", "/mnt/other/b.mp3")],
+            [], ["/mnt/nas", "/mnt/new"], Linux);
+
+        Assert.Empty(emptied);
+    }
+
+    [Fact]
+    public void AFolderThatStillHoldsOneFile_IsNotEmptied()
+    {
+        var emptied = LocalScan.EmptiedRoots(
+            [Known("local:1", "/m/a.mp3"), Known("local:2", "/m/x/b.mp3")],
+            [Found("/m/x/b.mp3")], ["/m"], Linux);
+
+        Assert.Empty(emptied);
+    }
+
+    [Fact]
     public void AMovedFile_IsANewFile_AndTheOldOneIsMissing()
     {
         var plan = LocalScan.Plan([Known("local:1", "/m/a.mp3")], [Found("/m/x/a.mp3")], ["/m"], Linux, nextId: 2);

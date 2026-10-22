@@ -178,7 +178,7 @@ public sealed class LocalFileIndex : IDisposable
         var watched = Roots(_folders());
         var roots = LocalWatch.Within(watched, scope, _paths);
 
-        var (found, pictureFiles, scanned, notListed) = await Task.Run(() => List(roots, ct), ct);
+        var (found, pictureFiles, listed, notListed) = await Task.Run(() => List(roots, ct), ct);
         var pictures = pictureFiles
             .GroupBy(f => Path.GetDirectoryName(f.Path) ?? "", _paths.Comparer)
             .Select(g => LocalFolderCovers.Pick(g))
@@ -188,8 +188,12 @@ public sealed class LocalFileIndex : IDisposable
 
         LocalScanPlan plan;
         IReadOnlyList<string> unavailable;
+        List<string> scanned;
         lock (_lock)
         {
+            var emptied = LocalScan.EmptiedRoots(_files.Values.Select(f => f.Known), found, listed, _paths);
+            scanned = listed.Except(emptied, _paths.Comparer).ToList();
+            notListed.AddRange(emptied);
             plan = LocalScan.Plan(_files.Values.Select(f => f.Known), found, scanned, _paths, _nextId);
             // Taken now, so a scan that stops early never hands out the same id twice.
             _nextId = plan.NextId;
