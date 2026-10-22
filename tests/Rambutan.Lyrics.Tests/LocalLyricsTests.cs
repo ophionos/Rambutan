@@ -75,6 +75,52 @@ public sealed class LocalLyricsTests : IDisposable
     }
 
     [Fact]
+    public async Task An_lrc_file_named_in_another_case_is_found()
+    {
+        File.WriteAllText(Path.Combine(Path.GetDirectoryName(_audio)!, "SONG.LRC"), "[00:01.00]Shouted");
+
+        var doc = await Local().TryGetAsync(Id, default);
+
+        Assert.Equal(["Shouted"], doc!.Lines.Select(l => l.Text));
+    }
+
+    [Fact]
+    public async Task An_lrc_file_that_isnt_utf8_is_read_without_replacement_characters()
+    {
+        File.WriteAllBytes(Path.ChangeExtension(_audio, ".lrc"), [.. "[00:01.00]Caf"u8, 0xE9]);
+
+        var doc = await Local().TryGetAsync(Id, default);
+
+        Assert.DoesNotContain('\uFFFD', doc!.Lines[0].Text);
+    }
+
+    [Fact]
+    public async Task Synced_lyrics_in_an_id3_tag_come_after_the_lrc_file_and_before_the_other_tags()
+    {
+        var tag = Id3.Tag(4, 0, Id3.Frame(4, "SYLT", Id3.Sylt(3, [("From SYLT", 1000)])));
+        File.WriteAllBytes(_audio, [.. tag, .. new byte[100]]);
+        _tags.Add("[00:01.00]From USLT");
+
+        var fromTag = await Local().TryGetAsync(Id, default);
+        Assert.Equal(LocalLyrics.TagsSourceName, fromTag!.Source);
+        Assert.True(fromTag.IsSynced);
+        Assert.Equal(["From SYLT"], fromTag.Lines.Select(l => l.Text));
+        Assert.Equal(0, _tagReads);
+
+        Sidecar("[00:01.00]From the file");
+        Assert.Equal(["From the file"], (await Local().TryGetAsync(Id, default))!.Lines.Select(l => l.Text));
+    }
+
+    [Fact]
+    public async Task An_id3_tag_without_synced_lyrics_falls_through_to_the_other_tags()
+    {
+        File.WriteAllBytes(_audio, Id3.Tag(3, 0, Id3.Frame(3, "TIT2", [3, .. "Title"u8])));
+        _tags.Add("From USLT");
+
+        Assert.Equal(["From USLT"], (await Local().TryGetAsync(Id, default))!.Lines.Select(l => l.Text));
+    }
+
+    [Fact]
     public async Task An_empty_lrc_file_falls_through_to_the_tags()
     {
         Sidecar("  \n");

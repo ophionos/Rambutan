@@ -231,9 +231,12 @@ file sink), never to files directly.
 - Lyrics degrade in explicit states: word-synced → line-synced → plain → "no
   lyrics found". Imported custom lyrics always win over providers.
   A local track's own lyrics come next (`Lyrics/Store/LocalLyrics`): the
-  `.lrc` beside the file, then its tags (read through
-  `FfmpegMediaFileReader.ReadLyrics`, which waits for ffmpeg); a text that
-  parses as synced LRC shows synced. They are read on each lookup, never cached, and
+  `.lrc` beside the file (found ignoring case; its bytes decoded by
+  `Lyrics/Parsing/LrcFileText`: a byte order mark, else UTF-8 if valid, else
+  the system's ANSI code page, Windows-1252 off Windows), then an ID3v2
+  tag's `SYLT` (`Lyrics/Parsing/SyltParser`; libav doesn't expose it), then
+  its other tags (read through `FfmpegMediaFileReader.ReadLyrics`, which
+  waits for ffmpeg); a text that parses as synced LRC shows synced. They are read on each lookup, never cached, and
   whatever the online-lookup setting; the cache and LRCLIB come after them.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.
 - Card menus: a song card has the track menu (`TrackMenuModel`); album,
