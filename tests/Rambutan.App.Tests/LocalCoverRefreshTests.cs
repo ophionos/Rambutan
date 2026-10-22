@@ -50,6 +50,26 @@ public sealed class LocalCoverRefreshTests : IDisposable
     });
 
     [Fact]
+    public void ThePlayerBar_ShowsTheNamesAMatchFills_AndKeepsTheFilesOwnTrack() => Headless.Run(() =>
+    {
+        var queue = new QueueModel();
+        queue.SetQueue([new TrackInfo { VideoId = "local:1", Title = "Instant Crush", Artists = [] }]);
+        TrackInfo? match = null;
+        var bar = new PlayerBarViewModel(null!, queue, null)
+        {
+            ShowAs = track => match is null ? track : track with { Artists = [new("Daft Punk")], Album = "RAM" },
+        };
+        Assert.Equal("", bar.Artist);
+
+        match = Track("song");
+        bar.RefreshArtwork();
+
+        Assert.Equal("Daft Punk • RAM", bar.Artist);
+        Assert.Equal("Daft Punk", bar.DisplayedTrack?.ArtistDisplay);
+        Assert.Empty(bar.ShownTrack!.Artists);
+    });
+
+    [Fact]
     public void ThePlayerBar_LeavesAYouTubeTracksCoverAlone() => Headless.Run(() =>
     {
         var bar = new PlayerBarViewModel(null!, Queue("dQw4w9WgXcQ"), null);

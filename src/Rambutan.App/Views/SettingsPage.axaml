@@ -348,6 +348,16 @@
                         IsEnabled="{Binding !IsScanning}" VerticalAlignment="Center" />
               </Grid>
             </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.local.match}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.local.matchHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding MatchOnYouTubeMusic}"
+                              AutomationProperties.Name="{l:T settings.local.match}" />
+              </Grid>
+            </Border>
           </StackPanel>
         </Border>
       </StackPanel>

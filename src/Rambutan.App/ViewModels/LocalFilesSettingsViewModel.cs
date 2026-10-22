@@ -31,6 +31,7 @@ public partial class LocalFilesSettingsViewModel : ViewModelBase
     private readonly LocalLibraryScans _scans;
     private readonly Action _persist;
     private readonly LocalPaths _paths;
+    private readonly YouTubeMatches? _matches;
 
     [ObservableProperty] private bool _hasFolders;
     [ObservableProperty] private bool _isScanning;
@@ -47,16 +48,36 @@ public partial class LocalFilesSettingsViewModel : ViewModelBase
     public Func<Task<string?>>? PickFolder { get; set; }
 
     /// <param name="post">Runs a refresh on the UI thread; tests pass their own.</param>
+    /// <param name="matches">Told when matching is turned on or off.</param>
     public LocalFilesSettingsViewModel(
-        AppSettings app, LocalLibraryScans scans, Action persist, LocalPaths? paths = null, Action<Action>? post = null)
+        AppSettings app, LocalLibraryScans scans, Action persist, LocalPaths? paths = null, Action<Action>? post = null,
+        YouTubeMatches? matches = null)
     {
         _app = app;
         _scans = scans;
         _persist = persist;
+        _matches = matches;
         _paths = paths ?? LocalPaths.Platform;
         post ??= action => Dispatcher.UIThread.Post(action);
         scans.Changed += () => post(Refresh);
         Refresh();
+    }
+
+    /// <summary>Match local files to YouTube Music songs; off by default, since
+    /// it sends their artist and title tags there.</summary>
+    public bool MatchOnYouTubeMusic
+    {
+        get => _app.MatchLocalOnYouTubeMusic;
+        set
+        {
+            if (_app.MatchLocalOnYouTubeMusic == value)
+                return;
+            _app.MatchLocalOnYouTubeMusic = value;
+            if (_matches is not null)
+                _matches.Enabled = value;
+            _persist();
+            OnPropertyChanged();
+        }
     }
 
     [RelayCommand]

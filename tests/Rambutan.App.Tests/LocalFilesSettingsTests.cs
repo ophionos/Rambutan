@@ -42,6 +42,23 @@ public sealed class LocalFilesSettingsTests : IDisposable
     }
 
     [Fact]
+    public void MatchingOnYouTubeMusic_IsOffByDefault_AndTurningItOnIsSaved_AndToldToTheMatches()
+    {
+        var matches = new YouTubeMatches(
+            new LocalMatcher((_, _) => Task.FromResult<IReadOnlyList<Rambutan.Core.Models.TrackInfo>>([])),
+            _ => null, _dir, (_, _) => Task.FromResult(Array.Empty<byte>()));
+        var vm = new LocalFilesSettingsViewModel(_app, _scans, () => _persisted++, post: _ => { }, matches: matches);
+        Assert.False(vm.MatchOnYouTubeMusic);
+        Assert.False(matches.Enabled);
+
+        vm.MatchOnYouTubeMusic = true;
+
+        Assert.True(_app.MatchLocalOnYouTubeMusic);
+        Assert.True(matches.Enabled);
+        Assert.Equal(1, _persisted);
+    }
+
+    [Fact]
     public void WithNoFolders_ThereIsNothingToShow()
     {
         Assert.False(_vm.HasFolders);

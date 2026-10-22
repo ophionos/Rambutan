@@ -39,6 +39,11 @@ public sealed class AppSettings
     /// each listed track to YouTube Music as a signed-out search.</summary>
     public bool LastFmStationsOnHome { get; set; }
 
+    /// <summary>Match local files to YouTube Music songs, on demand. Off by
+    /// default: each search sends a file's artist and title tags to YouTube
+    /// Music, signed out.</summary>
+    public bool MatchLocalOnYouTubeMusic { get; set; }
+
     /// <summary>Tint the shell with the now-playing artwork. Default on.</summary>
     public bool AmbientBackground { get; set; } = true;
 

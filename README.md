@@ -47,6 +47,9 @@ your own YouTube Music account to use your library.
   its folder's picture (`cover.jpg`, `folder.jpg` and the like).
 - Any other music file plays too: open it (Ctrl+O), or drop files or a folder
   on the window to play them, or on the queue to add them to its end.
+- If you turn it on, a song from your computer is looked for on YouTube Music
+  when it plays or you open its menu. A match gives it a radio for autoplay,
+  likes and playlists, and the cover, artist or album its tags lack.
 
 **Now Playing**
 - The artwork and the lyrics side by side, or either one alone, over a
@@ -82,8 +85,9 @@ your own YouTube Music account to use your library.
 - Profiles, each with its own sign-in, settings, queue and downloads.
 
 **Private by default.** Everything that sends data off your computer is off
-until you turn it on: Last.fm, Discord, online lyrics lookups and the phone
-remote. Each setting says exactly what it sends. There is no telemetry.
+until you turn it on: Last.fm, Discord, online lyrics lookups, finding your
+music files on YouTube Music and the phone remote. Each setting says exactly
+what it sends. There is no telemetry.
 
 <table>
   <tr>
@@ -160,7 +164,7 @@ Everything is in **Settings**, in the sidebar. The sections are:
 | Equalizer | The 10-band equalizer. |
 | Lyrics | Online lyrics lookups on LRCLIB (off until you turn them on). |
 | Downloads | The download folder, and exporting downloads as audio files. |
-| Music on this computer | The folders that hold your music files, and Rescan. |
+| Music on this computer | The folders that hold your music files, Rescan, and finding them on YouTube Music (off until you turn it on). |
 | Phone remote | Turn the remote on and pair a phone. |
 | OBS overlay | Turn the overlay on, copy its address, and edit its style. |
 | Last.fm, Discord | Connect to Last.fm; turn on Discord and choose what it shows. |

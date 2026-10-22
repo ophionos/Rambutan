@@ -42,6 +42,11 @@ public partial class PlayerBarViewModel : ViewModelBase
     /// it as playing, and only it can seek.</summary>
     [ObservableProperty] private Rambutan.Core.Models.TrackInfo? _shownTrack;
 
+    /// <summary><see cref="ShownTrack"/> as its names show: a local file with
+    /// what its tags lack filled from its match (<see cref="ShowAs"/>). The
+    /// links and actions stay with <see cref="ShownTrack"/>.</summary>
+    [ObservableProperty] private Rambutan.Core.Models.TrackInfo? _displayedTrack;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MuteTip))]
     private bool _isMuted;
@@ -203,21 +208,34 @@ public partial class PlayerBarViewModel : ViewModelBase
         if (!force && ReferenceEquals(track, ShownTrack))
             return;
         ShownTrack = track;
+        DisplayedTrack = Shown(track);
         Title = track?.Title ?? Strings.Get("player.nothingPlaying");
-        Artist = Describe(track);
+        Artist = Describe(DisplayedTrack);
         ArtworkUrl = Rambutan.App.Converters.ArtworkConverter.For(track);
         if (track is not null)
             _ = LookUpRatingAsync(track);
         ResetProgress(track);
     }
 
-    /// <summary>Reads the shown local track's cover again: a scan can give the
-    /// file another one, or take it away. Public so tests can drive it.</summary>
+    /// <summary>A local track as shown: with what its tags lack filled from its
+    /// YouTube Music match (<see cref="YouTubeMatches.Fill"/>). Null shows it as it is.</summary>
+    public Func<Rambutan.Core.Models.TrackInfo, Rambutan.Core.Models.TrackInfo>? ShowAs { get; set; }
+
+    /// <summary>Reads the shown local track's cover and names again: a scan can
+    /// give the file another cover, or take it away, and a match can fill them.
+    /// Public so tests can drive it.</summary>
     public void RefreshArtwork()
     {
         if (ShownTrack is { } track && LocalIds.IsLocal(track.VideoId))
+        {
             ArtworkUrl = Rambutan.App.Converters.ArtworkConverter.For(track);
+            DisplayedTrack = Shown(track);
+            Artist = Describe(DisplayedTrack);
+        }
     }
+
+    private Rambutan.Core.Models.TrackInfo? Shown(Rambutan.Core.Models.TrackInfo? track) =>
+        track is not null && ShowAs is { } showAs && LocalIds.IsLocal(track.VideoId) ? showAs(track) : track;
 
     /// <summary>"Artist • Album", the second line under the title.</summary>
     private static string Describe(Rambutan.Core.Models.TrackInfo? track) => track switch

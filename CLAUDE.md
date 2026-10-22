@@ -294,7 +294,26 @@ file sink), never to files directly.
   rows and the media session read the playing file's cover again
   (`IMediaSessionService.UpdateArtwork`). The YouTube-only actions (radio, like, library,
   playlists, download, share) are off for such a track
-  (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice.
+  (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice,
+  unless the track has a YouTube Music match.
+  Matching is an outbound integration, off by default
+  (`AppSettings.MatchLocalOnYouTubeMusic`): `Core/Local/LocalMatcher` searches
+  a file's title and artist tags (never its file name; none without a title
+  tag) through the stations' signed-out `InnerTubeClient`, when it plays, when
+  its menu opens and when autoplay needs its radio, never the whole library.
+  It picks with `TrackMatcher` without the last resort, so another version
+  never matches. `App/Services/YouTubeMatches` keeps the answers by local id
+  and tag key (`local-matches.json`, versioned, dropped on a new
+  `TrackMatcher.RulesVersion`). A match drives the menu's YouTube Music group
+  (a line naming the song or saying why there is none, then Start a mix, Like
+  and Save to playlist acting on the song), autoplay's radio
+  (`PlaybackCoordinator.RadioSeedFor`, which leaves the matched song out of
+  what follows), and what the tags lack as shown, never written: the artist and
+  album names in the player bar, Now Playing and the media session
+  (`YouTubeMatches.Fill`, without the song's links) and, for a file with no
+  cover of its own or its folder's, the song's cover, kept in
+  `local-match-covers` and found through `KeptCovers`. The queue keeps the
+  file's own track, so turning matching off takes all of it back.
   Library has two sources, YouTube Music and On this computer
   (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
   A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
