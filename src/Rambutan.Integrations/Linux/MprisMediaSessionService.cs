@@ -51,11 +51,15 @@ public sealed class MprisMediaSessionService : IMediaSessionService, IPathMethod
 
     /// <param name="identity">The player's name, as panels show it.</param>
     /// <param name="address">The bus to use; the session bus when null (tests pass a private one).</param>
-    public MprisMediaSessionService(string identity, string? address = null, TimeProvider? clock = null)
+    /// <param name="localFile">A local track's file and cover paths, by id
+    /// (<see cref="MprisPlayerState"/>).</param>
+    public MprisMediaSessionService(
+        string identity, string? address = null, TimeProvider? clock = null,
+        Func<string, (string Path, string? Cover)?>? localFile = null)
     {
         _identity = identity;
         _address = address;
-        _state = new MprisPlayerState(clock ?? TimeProvider.System);
+        _state = new MprisPlayerState(clock ?? TimeProvider.System, localFile);
     }
 
     public event Action? PlayPauseRequested;

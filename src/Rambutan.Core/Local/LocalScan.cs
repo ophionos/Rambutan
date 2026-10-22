@@ -46,6 +46,18 @@ public sealed class LocalPaths(bool ignoreCase, char separator, char? altSeparat
         var next = path[trimmed.Length];
         return next == separator || next == altSeparator;
     }
+
+    /// <summary>The file's name without its folder or extension ("song" for
+    /// ".../song.flac"). A name that starts with its only dot keeps it.</summary>
+    public string NameWithoutExtension(string path)
+    {
+        var start = path.LastIndexOf(separator) + 1;
+        if (altSeparator is { } alt)
+            start = Math.Max(start, path.LastIndexOf(alt) + 1);
+        var name = path[start..];
+        var dot = name.LastIndexOf('.');
+        return dot > 0 ? name[..dot] : name;
+    }
 }
 
 /// <summary>A file the scan found, with what the file system says of it.</summary>

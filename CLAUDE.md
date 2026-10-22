@@ -99,7 +99,7 @@ libraries; a type two of them share belongs in Core.
 | `Rambutan.InnerTube` | YTM API client implementing `ICatalog`. Parsers tested against recorded fixtures. |
 | `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, download store (kept apart from the cache: no cap, no eviction), export through the ffmpeg executable. The **only** project that touches stream extraction. |
 | `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). Also reads local files' tags, length and cover (`FfmpegMediaFileReader`), so libav stays in one project. |
-| `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`. |
+| `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`, and plays them (`LocalFirstSource`). |
 | `Rambutan.Lyrics` | Lyrics model + timing rules, LRC parser/writer, Lyricsfile (YAML subset) parser for LRCLIB's word-synced records, LRCLIB provider + chain, per-track cache, custom-lyrics store, `LyricsService`. |
 | `Rambutan.Integrations` | SMTC (Windows), MPRIS and the tray-host check (Linux, over D-Bus), single-instance, Velopack updates, Discord Rich Presence (hand-rolled IPC), Last.fm scrobbling and stations. |
 | `Rambutan.LocalApi` | Kestrel host started on demand: `/remote` (the phone remote, on the LAN only while its setting is on; token pairing, state over SSE) and `/overlay` (the OBS overlay, in its own host on loopback only, port 41742 for the installed app's data folder, with its own read-only key; style file `overlay-style.json`, versioned). |
@@ -262,12 +262,26 @@ file sink), never to files directly.
   extension, and reads stream info only when the open gives no length. Its tests
   need the ffmpeg shared libraries (`RAMBUTAN_FFMPEG_LIBS`, else the app's tools
   folder on Windows or the system's on Linux) and skip without them, as on CI.
+  A local track is `Core/Local/LocalTracks.ToTrack` under its `local:<n>` id.
+  `LocalFirstSource` sits outermost on `IStreamSource`: a local id plays its
+  file and never reaches the streams, even on a fault retry; a file that is
+  gone throws `LocalFileMissingException`, and the queue marks it. Playback and
+  scans wait only for ffmpeg (`SidecarBootstrapper.AudioReady`), not yt-dlp,
+  so they work offline on a first start. ReplayGain's track gain becomes
+  YouTube's loudness (`LocalTracks.LoudnessDb`). Covers come by id through
+  `Services/KeptCovers`, never as a URL in the track, so no file path reaches
+  Discord or `queue.json`. The YouTube-only actions (radio, like, library,
+  playlists, download, share) are off for such a track
+  (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice.
+  Library has two sources, YouTube Music and On this computer
+  (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
+  Its lyrics cache file is `local.<n>.json`.
 - Ids sent to YouTube: InnerTube's track calls (radio, mix, rating, playlist
   edits) and the stream resolver refuse any id that isn't YouTube-shaped
   (`Core/Models/YouTubeIds`, `NotAYouTubeTrackException`) before any request,
   so a track from elsewhere never reaches YouTube Music. Copy link and MPRIS's
   `xesam:url` go through `Core/Links/ShareLinks.ForTrack`, which has no link
-  for such an id.
+  for such an id; MPRIS gives a local file's `file://` URL instead.
 - Last.fm stations on Home, and artists' stations from their pages:
   `Integrations/LastFm/LastFmStationClient` reads the web player's
   undocumented station endpoint (`user/<name>/…`, `music/<artist>/+similar`;

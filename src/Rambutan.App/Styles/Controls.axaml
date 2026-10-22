@@ -434,6 +434,10 @@
   <Style Selector="ListBox.queue Grid.needsconnection">
     <Setter Property="Opacity" Value="0.4" />
   </Style>
+  <!-- A local file that isn't there now: as quiet, with a warning mark. -->
+  <Style Selector="ListBox.queue Grid.filemissing">
+    <Setter Property="Opacity" Value="0.4" />
+  </Style>
 
   <!-- A queue item is its caption plus its row, and only the row is the thing
        selected: the Windows check found "Up next (N)" drawn inside the first

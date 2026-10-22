@@ -86,7 +86,7 @@ public partial class App : Application
             var downloads = _services.GetRequiredService<DownloadStore>();
             _services.GetRequiredService<PlaybackCoordinator>().NowPlayingChanged +=
                 _ => Task.Run(downloads.RetryLeftovers);
-            Converters.ArtworkConverter.LocalArtwork = downloads.ArtworkPathFor;
+            Converters.ArtworkConverter.LocalArtwork = _services.GetRequiredService<KeptCovers>().PathFor;
             // Downloads made before covers were kept get theirs, in the background.
             _ = Task.Run(() => downloads.FillMissingArtworkAsync(CancellationToken.None));
             // Linux has no install step, so the AppImage registers rambutan:// as it
@@ -346,11 +346,14 @@ public partial class App : Application
                 : new DemoAudioFetcher(Demo),
             // Each download keeps its cover beside its audio, so it shows offline.
             sp.GetRequiredService<ArtworkCache>().GetBytesAsync));
-        // The watched folders' music, read through libav once the sidecars are ready.
+        // The watched folders' music, read through libav once ffmpeg is ready
+        // (not yt-dlp, which a first start offline can't fetch).
         services.AddSingleton(sp => new LocalLibraryScans(new LocalFileIndex(
             dataDir, new FfmpegMediaFileReader(),
-            ct => sp.GetRequiredService<SidecarBootstrapper>().Ready.WaitAsync(ct),
+            ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct),
             () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [])));
+        services.AddSingleton(sp => new KeptCovers(
+            sp.GetRequiredService<DownloadStore>(), sp.GetRequiredService<LocalLibraryScans>().Index));
         services.AddSingleton(sp =>
         {
             var queue = new DownloadQueue(sp.GetRequiredService<DownloadStore>());
@@ -378,15 +381,19 @@ public partial class App : Application
                 _ => Reachability.Unknown,
             }
             : _ => Task.FromResult(Demo.Fails("streams") ? Reachability.Unreachable : Reachability.Reachable)));
-        services.AddSingleton<IStreamSource>(sp => new SidecarGate(
-            new DownloadsFirstSource(
-                Demo is null
-                    ? new OfflineAwareSource(
-                        sp.GetRequiredService<CachingStreamSource>(),
-                        sp.GetRequiredService<ConnectivityProbe>().CheckAsync)
-                    : sp.GetRequiredService<DemoStreamSource>(),
-                sp.GetRequiredService<DownloadStore>()),
-            sp.GetRequiredService<SidecarBootstrapper>()));
+        // Local files go round the gate: they need ffmpeg, not yt-dlp.
+        services.AddSingleton<IStreamSource>(sp => new LocalFirstSource(
+            new SidecarGate(
+                new DownloadsFirstSource(
+                    Demo is null
+                        ? new OfflineAwareSource(
+                            sp.GetRequiredService<CachingStreamSource>(),
+                            sp.GetRequiredService<ConnectivityProbe>().CheckAsync)
+                        : sp.GetRequiredService<DemoStreamSource>(),
+                    sp.GetRequiredService<DownloadStore>()),
+                sp.GetRequiredService<SidecarBootstrapper>()),
+            sp.GetRequiredService<LocalLibraryScans>().Index,
+            ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct)));
 
         // Hover warm-up: the gate passes it to a source that can warm.
         services.AddSingleton(sp => new HoverWarmup((IStreamWarmer)sp.GetRequiredService<IStreamSource>()));
@@ -447,8 +454,11 @@ public partial class App : Application
 #if WINDOWS
         services.AddSingleton<IMediaSessionService, SmtcMediaSessionService>();
 #else
-        services.AddSingleton<IMediaSessionService>(OperatingSystem.IsLinux()
-            ? new Rambutan.Integrations.Linux.MprisMediaSessionService("Rambutan")
+        services.AddSingleton<IMediaSessionService>(sp => OperatingSystem.IsLinux()
+            ? new Rambutan.Integrations.Linux.MprisMediaSessionService("Rambutan",
+                localFile: id => sp.GetRequiredService<LocalLibraryScans>().Index.Find(id) is { } file
+                    ? (file.Path, file.CoverPath)
+                    : null)
             : new NullMediaSessionService());
 #endif
 
@@ -543,10 +553,14 @@ public partial class App : Application
                 new FfmpegExportWriter(sp.GetRequiredService<FfmpegManager>().EnsureExecutableAsync), File.Exists),
             exportSource: sp.GetRequiredService<DownloadStore>().ExportSourceFor));
         services.AddSingleton(new SearchHistory(new SearchHistoryStore(dataDir)));
+        services.AddSingleton(sp => new LocalLibraryViewModel(
+            sp.GetRequiredService<LocalLibraryScans>(), sp.GetRequiredService<PlaybackCoordinator>(),
+            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []));
         services.AddSingleton<NavigationService>();
         services.AddSingleton(sp => new QueueViewModel(
             sp.GetRequiredService<QueueModel>(), sp.GetRequiredService<PlaybackCoordinator>(),
-            sp.GetRequiredService<NetworkStatus>(), sp.GetRequiredService<IStreamSource>() as IOfflineAvailability));
+            sp.GetRequiredService<NetworkStatus>(), sp.GetRequiredService<IStreamSource>() as IOfflineAvailability,
+            changed => sp.GetRequiredService<LocalLibraryScans>().Changed += changed));
         services.AddSingleton(sp => new NowPlayingViewModel(
             sp.GetRequiredService<PlayerBarViewModel>(),
             sp.GetRequiredService<LyricsViewModel>(),
@@ -575,7 +589,7 @@ public partial class App : Application
             signInChanged: sp.GetRequiredService<NavigationService>().OnSignInChanged));
         // The phone remote listens only while its setting is on.
         services.AddSingleton(sp => new CoverSource(
-            sp.GetRequiredService<ArtworkCache>().GetBytesAsync, sp.GetRequiredService<DownloadStore>().ArtworkPathFor));
+            sp.GetRequiredService<ArtworkCache>().GetBytesAsync, sp.GetRequiredService<KeptCovers>().PathFor));
         services.AddSingleton(sp => new PhoneRemoteService(
             sp.GetRequiredService<PlaybackCoordinator>(),
             action => Dispatcher.UIThread.Post(action),

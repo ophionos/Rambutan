@@ -53,10 +53,12 @@ public static class TaskbarToolbarState
                 ? new(TaskbarButton.PlayPause, TaskbarGlyph.Pause, "taskbar.pause", input.HasQueue, hidden)
                 : new(TaskbarButton.PlayPause, TaskbarGlyph.Play, "taskbar.play", input.HasQueue, hidden),
             new(TaskbarButton.Next, TaskbarGlyph.Next, "taskbar.next", input.HasQueue, hidden),
-            // Signed out, a press could only fail; the tip says why it can't.
+            // Signed out, or on a local file, a press could only fail; the tip says why it can't.
             new(TaskbarButton.Like, liked ? TaskbarGlyph.Liked : TaskbarGlyph.Like,
-                !input.IsSignedIn ? "taskbar.likeSignedOut" : liked ? "rating.removeLike" : "rating.like",
-                input.Track is not null && input.IsSignedIn, hidden),
+                !input.IsSignedIn ? "taskbar.likeSignedOut"
+                    : input.Track is { } local && !YouTubeIds.IsVideoId(local.VideoId) ? "taskbar.likeLocal"
+                    : liked ? "rating.removeLike" : "rating.like",
+                input.Track is { } track && input.IsSignedIn && YouTubeIds.IsVideoId(track.VideoId), hidden),
             // A mode, so it can be set before there is a queue, as in the player bar.
             new(TaskbarButton.Shuffle, input.Shuffle ? TaskbarGlyph.ShuffleOn : TaskbarGlyph.ShuffleOff,
                 input.Shuffle ? "player.shuffleOn" : "player.shuffleOff", true, hidden),

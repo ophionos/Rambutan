@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Rambutan.App.Controls;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Queue;
@@ -49,6 +50,12 @@ public sealed partial class QueueItemViewModel(TrackInfo track) : ObservableObje
     [NotifyPropertyChangedFor(nameof(AccessibleName))]
     private bool _needsConnection;
 
+    /// <summary>A local file that isn't there now (or isn't in the index): playback
+    /// will skip it, online or not. Never set on the track in the player.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AccessibleName))]
+    private bool _isFileMissing;
+
     /// <summary>What a screen reader says for the row: the marker
     /// and the dimming are visual only, so the state goes into the name. It says
     /// what the section caption says: a restored row isn't playing yet.</summary>
@@ -60,7 +67,9 @@ public sealed partial class QueueItemViewModel(TrackInfo track) : ObservableObje
                 IsCurrent ? (IsLoaded ? "queue.row.nowPlaying" : "queue.row.whereYouLeftOff")
                     : IsHistory ? "queue.row.played" : "queue.row.name",
                 ("name", string.IsNullOrEmpty(Artist) ? Title : Strings.Format("queue.row.nameWithArtist", ("title", Title), ("artist", Artist))));
-            return NeedsConnection ? Strings.Format("queue.row.needsConnection", ("row", name)) : name;
+            return IsFileMissing ? Strings.Format("queue.row.fileMissing", ("row", name))
+                : NeedsConnection ? Strings.Format("queue.row.needsConnection", ("row", name))
+                : name;
         }
     }
 
@@ -85,6 +94,8 @@ public partial class QueueViewModel : ViewModelBase, ITrackMenuHost
     // Offline: the queued ids that won't play without the network. Worked out off
     // the UI thread, since the cache answers from the disk.
     private IReadOnlySet<string> _needConnection = new HashSet<string>();
+    // Online or not: the queued local ids whose file won't play.
+    private IReadOnlySet<string> _missingFiles = new HashSet<string>();
     private int _availabilityGeneration;
 
     public ObservableCollection<QueueItemViewModel> Items { get; } = [];
@@ -108,9 +119,13 @@ public partial class QueueViewModel : ViewModelBase, ITrackMenuHost
 
     /// <param name="network">With <paramref name="playsOffline"/>, marks the rows
     /// that need a connection while offline; either null, no row is marked.</param>
+    /// <param name="playsOffline">Also marks the local files that won't play.</param>
+    /// <param name="localFilesChanged">Subscribes to changes of the local index,
+    /// after which the local rows are checked again.</param>
     public QueueViewModel(
         QueueModel queue, PlaybackCoordinator? coordinator,
-        NetworkStatus? network = null, IOfflineAvailability? playsOffline = null)
+        NetworkStatus? network = null, IOfflineAvailability? playsOffline = null,
+        Action<Action>? localFilesChanged = null)
     {
         _queue = queue;
         _coordinator = coordinator;
@@ -120,9 +135,14 @@ public partial class QueueViewModel : ViewModelBase, ITrackMenuHost
         queue.Changed += () => Dispatcher.UIThread.Post(() =>
         {
             Refresh();
-            if (_network?.IsOffline == true)
+            if (_network?.IsOffline == true || HasLocalRows)
                 _ = UpdateAvailabilityAsync();
         });
+        localFilesChanged?.Invoke(() => Dispatcher.UIThread.Post(() =>
+        {
+            if (HasLocalRows)
+                _ = UpdateAvailabilityAsync();
+        }));
         if (network is not null)
             network.Changed += offline => Dispatcher.UIThread.Post(() => _ = UpdateAvailabilityAsync());
         if (coordinator is not null)
@@ -130,8 +150,9 @@ public partial class QueueViewModel : ViewModelBase, ITrackMenuHost
 
         // A queue restored before this VM existed is already there to show.
         Refresh();
-        // So is a network found missing before it: the startup check can answer first.
-        if (network?.IsOffline == true)
+        // So is a network found missing before it: the startup check can answer
+        // first. A restored local file may be gone.
+        if (network?.IsOffline == true || HasLocalRows)
             _ = UpdateAvailabilityAsync();
 
         // Section captions and row names are worded here, not in XAML.
@@ -174,6 +195,7 @@ public partial class QueueViewModel : ViewModelBase, ITrackMenuHost
             item.IsLoaded = loaded;
             item.IsHistory = i < current;
             item.NeedsConnection = _needConnection.Contains(item.Track.VideoId) && !(i == current && loaded);
+            item.IsFileMissing = _missingFiles.Contains(item.Track.VideoId) && !(i == current && loaded);
             item.Section =
                 i == 0 && current > 0 ? Strings.Get("queue.section.played")
                 : i == current ? Strings.Get(loaded ? "queue.section.nowPlaying" : "queue.section.whereYouLeftOff")
@@ -191,23 +213,33 @@ public partial class QueueViewModel : ViewModelBase, ITrackMenuHost
         }
     }
 
+    private bool HasLocalRows => Items.Any(i => LocalIds.IsLocal(i.Track.VideoId));
+
     /// <summary>
     /// Works out which rows need a connection, now that the network or what plays
-    /// offline changed, and marks them. Online, it clears the marks.
+    /// offline changed, and which local files won't play, and marks them. Online,
+    /// it clears the connection marks.
     /// </summary>
     public async Task UpdateAvailabilityAsync()
     {
         var generation = ++_availabilityGeneration;
         IReadOnlySet<string> needed = new HashSet<string>();
-        if (_network?.IsOffline == true && _playsOffline is { } playsOffline)
+        IReadOnlySet<string> missing = new HashSet<string>();
+        if (_playsOffline is { } playsOffline)
         {
-            var ids = Items.Select(i => i.Track.VideoId).ToArray();
-            needed = await Task.Run(() => ids.Where(id => !playsOffline.IsAvailableOffline(id)).ToHashSet());
+            var ids = Items.Select(i => i.Track.VideoId).Distinct().ToArray();
+            var offline = _network?.IsOffline == true;
+            var wontPlay = await Task.Run(() => ids
+                .Where(id => (offline || LocalIds.IsLocal(id)) && !playsOffline.IsAvailableOffline(id))
+                .ToList());
+            needed = wontPlay.Where(id => !LocalIds.IsLocal(id)).ToHashSet();
+            missing = wontPlay.Where(LocalIds.IsLocal).ToHashSet();
         }
 
         if (generation != _availabilityGeneration)
             return;
         _needConnection = needed;
+        _missingFiles = missing;
         Refresh();
     }
 

@@ -73,6 +73,15 @@ public sealed class TaskbarToolbarStateTests
     }
 
     [Fact]
+    public void Like_is_disabled_for_a_local_file_and_says_why()
+    {
+        var local = Button(Playing with { Track = MprisPlayerStateTests.Track("local:1") }, TaskbarButton.Like);
+
+        Assert.False(local.IsEnabled);
+        Assert.Equal("taskbar.likeLocal", local.TipKey);
+    }
+
+    [Fact]
     public void Shuffle_carries_its_mode_in_the_glyph()
     {
         Assert.Equal(TaskbarGlyph.ShuffleOff, Button(Playing, TaskbarButton.Shuffle).Glyph);

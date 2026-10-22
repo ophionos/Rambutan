@@ -273,6 +273,14 @@ public partial class TrackActionsViewModel : ViewModelBase
     /// with the row and player-bar buttons.</summary>
     public Rating? RatingOf(TrackInfo track) => _ratings?.Of(track) ?? track.Rating;
 
+    /// <summary>
+    /// The commands that act on YouTube Music (rate, save, add to a playlist,
+    /// radio, download, share) take only its tracks, so every button bound to them
+    /// is disabled for a local file. No parameter yet is allowed: a button asks
+    /// before its binding has delivered one, and the command ignores null.
+    /// </summary>
+    public static bool IsOnYouTube(TrackInfo? track) => track is null || YouTubeIds.IsVideoId(track.VideoId);
+
     [RelayCommand]
     private void PlayNext(TrackInfo? track)
     {
@@ -299,7 +307,7 @@ public partial class TrackActionsViewModel : ViewModelBase
         Report(Strings.Format("toast.track.addedToQueue", ("title", track.Title)));
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(IsOnYouTube))]
     private async Task StartRadioAsync(TrackInfo? track)
     {
         if (track is null)
@@ -332,7 +340,8 @@ public partial class TrackActionsViewModel : ViewModelBase
     {
         if (Downloads is null)
             return;
-        var list = tracks.ToList();
+        // A local file has nothing to download.
+        var list = tracks.Where(t => YouTubeIds.IsVideoId(t.VideoId)).ToList();
         // Downloads waiting to be removed are taken back rather than downloaded again.
         var reclaimed = list.Count(t => _pendingRemoval.Remove(t.VideoId));
         if (reclaimed > 0)
@@ -350,7 +359,7 @@ public partial class TrackActionsViewModel : ViewModelBase
             Report(Strings.Format("toast.download.queuedMany", ("count", added)));
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(IsOnYouTube))]
     private void Download(TrackInfo? track)
     {
         if (track is not null)
@@ -391,7 +400,7 @@ public partial class TrackActionsViewModel : ViewModelBase
             OpenAlbum?.Invoke(browseId);
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(IsOnYouTube))]
     private async Task ShareAsync(TrackInfo? track)
     {
         if (track is null || CopyToClipboard is null || ShareLinks.ForTrack(track) is not { } link)
@@ -404,10 +413,10 @@ public partial class TrackActionsViewModel : ViewModelBase
     // Concurrent executions allowed: one command instance serves every row, and
     // the default would disable every thumb on the page while one request is out.
     // TrackRatings already applies presses in order and undoes only the latest.
-    [RelayCommand(AllowConcurrentExecutions = true)]
+    [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(IsOnYouTube))]
     private Task LikeAsync(TrackInfo? track) => RateAsync(track, Rating.Like);
 
-    [RelayCommand(AllowConcurrentExecutions = true)]
+    [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(IsOnYouTube))]
     private Task DislikeAsync(TrackInfo? track) => RateAsync(track, Rating.Dislike);
 
     /// <summary>
@@ -454,7 +463,7 @@ public partial class TrackActionsViewModel : ViewModelBase
     /// The menu label flips at once; if YouTube Music refuses, it flips back and
     /// the outcome says so.
     /// </summary>
-    [RelayCommand(AllowConcurrentExecutions = true)]
+    [RelayCommand(AllowConcurrentExecutions = true, CanExecute = nameof(IsOnYouTube))]
     private async Task ToggleInLibraryAsync(TrackInfo? track)
     {
         if (track?.Library is null || SongLibrary is null)
@@ -477,7 +486,7 @@ public partial class TrackActionsViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(IsOnYouTube))]
     private async Task AddToPlaylistAsync(TrackInfo? track)
     {
         if (track is null || PlaylistPicker is null)

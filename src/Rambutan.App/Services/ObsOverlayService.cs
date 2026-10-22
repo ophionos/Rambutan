@@ -197,7 +197,7 @@ public sealed class ObsOverlayService
         Set(OverlayStatus.Starting);
         _token ??= await Task.Run(_vault.LoadOrCreate).ConfigureAwait(false);
         // Never dispatched: the overlay host serves no commands.
-        _session = new RemoteSession(_coordinator, static _ => { }, track => track.ThumbnailUrl is not null);
+        _session = new RemoteSession(_coordinator, static _ => { }, _covers.Has);
         var result = await LocalApiHost.StartAsync(new LocalApiOptions
         {
             Address = IPAddress.Loopback,

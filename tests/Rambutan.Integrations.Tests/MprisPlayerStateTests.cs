@@ -164,6 +164,30 @@ public sealed class MprisPlayerStateTests
     }
 
     [Fact]
+    public void Metadata_names_a_local_file_and_its_cover_by_file_url()
+    {
+        var file = OperatingSystem.IsWindows() ? @"C:\Music\A Song.flac" : "/music/A Song.flac";
+        var cover = OperatingSystem.IsWindows() ? @"C:\Data\local-covers\ab.jpg" : "/data/local-covers/ab.jpg";
+        var state = new MprisPlayerState(new StepClock(), id => id == "local:1" ? (file, cover) : null);
+        state.SetTrack(Track("local:1") with { ThumbnailUrl = null });
+
+        var metadata = state.Metadata().ToDictionary(e => e.Key, e => e.Value);
+
+        Assert.Equal(MprisValue.OfText(new Uri(file).AbsoluteUri), metadata["xesam:url"]);
+        Assert.Equal(MprisValue.OfText(new Uri(cover).AbsoluteUri), metadata["mpris:artUrl"]);
+        Assert.Contains("A%20Song.flac", new Uri(file).AbsoluteUri);
+    }
+
+    [Fact]
+    public void Metadata_has_no_url_for_a_local_file_the_index_doesnt_know()
+    {
+        var state = new MprisPlayerState(new StepClock(), _ => null);
+        state.SetTrack(Track("local:9") with { ThumbnailUrl = null });
+
+        Assert.DoesNotContain(state.Metadata(), e => e.Key is "xesam:url" or "mpris:artUrl");
+    }
+
+    [Fact]
     public void Metadata_leaves_out_what_is_unknown()
     {
         var (state, _) = Create();

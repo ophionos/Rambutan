@@ -743,7 +743,8 @@
                    the whole item, so the caption above stays outside them. -->
               <Border Classes="queuerow">
               <Grid ColumnDefinitions="Auto,*,Auto" Classes.history="{Binding IsHistory}"
-                    Classes.needsconnection="{Binding NeedsConnection}">
+                    Classes.needsconnection="{Binding NeedsConnection}"
+                    Classes.filemissing="{Binding IsFileMissing}">
                 <!-- Cover. A note on a quiet tile shows until the art loads, and
                      stays for a track without any, so the column never has a
                      hole. The playing marker sits on the playing row's
@@ -779,6 +780,10 @@
                               Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center"
                               IsVisible="{Binding NeedsConnection}"
                               ToolTip.Tip="{l:T queue.needsConnectionTip}" />
+                    <PathIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Warning}"
+                              Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center"
+                              IsVisible="{Binding IsFileMissing}"
+                              ToolTip.Tip="{l:T queue.fileMissingTip}" />
                     <TextBlock Text="{Binding Artist}" FontSize="{StaticResource Token.Font.Caption}"
                                Foreground="{StaticResource Token.Brush.Text.Muted}"
                                TextTrimming="CharacterEllipsis" />

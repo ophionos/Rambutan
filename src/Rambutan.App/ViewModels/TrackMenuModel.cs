@@ -52,7 +52,11 @@ public static class TrackMenuModel
             play.Add(new(Strings.Get("menu.playNext"), "Icon.Next", actions.PlayNextCommand, track));
             play.Add(new(Strings.Get("common.addToQueue"), "Icon.Add", actions.AddToQueueCommand, track));
         }
-        play.Add(new(Strings.Get("menu.startMix"), "Icon.Radio", actions.StartRadioCommand, track));
+        // A local file has only the queue moves and the navigation, which it
+        // can't follow: what acts on YouTube Music isn't offered for it.
+        var onYouTube = YouTubeIds.IsVideoId(track.VideoId);
+        if (onYouTube)
+            play.Add(new(Strings.Get("menu.startMix"), "Icon.Radio", actions.StartRadioCommand, track));
 
         // Like is a toggle, labelled for what choosing it does now, like the
         // thumbs: a liked song offers "Remove like" with a filled thumb.
@@ -94,7 +98,10 @@ public static class TrackMenuModel
                 IsEnabled: ShareLinks.ForTrack(track) is not null),
         ];
 
-        var groups = new List<IReadOnlyList<MenuEntry>> { play, library, navigate };
+        var groups = new List<IReadOnlyList<MenuEntry>> { play };
+        if (onYouTube)
+            groups.Add(library);
+        groups.Add(navigate);
         if (extras.Edit is { Count: > 0 } edit)
             groups.Add(edit);
         return groups;

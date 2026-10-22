@@ -40,6 +40,7 @@ public partial class NavigationService : ViewModelBase
     private readonly SearchHistory? _searchHistory;
     private readonly HomeStations? _stations;
     private LibraryPageViewModel? _library;
+    private readonly LocalLibraryViewModel? _local;
 
     [ObservableProperty] private ViewModelBase? _current;
     [ObservableProperty] private bool _canGoBack;
@@ -56,13 +57,15 @@ public partial class NavigationService : ViewModelBase
 
     public NavigationService(
         ICatalog catalog, PlaybackCoordinator coordinator, TrackActionsViewModel actions,
-        SearchHistory? searchHistory = null, HomeStations? stations = null)
+        SearchHistory? searchHistory = null, HomeStations? stations = null,
+        LocalLibraryViewModel? local = null)
     {
         _catalog = catalog;
         _coordinator = coordinator;
         _actions = actions;
         _searchHistory = searchHistory;
         _stations = stations;
+        _local = local;
         Collections = new CollectionActionsViewModel(catalog, coordinator, actions, stations, OpenStation);
     }
 
@@ -88,9 +91,11 @@ public partial class NavigationService : ViewModelBase
         _search!.RunFromLink(query);
     }
 
-    public void GoLibrary()
+    public void GoLibrary() => GoLibrary(_library?.Source ?? LibrarySource.YouTubeMusic);
+
+    private void GoLibrary(LibrarySource source)
     {
-        _library ??= new LibraryPageViewModel(_catalog, this, _actions, _coordinator);
+        _library ??= new LibraryPageViewModel(_catalog, this, _actions, _coordinator, _local, source);
         NavigateRoot(_library, NavSection.Library);
         _ = _library.EnsureLoadedAsync();
     }
@@ -98,6 +103,15 @@ public partial class NavigationService : ViewModelBase
     /// <summary>Opens the Downloads page; null where downloads aren't composed.
     /// Set by MainViewModel, which owns that page.</summary>
     public Action? GoDownloads { get; set; }
+
+    /// <summary>Opens Settings; set by MainViewModel, which makes that page.</summary>
+    public Action? GoSettings { get; set; }
+
+    partial void OnCurrentChanged(ViewModelBase? oldValue, ViewModelBase? newValue)
+    {
+        if (oldValue is LibraryPageViewModel library && !ReferenceEquals(newValue, library))
+            library.OnHidden();
+    }
 
     public void GoTo(ViewModelBase page, NavSection section = NavSection.None) =>
         NavigateRoot(page, section);
@@ -108,12 +122,13 @@ public partial class NavigationService : ViewModelBase
         if (_library is null)
             return;
         var onScreen = ReferenceEquals(Current, _library);
+        var source = _library.Source;
         _library.Detach();
         _library = null;
         // On screen, it loads again in place for the new session: signing in
         // from the Library's own prompt stays on the Library.
         if (onScreen)
-            GoLibrary();
+            GoLibrary(source);
     }
 
     /// <summary>Requests now go out as someone else (signed in, signed out, or

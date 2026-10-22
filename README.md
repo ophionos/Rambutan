@@ -40,6 +40,8 @@ your own YouTube Music account to use your library.
 - Gapless playback, crossfade, volume normalization and a 10-band equalizer.
 - A queue you can reorder, restored when you start the app again.
 - A choice of output device.
+- Music files on your computer: choose the folders that hold them, and play
+  their songs beside YouTube Music, under Library, On this computer.
 
 **Now Playing**
 - The artwork and the lyrics side by side, or either one alone, over a
@@ -153,6 +155,7 @@ Everything is in **Settings**, in the sidebar. The sections are:
 | Equalizer | The 10-band equalizer. |
 | Lyrics | Online lyrics lookups on LRCLIB (off until you turn them on). |
 | Downloads | The download folder, and exporting downloads as audio files. |
+| Music on this computer | The folders that hold your music files, and Rescan. |
 | Phone remote | Turn the remote on and pair a phone. |
 | OBS overlay | Turn the overlay on, copy its address, and edit its style. |
 | Last.fm, Discord | Connect to Last.fm; turn on Discord and choose what it shows. |

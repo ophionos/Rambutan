@@ -13,14 +13,37 @@
   <Grid RowDefinitions="Auto,Auto,*,Auto">
     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="4,0,16,8">
       <TextBlock Text="{l:T library.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold" VerticalAlignment="Center" />
-      <Button Classes="icon subtle" ToolTip.Tip="{l:T common.refresh}" Command="{Binding SelectedSection.RefreshCommand}"
-              IsVisible="{Binding !SelectedSection.NeedsSignIn}">
+      <!-- Two sources, both in view; shown signed out too, so the files stay reachable. -->
+      <ListBox Classes="segmented" VerticalAlignment="Center" HorizontalAlignment="Left"
+               ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}"
+               SelectionMode="AlwaysSelected"
+               IsVisible="{Binding HasLocal}"
+               AutomationProperties.Name="{l:T library.source.name}">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:LibrarySource">
+            <TextBlock Text="{Binding Converter={x:Static vm:Converters.LibrarySourceName}}" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <Button Classes="icon subtle" ToolTip.Tip="{l:T common.refresh}" Command="{Binding SelectedSection.RefreshCommand}">
+        <Button.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="IsYouTubeMusic" />
+            <Binding Path="!SelectedSection.NeedsSignIn" />
+          </MultiBinding>
+        </Button.IsVisible>
         <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
       </Button>
       <Button VerticalAlignment="Center"
               Command="{Binding NewPlaylistCommand}">
         <Button.IsVisible>
           <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="IsYouTubeMusic" />
             <Binding Path="IsPlaylists" />
             <Binding Path="!SelectedSection.NeedsSignIn" />
           </MultiBinding>
@@ -30,15 +53,32 @@
           <TextBlock Text="{l:T library.newPlaylist}" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
-      <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding SelectedSection.IsLoading}" />
-      <!-- Offline, the albums and playlists tabs list the downloaded ones;
-           the refresh button beside the title is the retry. -->
-      <TextBlock Classes="headermeta" Text="{Binding SelectedSection.OfflineNotice}" VerticalAlignment="Center"
-                 IsVisible="{Binding SelectedSection.IsOfflineCopy}" AutomationProperties.LiveSetting="Polite" />
-      <ContentControl Content="{Binding SelectedSection.LoadError}"
-                      ContentTemplate="{StaticResource ErrorState.Compact}"
-                      VerticalAlignment="Center" Margin="6,0,0,0"
-                      IsVisible="{Binding !!SelectedSection.Items.Count}" />
+      <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsYouTubeMusic}">
+        <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding SelectedSection.IsLoading}" />
+        <!-- Offline, the albums and playlists tabs list the downloaded ones;
+             the refresh button beside the title is the retry. -->
+        <TextBlock Classes="headermeta" Text="{Binding SelectedSection.OfflineNotice}" VerticalAlignment="Center"
+                   IsVisible="{Binding SelectedSection.IsOfflineCopy}" AutomationProperties.LiveSetting="Polite" />
+        <ContentControl Content="{Binding SelectedSection.LoadError}"
+                        ContentTemplate="{StaticResource ErrorState.Compact}"
+                        VerticalAlignment="Center" Margin="6,0,0,0"
+                        IsVisible="{Binding !!SelectedSection.Items.Count}" />
+      </StackPanel>
+      <!-- On this computer: rescan, and where the scan is. -->
+      <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsThisComputer}">
+        <Button Classes="icon subtle" ToolTip.Tip="{l:T settings.local.rescan}"
+                Command="{Binding Local.RescanCommand}"
+                IsVisible="{Binding Local.HasFolders}">
+          <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
+        </Button>
+        <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{Binding Local.Status}"
+                     IsVisible="{Binding Local.IsScanning}" />
+        <TextBlock Classes="headermeta" Text="{Binding Local.Status}" VerticalAlignment="Center"
+                   IsVisible="{Binding Local.HasFolders}" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock Classes="headermeta" Text="{Binding Local.Problems}" VerticalAlignment="Center"
+                   Foreground="{StaticResource Token.Brush.Text.Muted}"
+                   IsVisible="{Binding Local.Problems, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </StackPanel>
     </StackPanel>
 
     <!-- One tab per kind of thing the library keeps, as Search has one per filter. -->
@@ -47,8 +87,13 @@
                        ItemsSource="{Binding Sections}"
                        SelectedItem="{Binding SelectedSection}"
                        SelectionMode="AlwaysSelected"
-                       IsVisible="{Binding !SelectedSection.NeedsSignIn}"
                        Background="Transparent">
+      <controls:ChipList.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="IsYouTubeMusic" />
+          <Binding Path="!SelectedSection.NeedsSignIn" />
+        </MultiBinding>
+      </controls:ChipList.IsVisible>
       <controls:ChipList.ItemTemplate>
         <DataTemplate x:DataType="vm:LibrarySection">
           <TextBlock Text="{Binding Kind, Converter={x:Static vm:Converters.LibrarySectionName}}" />
@@ -61,7 +106,8 @@
       </controls:ChipList.ItemsPanel>
     </controls:ChipList>
 
-    <Panel Grid.Row="2" DataContext="{Binding SelectedSection}" x:DataType="vm:LibrarySection">
+    <Panel Grid.Row="2" DataContext="{Binding SelectedSection}" x:DataType="vm:LibrarySection"
+           IsVisible="{Binding #Root.((vm:LibraryPageViewModel)DataContext).IsYouTubeMusic}">
       <StackPanel Margin="0,0,12,0" Classes="empty" IsVisible="{Binding NeedsSignIn}">
         <PathIcon Data="{StaticResource Icon.Person}" />
         <TextBlock Classes="title" Text="{l:T library.signInTitle}" />
@@ -231,9 +277,111 @@
                       IsVisible="{Binding !Items.Count}" />
     </Panel>
 
+
+    <!-- On this computer. Its own list with its own scroller, so a library of
+         thousands of files is virtualized. -->
+    <Panel Grid.Row="1" Grid.RowSpan="3"
+           IsVisible="{Binding #Root.((vm:LibraryPageViewModel)DataContext).IsThisComputer}"
+           DataContext="{Binding Local}" x:DataType="vm:LocalLibraryViewModel">
+      <StackPanel Margin="0,0,12,0" Classes="empty" IsVisible="{Binding !HasFolders}">
+        <PathIcon Data="{StaticResource Icon.MusicNote}" />
+        <TextBlock Classes="title" Text="{l:T library.local.noFoldersTitle}" />
+        <TextBlock Classes="hint" Text="{l:T library.local.noFoldersHint}" />
+        <Button Classes="accent" Content="{l:T library.local.openSettings}" HorizontalAlignment="Center" Margin="0,10,0,0"
+                Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).OpenSettingsCommand}" />
+      </StackPanel>
+
+      <StackPanel Margin="0,0,12,0" Classes="empty" IsVisible="{Binding IsEmpty}">
+        <PathIcon Data="{StaticResource Icon.MusicNote}" />
+        <TextBlock Classes="title" Text="{l:T library.local.emptyTitle}" />
+        <TextBlock Classes="hint" Text="{l:T library.local.emptyHint}" />
+        <Button Content="{l:T library.local.openSettings}" HorizontalAlignment="Center" Margin="0,10,0,0"
+                Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).OpenSettingsCommand}" />
+      </StackPanel>
+
+      <!-- A first scan before any file is read: rows shaped like what is coming. -->
+      <StackPanel Spacing="8" Margin="4,0,16,0">
+        <StackPanel.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="IsScanning" />
+            <Binding Path="!Tracks.Count" />
+          </MultiBinding>
+        </StackPanel.IsVisible>
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+      </StackPanel>
+
+      <ListBox Classes="tracks" Background="Transparent" Margin="4,0,12,0"
+               ItemsSource="{Binding Tracks}"
+               IsVisible="{Binding !!Tracks.Count}"
+               AutomationProperties.Name="{l:T library.local.listName}"
+               controls:ItemActivation.Command="{Binding PlayCommand}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:LocalTrackRow">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+                  Background="Transparent"
+                  controls:TrackMenu.Track="{Binding Track}">
+              <Border Classes="rowart">
+                <Panel>
+                  <PathIcon Data="{StaticResource Icon.MusicNote}" Width="16" Height="16" Opacity="0.35" />
+                  <controls:RemoteImage Url="{Binding Track, Converter={x:Static conv:ArtworkConverter.Instance}}"
+                                        Stretch="UniformToFill" DecodeWidth="96" />
+                </Panel>
+              </Border>
+              <!-- Playing marker; the slot is always present, so titles line up. -->
+              <Panel Grid.Column="1" Width="14">
+                <PathIcon Data="{StaticResource Icon.Play}" Width="12" Height="12"
+                          VerticalAlignment="Center"
+                          Foreground="{StaticResource Token.Brush.Accent}">
+                  <PathIcon.IsVisible>
+                    <MultiBinding Converter="{x:Static conv:IsPlayingTrackConverter.Instance}">
+                      <Binding Path="Track.Identity" />
+                      <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Player.NowPlaying.Identity" />
+                    </MultiBinding>
+                  </PathIcon.IsVisible>
+                </PathIcon>
+              </Panel>
+              <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                <TextBlock Classes="rowtitle" Text="{Binding Title}" />
+                <TextBlock Classes="rowmeta" Text="{Binding Subtitle}"
+                           IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+              </StackPanel>
+              <TextBlock Grid.Column="4" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                         MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+              <!-- Play and queue only: the rest acts on YouTube Music. -->
+              <Panel Grid.Column="3" Width="112">
+                <StackPanel Classes="rowactions" Orientation="Horizontal"
+                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                  <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
+                          Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).Local.PlayCommand}"
+                          CommandParameter="{Binding}">
+                    <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" />
+                  </Button>
+                  <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToQueue}"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToQueueCommand}"
+                          CommandParameter="{Binding Track}">
+                    <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+                  </Button>
+                </StackPanel>
+              </Panel>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Panel>
+
     <!-- The next page loads as the list nears its end (code-behind); this
          only says so while it does. A failed page shows its Try again above. -->
     <ProgressBar Grid.Row="3" IsIndeterminate="True" Width="80" HorizontalAlignment="Left" Margin="4,8,16,8"
-                 AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding SelectedSection.IsLoadingMore}" />
+                 AutomationProperties.Name="{l:T common.loading}">
+      <ProgressBar.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="IsYouTubeMusic" />
+          <Binding Path="SelectedSection.IsLoadingMore" />
+        </MultiBinding>
+      </ProgressBar.IsVisible>
+    </ProgressBar>
   </Grid>
 </UserControl>

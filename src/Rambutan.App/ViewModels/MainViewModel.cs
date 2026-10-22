@@ -235,6 +235,7 @@ public partial class MainViewModel : ViewModelBase
         actions.OpenAlbum = navigation.OpenAlbum;
         if (downloads is not null)
             navigation.GoDownloads = GoDownloads;
+        navigation.GoSettings = GoSettings;
 
         FollowNavigation();
         FollowFullscreen();
