@@ -125,8 +125,8 @@ public sealed partial class LyricsEditorViewModel : ViewModelBase
     [RelayCommand]
     private void KeepLyrics() => IsConfirmingRemove = false;
 
-    /// <summary>Replaces the text with a file's contents (.lrc or .txt). The
-    /// encoding follows a byte-order mark, else UTF-8.</summary>
+    /// <summary>Replaces the text with a file's contents (.lrc or .txt), in the
+    /// encoding <see cref="Rambutan.Lyrics.Parsing.LrcFileText"/> finds.</summary>
     public async Task LoadFileAsync(Stream stream)
     {
         try
@@ -143,8 +143,7 @@ public sealed partial class LyricsEditorViewModel : ViewModelBase
                 return;
             }
 
-            using var reader = new StreamReader(new MemoryStream(buffer, 0, read), Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-            Text = (await reader.ReadToEndAsync()).Replace("\r\n", "\n");
+            Text = Rambutan.Lyrics.Parsing.LrcFileText.Decode(buffer.AsSpan(0, read)).Replace("\r\n", "\n");
             Error = null;
         }
         catch (Exception ex)
