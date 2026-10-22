@@ -452,7 +452,8 @@ public partial class App : Application
         _ = System.Threading.Tasks.Task.Run(artwork.TrimDiskCache);
 
 #if WINDOWS
-        services.AddSingleton<IMediaSessionService, SmtcMediaSessionService>();
+        services.AddSingleton<IMediaSessionService>(sp =>
+            new SmtcMediaSessionService(sp.GetRequiredService<KeptCovers>().PathFor));
 #else
         services.AddSingleton<IMediaSessionService>(sp => OperatingSystem.IsLinux()
             ? new Rambutan.Integrations.Linux.MprisMediaSessionService("Rambutan",
