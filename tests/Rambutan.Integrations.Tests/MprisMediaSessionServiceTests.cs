@@ -150,6 +150,7 @@ public sealed class MprisMediaSessionServiceTests : IAsyncLifetime
         var cover = "/data/local-covers/old.jpg";
         var (service, name) = await StartAsync(id => id == "local:1" ? ("/music/a.flac", cover) : null);
         service.UpdateNowPlaying(MprisPlayerStateTests.Track("local:1") with { ThumbnailUrl = null });
+        service.UpdatePlaybackState(SessionPlaybackStatus.Paused); // a stopped player is at 0
         service.UpdateTimeline(TimeSpan.FromSeconds(30), TimeSpan.FromMinutes(3));
         var changed = new TaskCompletionSource<Dictionary<string, VariantValue>>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var watch = await _client!.WatchSignalAsync(null, Path, Properties, "PropertiesChanged",
