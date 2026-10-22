@@ -131,7 +131,8 @@ public static class LocalScan
     /// On Linux a mount whose drive or share is down is an ordinary empty folder,
     /// and listing it would mark all its files missing at once. The maintainer's
     /// decision, with its cost: a folder emptied on purpose keeps its files listed
-    /// until it is removed or a file comes back.
+    /// until it is removed or a file comes back. A folder inside another listed
+    /// folder that isn't emptied doesn't count: that one's scan covers its files.
     /// </summary>
     public static IReadOnlyList<string> EmptiedRoots(
         IEnumerable<KnownFile> known, IReadOnlyCollection<FoundFile> found,
@@ -141,7 +142,11 @@ public static class LocalScan
         if (empty.Count == 0)
             return [];
         var present = known.Where(k => !k.IsMissing).ToList();
-        return empty.Where(root => present.Any(k => paths.IsUnder(k.Path, root))).ToList();
+        var emptied = empty.Where(root => present.Any(k => paths.IsUnder(k.Path, root))).ToList();
+        return emptied
+            .Where(root => !listed.Any(outer => !emptied.Contains(outer, paths.Comparer)
+                && !paths.Comparer.Equals(outer, root) && paths.IsUnder(root, outer)))
+            .ToList();
     }
 
     /// <summary>The extensions a scan looks at. Only to keep it from opening

@@ -108,6 +108,16 @@ public class LocalScanTests
     }
 
     [Fact]
+    public void AnEmptyFolder_InsideOneThatHoldsFiles_IsNotEmptied()
+    {
+        var emptied = LocalScan.EmptiedRoots(
+            [Known("local:1", "/m/inner/a.mp3"), Known("local:2", "/m/b.mp3")],
+            [Found("/m/b.mp3")], ["/m", "/m/inner"], Linux);
+
+        Assert.Empty(emptied);
+    }
+
+    [Fact]
     public void AFolderThatStillHoldsOneFile_IsNotEmptied()
     {
         var emptied = LocalScan.EmptiedRoots(
