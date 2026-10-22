@@ -129,6 +129,22 @@ public sealed class FileDropTests : IDisposable
     });
 
     [Fact]
+    public void The_hint_goes_when_the_drag_leaves_the_window() => Headless.Run(() =>
+    {
+        var window = Show();
+        var page = CentreOf(window, "ContentPanel");
+        var data = Files(window, "a.mp3");
+        window.DragDrop(page, RawDragEventType.DragEnter, data, DragDropEffects.Copy);
+        window.DragDrop(page, RawDragEventType.DragOver, data, DragDropEffects.Copy);
+        Assert.True(Part<Border>(window, "DropHint").IsVisible);
+
+        window.DragDrop(default, RawDragEventType.DragLeave, data, DragDropEffects.None);
+
+        Assert.False(Part<Border>(window, "DropHint").IsVisible);
+        Assert.Empty(_played);
+    });
+
+    [Fact]
     public void Text_dragged_over_the_window_is_refused_and_shows_no_hint() => Headless.Run(() =>
     {
         var window = Show();

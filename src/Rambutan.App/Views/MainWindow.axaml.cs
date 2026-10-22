@@ -635,12 +635,9 @@ public partial class MainWindow : Window
             e.DragEffects = DragDropEffects.Copy;
             ShowDropHint(IsOverQueue(e) ? "shell.dropToQueue" : "shell.dropToPlay");
         }
-        AddHandler(DragDrop.DragLeaveEvent, (_, e) =>
-        {
-            // Raised as the pointer crosses from one element to the next as well.
-            if (!new Rect(Bounds.Size).Contains(e.GetPosition(this)))
-                ShowDropHint(null);
-        });
+        // A leave carries no position; crossing onto another element raises
+        // DragEnter right after, which shows the hint again.
+        AddHandler(DragDrop.DragLeaveEvent, (_, _) => ShowDropHint(null));
         AddHandler(DragDrop.DropEvent, (_, e) =>
         {
             ShowDropHint(null);

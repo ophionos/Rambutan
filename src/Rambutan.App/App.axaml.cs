@@ -186,11 +186,6 @@ public partial class App : Application
                 _ = _services.GetRequiredService<PhoneRemoteService>().SetEnabledAsync(true);
             if (_services.GetRequiredService<AppSettings>().OverlayEnabled)
                 _ = _services.GetRequiredService<ObsOverlayService>().SetEnabledAsync(true);
-            // Files opened from outside the watched folders are kept only while
-            // the queue holds them; the saved queue is back in by now.
-            var queued = _services.GetRequiredService<QueueModel>().Snapshot().Tracks
-                .Select(t => t.VideoId).ToHashSet(StringComparer.Ordinal);
-            _ = Task.Run(() => _services.GetRequiredService<LocalLibraryScans>().Index.ForgetOpened(queued));
             // The watched folders are compared with the index once the window is up;
             // only what changed while the app was closed is read.
             if (_services.GetRequiredService<AppSettings>().WatchedFolders is { Count: > 0 })
@@ -360,7 +355,10 @@ public partial class App : Application
             new LocalFileIndex(
                 dataDir, sp.GetRequiredService<FfmpegMediaFileReader>(),
                 ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct),
-                () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []),
+                () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [],
+                // Files opened from outside the watched folders are kept only
+                // while the queue holds them; it is restored before this runs.
+                queued: () => queue.Snapshot().Tracks.Select(t => t.VideoId).ToHashSet(StringComparer.Ordinal)),
             new LocalFolderWatcher([dataDir, toolsDir]),
             () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []));
         services.AddSingleton(sp => new KeptCovers(

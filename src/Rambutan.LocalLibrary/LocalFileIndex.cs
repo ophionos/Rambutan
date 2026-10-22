@@ -50,9 +50,13 @@ public sealed class LocalFileIndex : IDisposable
     /// <param name="readerReady">Completes when <paramref name="reader"/> can be
     /// used (libav is set up when the sidecars are ready).</param>
     /// <param name="folders">The watched folders, read at each scan and listing.</param>
+    /// <param name="queued">The ids the restored queue holds: opened files
+    /// (<see cref="OpenAsync"/>) not among them are forgotten as the index loads,
+    /// before anything else can use it. Null keeps them all.</param>
     public LocalFileIndex(
         string dataDirectory, IMediaFileReader reader, Func<CancellationToken, Task> readerReady,
-        Func<IReadOnlyList<string>> folders, LocalPaths? paths = null, int? threads = null)
+        Func<IReadOnlyList<string>> folders, LocalPaths? paths = null, int? threads = null,
+        Func<IReadOnlySet<string>>? queued = null)
     {
         _coverDirectory = Path.Combine(dataDirectory, CoverFolderName);
         _file = new LocalIndexFile(dataDirectory, _coverDirectory);
@@ -67,6 +71,8 @@ public sealed class LocalFileIndex : IDisposable
         foreach (var file in files)
             _files[file.Id] = file;
         _nextId = nextId;
+        if (queued is not null && _files.Values.Any(f => f.IsOpened))
+            ForgetOpened(queued());
     }
 
     /// <summary>Raised when files or <see cref="Status"/> change; at most a few
@@ -317,7 +323,7 @@ public sealed class LocalFileIndex : IDisposable
     /// files or folders; a folder gives its audio files, subfolders included, in
     /// path order. A file keeps the id the index has for its path, else gets a new
     /// one; a new file outside the watched folders is kept as opened, unlisted,
-    /// until <see cref="ForgetOpened"/>. A file is read again only when it changed.
+    /// while a queue holds it. A file is read again only when it changed.
     /// Files that aren't there or can't be read as audio are left out.
     /// </summary>
     public async Task<IReadOnlyList<LocalFile>> OpenAsync(IReadOnlyList<string> paths, CancellationToken ct = default)
@@ -351,11 +357,13 @@ public sealed class LocalFileIndex : IDisposable
             }
         }
 
-        var read = await Task.Run(() =>
+        var read = new LocalFile?[items.Count];
+        await Task.Run(() =>
         {
             var pictures = FolderPictures(items.Where(x => x.Read).Select(x => x.Item.File.Path));
             var copies = new ConcurrentDictionary<string, string?>(_paths.Comparer);
-            return items.Select(x => x.Read ? ReadFile(x.Item, pictures, copies) : null).ToList();
+            Parallel.For(0, items.Count, new ParallelOptions { MaxDegreeOfParallelism = _threads, CancellationToken = ct },
+                i => read[i] = items[i].Read ? ReadFile(items[i].Item, pictures, copies) : null);
         }, ct);
 
         List<LocalFile> opened = [];
@@ -387,11 +395,12 @@ public sealed class LocalFileIndex : IDisposable
     }
 
     /// <summary>
-    /// Forgets the opened files (<see cref="OpenAsync"/>) whose ids aren't in
-    /// <paramref name="kept"/>, the ids a queue still holds; their ids aren't
-    /// given again. A file in a watched folder by now stays, as a scanned one.
+    /// Forgets the opened files whose ids aren't in <paramref name="kept"/>; their
+    /// ids aren't given again. A file in a watched folder by now stays, as a
+    /// scanned one. Only while nothing else uses the index: the cover sweep would
+    /// race a read that has saved its cover and not its entry yet.
     /// </summary>
-    public void ForgetOpened(IReadOnlySet<string> kept)
+    private void ForgetOpened(IReadOnlySet<string> kept)
     {
         var roots = Roots(_folders());
         lock (_lock)
@@ -416,7 +425,9 @@ public sealed class LocalFileIndex : IDisposable
     {
         const FileAttributes skipped = FileAttributes.Hidden | FileAttributes.System;
         var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = 0 };
-        var byPath = Comparer<FoundFile>.Create((a, b) => _paths.Comparer.Compare(a.Path, b.Path));
+        // Ignoring case first on every platform, so "Zed" doesn't come before "alpha".
+        var byPath = Comparer<FoundFile>.Create((a, b) =>
+            StringComparer.OrdinalIgnoreCase.Compare(a.Path, b.Path) is var c and not 0 ? c : string.CompareOrdinal(a.Path, b.Path));
         var seen = new HashSet<string>(_paths.Comparer);
         var found = new List<FoundFile>();
         foreach (var path in paths)

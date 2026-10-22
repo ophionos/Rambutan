@@ -22,8 +22,10 @@ public sealed class LocalFileIndexTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
-    private LocalFileIndex Library(Func<CancellationToken, Task>? ready = null, int threads = 2) =>
-        new(_data, _reader, ready ?? (_ => Task.CompletedTask), () => _folders, threads: threads);
+    private LocalFileIndex Library(
+        Func<CancellationToken, Task>? ready = null, int threads = 2, IReadOnlySet<string>? queued = null) =>
+        new(_data, _reader, ready ?? (_ => Task.CompletedTask), () => _folders, threads: threads,
+            queued: queued is null ? null : () => queued);
 
     /// <summary>The fake reader takes a file's text as its title; "bad" isn't audio,
     /// and "cover:X" carries a cover of the bytes of X.</summary>
@@ -519,13 +521,14 @@ public sealed class LocalFileIndexTests : IDisposable
         var b = WriteElsewhere(Path.Combine("Album", "b.mp3"), "B");
         var a = WriteElsewhere(Path.Combine("Album", "a.flac"), "A");
         var inner = WriteElsewhere(Path.Combine("Album", "CD2", "c.mp3"), "C");
+        var upper = WriteElsewhere(Path.Combine("Album", "Zed.mp3"), "Z");
         WriteElsewhere(Path.Combine("Album", "notes.txt"), "notes");
         var single = WriteElsewhere("single.mp3", "S");
         using var library = Library();
 
         var opened = await library.OpenAsync([single, Path.GetDirectoryName(a)!, b]);
 
-        Assert.Equal([single, a, b, inner], opened.Select(f => f.Path));
+        Assert.Equal([single, a, b, inner, upper], opened.Select(f => f.Path));
     }
 
     [Fact]
@@ -554,9 +557,9 @@ public sealed class LocalFileIndexTests : IDisposable
         }
 
         using (var library = Library())
-        {
             Assert.NotNull(library.Find(droppedId));
-            library.ForgetOpened(new HashSet<string> { keptId });
+        using (var library = Library(queued: new HashSet<string> { keptId }))
+        {
             Assert.Equal(kept, library.Find(keptId)?.Path);
             Assert.Null(library.Find(droppedId));
         }
@@ -570,11 +573,12 @@ public sealed class LocalFileIndexTests : IDisposable
     public async Task AnOpenedFile_InAFolderWatchedSince_IsNotForgotten()
     {
         var song = WriteElsewhere("a.mp3", "A");
-        using var library = Library();
-        var id = Assert.Single(await library.OpenAsync([song])).Id;
+        string id;
+        using (var first = Library())
+            id = Assert.Single(await first.OpenAsync([song])).Id;
         _folders.Add(Path.GetDirectoryName(song)!);
 
-        library.ForgetOpened(new HashSet<string>());
+        using var library = Library(queued: new HashSet<string>());
 
         Assert.False(library.Find(id)!.IsOpened);
         Assert.Equal([id], library.Files().Select(f => f.Id));
@@ -592,6 +596,11 @@ public sealed class LocalFileIndexTests : IDisposable
         while (!_reader.Reads.Contains(song) && waited.Elapsed < TimeSpan.FromSeconds(10))
             await Task.Delay(10);
         var open = library.OpenAsync([song]);
+        // A second read means the open found no entry for the path and went on
+        // with the id the scan holds for it.
+        while (_reader.Reads.Count(r => r == song) < 2 && waited.Elapsed < TimeSpan.FromSeconds(10))
+            await Task.Delay(10);
+        Assert.Equal(2, _reader.Reads.Count(r => r == song));
         _reader.Hold.Set();
         var opened = Assert.Single(await open);
         await scan;
