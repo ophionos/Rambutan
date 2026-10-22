@@ -6,6 +6,7 @@
     <Project Path="src/Rambutan.InnerTube/Rambutan.InnerTube.csproj" />
     <Project Path="src/Rambutan.Integrations/Rambutan.Integrations.csproj" />
     <Project Path="src/Rambutan.LocalApi/Rambutan.LocalApi.csproj" />
+    <Project Path="src/Rambutan.LocalLibrary/Rambutan.LocalLibrary.csproj" />
     <Project Path="src/Rambutan.Lyrics/Rambutan.Lyrics.csproj" />
     <Project Path="src/Rambutan.Streams/Rambutan.Streams.csproj" />
   </Folder>
@@ -19,6 +20,7 @@
     <Project Path="tests/Rambutan.InnerTube.Tests/Rambutan.InnerTube.Tests.csproj" />
     <Project Path="tests/Rambutan.Integrations.Tests/Rambutan.Integrations.Tests.csproj" />
     <Project Path="tests/Rambutan.LocalApi.Tests/Rambutan.LocalApi.Tests.csproj" />
+    <Project Path="tests/Rambutan.LocalLibrary.Tests/Rambutan.LocalLibrary.Tests.csproj" />
     <Project Path="tests/Rambutan.Lyrics.Tests/Rambutan.Lyrics.Tests.csproj" />
     <Project Path="tests/Rambutan.Streams.Tests/Rambutan.Streams.Tests.csproj" />
   </Folder>

@@ -89,7 +89,7 @@ so say which checks were impossible.
 
 ## Architecture
 
-Eight projects under `src/`. **Feature libraries reference `Rambutan.Core` only;
+Nine projects under `src/`. **Feature libraries reference `Rambutan.Core` only;
 `Rambutan.App` composes everything.** Never add a reference between feature
 libraries; a type two of them share belongs in Core.
 
@@ -98,7 +98,8 @@ libraries; a type two of them share belongs in Core.
 | `Rambutan.Core` | Playback coordinator + state machine, queue, ports (`ICatalog`, `IStreamSource`, `IAudioPlayer`), `AppLog`. **Pure C#, zero I/O, no package refs** without discussion. |
 | `Rambutan.InnerTube` | YTM API client implementing `ICatalog`. Parsers tested against recorded fixtures. |
 | `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, download store (kept apart from the cache: no cap, no eviction), export through the ffmpeg executable. The **only** project that touches stream extraction. |
-| `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). |
+| `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). Also reads local files' tags, length and cover (`FfmpegMediaFileReader`), so libav stays in one project. |
+| `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`. |
 | `Rambutan.Lyrics` | Lyrics model + timing rules, LRC parser/writer, Lyricsfile (YAML subset) parser for LRCLIB's word-synced records, LRCLIB provider + chain, per-track cache, custom-lyrics store, `LyricsService`. |
 | `Rambutan.Integrations` | SMTC (Windows), MPRIS and the tray-host check (Linux, over D-Bus), single-instance, Velopack updates, Discord Rich Presence (hand-rolled IPC), Last.fm scrobbling and stations. |
 | `Rambutan.LocalApi` | Kestrel host started on demand: `/remote` (the phone remote, on the LAN only while its setting is on; token pairing, state over SSE) and `/overlay` (the OBS overlay, in its own host on loopback only, port 41742 for the installed app's data folder, with its own read-only key; style file `overlay-style.json`, versioned). |
@@ -249,6 +250,18 @@ file sink), never to files directly.
   video it lists. Lyrics, downloads and the now-playing marker follow the id that
   plays. `Core/Models/AlbumAudio` swaps the ids and `PlaybackCoordinator`
   falls back to the listed video.
+- Local library: the watched folders are a setting (`AppSettings.WatchedFolders`,
+  per profile like every setting). `LocalLibrary/LocalFileIndex` scans them at
+  startup, when a folder is added, and on Rescan; there is no live watcher yet.
+  The rules are in Core (`Core/Local/LocalScan`): a file is read again only when
+  its size or modified time changed; its `local:<n>` id stays with its path and
+  is never given again; a file that is gone stays in the index as missing; a
+  watched folder that can't be listed (an unplugged drive) leaves its files as
+  they were; files of a folder no longer watched stay in the index, unlisted.
+  The reader detects the format from the content after any ID3v2 tag, never the
+  extension, and reads stream info only when the open gives no length. Its tests
+  need the ffmpeg shared libraries (`RAMBUTAN_FFMPEG_LIBS`, else the app's tools
+  folder on Windows or the system's on Linux) and skip without them, as on CI.
 - Ids sent to YouTube: InnerTube's track calls (radio, mix, rating, playlist
   edits) and the stream resolver refuse any id that isn't YouTube-shaped
   (`Core/Models/YouTubeIds`, `NotAYouTubeTrackException`) before any request,

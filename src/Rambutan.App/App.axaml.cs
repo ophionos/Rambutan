@@ -29,6 +29,7 @@ using Rambutan.InnerTube;
 using Rambutan.Integrations;
 using Rambutan.Integrations.Discord;
 using Rambutan.Integrations.LastFm;
+using Rambutan.LocalLibrary;
 using Rambutan.Lyrics.Providers;
 using Rambutan.Lyrics.Store;
 using Rambutan.Streams;
@@ -185,6 +186,18 @@ public partial class App : Application
                 _ = _services.GetRequiredService<PhoneRemoteService>().SetEnabledAsync(true);
             if (_services.GetRequiredService<AppSettings>().OverlayEnabled)
                 _ = _services.GetRequiredService<ObsOverlayService>().SetEnabledAsync(true);
+            // The watched folders are compared with the index once the window is up;
+            // only what changed while the app was closed is read.
+            if (_services.GetRequiredService<AppSettings>().WatchedFolders is { Count: > 0 })
+            {
+                // Once: a window hidden to the tray opens again when it comes back.
+                void ScanOnce(object? sender, EventArgs e)
+                {
+                    window.Opened -= ScanOnce;
+                    _services.GetRequiredService<LocalLibraryScans>().Start();
+                }
+                window.Opened += ScanOnce;
+            }
 
             // A second launch surfaces the running window, and acts on a
             // rambutan:// link it carries.
@@ -239,7 +252,7 @@ public partial class App : Application
 
         var store = new AppSettingsStore(dataDir);
         var settings = store.Load();
-        crashFile.UserFolders = () => [settings.DownloadsFolder, settings.ExportFolder];
+        crashFile.UserFolders = () => [settings.DownloadsFolder, settings.ExportFolder, .. settings.WatchedFolders ?? []];
 
         // The language is chosen before any view model or window exists, so
         // everything built from here on is built in it. The env var is a session
@@ -333,6 +346,11 @@ public partial class App : Application
                 : new DemoAudioFetcher(Demo),
             // Each download keeps its cover beside its audio, so it shows offline.
             sp.GetRequiredService<ArtworkCache>().GetBytesAsync));
+        // The watched folders' music, read through libav once the sidecars are ready.
+        services.AddSingleton(sp => new LocalLibraryScans(new LocalFileIndex(
+            dataDir, new FfmpegMediaFileReader(),
+            ct => sp.GetRequiredService<SidecarBootstrapper>().Ready.WaitAsync(ct),
+            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [])));
         services.AddSingleton(sp =>
         {
             var queue = new DownloadQueue(sp.GetRequiredService<DownloadStore>());
@@ -596,6 +614,9 @@ public partial class App : Application
             Downloads = new DownloadsSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<DownloadStore>(),
                 defaultDownloads, () => RequestPersist(sp), sp.GetRequiredService<ExportSettings>()),
+            Local = new LocalFilesSettingsViewModel(
+                sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<LocalLibraryScans>(),
+                () => RequestPersist(sp)),
             Remote = new RemoteSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PhoneRemoteService>(),
                 () => RequestPersist(sp)),
@@ -1037,6 +1058,7 @@ public partial class App : Application
         _services.GetRequiredService<TrackActionsViewModel>().FlushPendingRemovals();
         // Saves the jobs still waiting, so they resume at the next start.
         _services.GetRequiredService<DownloadStore>().Dispose();
+        _services.GetRequiredService<LocalLibraryScans>().Index.Dispose();
         _services.GetRequiredService<PlaybackCoordinator>().Dispose();
         (_services.GetRequiredService<IAudioPlayer>() as IDisposable)?.Dispose();
         _services.Dispose();

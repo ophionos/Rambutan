@@ -59,6 +59,7 @@
     <ProjectReference Include="..\Rambutan.InnerTube\Rambutan.InnerTube.csproj" />
     <ProjectReference Include="..\Rambutan.Streams\Rambutan.Streams.csproj" />
     <ProjectReference Include="..\Rambutan.Audio\Rambutan.Audio.csproj" />
+    <ProjectReference Include="..\Rambutan.LocalLibrary\Rambutan.LocalLibrary.csproj" />
     <ProjectReference Include="..\Rambutan.Lyrics\Rambutan.Lyrics.csproj" />
     <ProjectReference Include="..\Rambutan.Integrations\Rambutan.Integrations.csproj" />
     <ProjectReference Include="..\Rambutan.LocalApi\Rambutan.LocalApi.csproj" />

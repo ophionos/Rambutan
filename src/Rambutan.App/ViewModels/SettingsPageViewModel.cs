@@ -193,6 +193,8 @@ public partial class SettingsPageViewModel : ViewModelBase
     /// <summary>Settings → Downloads; null where downloads aren't composed (tests).</summary>
     public DownloadsSettingsViewModel? Downloads { get; init; }
 
+    public LocalFilesSettingsViewModel? Local { get; init; }
+
     /// <summary>Settings → Playback's output device; null where it isn't composed (tests).</summary>
     public OutputDeviceSettingsViewModel? Output { get; init; }
 
