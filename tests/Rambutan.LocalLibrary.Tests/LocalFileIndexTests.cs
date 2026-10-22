@@ -21,8 +21,8 @@ public sealed class LocalFileIndexTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
-    private LocalFileIndex Library(Func<CancellationToken, Task>? ready = null) =>
-        new(_data, _reader, ready ?? (_ => Task.CompletedTask), () => _folders, threads: 2);
+    private LocalFileIndex Library(Func<CancellationToken, Task>? ready = null, int threads = 2) =>
+        new(_data, _reader, ready ?? (_ => Task.CompletedTask), () => _folders, threads: threads);
 
     /// <summary>The fake reader takes a file's text as its title; "bad" isn't audio,
     /// and "cover:X" carries a cover of the bytes of X.</summary>
@@ -194,6 +194,20 @@ public sealed class LocalFileIndexTests : IDisposable
 
         Assert.False(File.Exists(cover));
         Assert.Equal("blue", File.ReadAllText(ByPath(library, a).CoverPath!));
+    }
+
+    [Fact]
+    public async Task AnAlbumsTracks_ReadAtOnce_AllGetTheirCover()
+    {
+        // Several threads write the same picture under the same name.
+        for (var i = 0; i < 40; i++)
+            Write($"{i:D2}.mp3", "cover:red");
+        using var library = Library(threads: 4);
+
+        await library.ScanAsync();
+
+        Assert.All(library.Files(), f => Assert.NotNull(f.CoverPath));
+        Assert.Single(Directory.GetFiles(Path.Combine(_data, LocalFileIndex.CoverFolderName)));
     }
 
     [Fact]

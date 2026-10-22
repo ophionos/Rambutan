@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Enumeration;
 using System.Security.Cryptography;
 using Rambutan.Core.Diagnostics;
@@ -190,7 +191,7 @@ public sealed class LocalFileIndex : IDisposable
         AppLog.Write("local",
             $"scan: {found.Count} files in {roots.Count} folders ({unavailable.Count} unavailable), " +
             $"{plan.ToRead.Count} read ({unreadable} unreadable), {plan.NowMissing.Count} now missing, " +
-            $"{Stopwatch.GetElapsedTime(started).TotalSeconds:F1} s");
+            $"{Stopwatch.GetElapsedTime(started).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)} s");
     }
 
     /// <summary>The audio files under each folder. A folder that doesn't exist or
@@ -259,18 +260,24 @@ public sealed class LocalFileIndex : IDisposable
     {
         var name = Convert.ToHexStringLower(SHA256.HashData(cover.Data).AsSpan(0, 16)) + cover.Extension;
         var path = Path.Combine(_coverDirectory, name);
+        if (File.Exists(path))
+            return path;
+        var temp = $"{path}.{Guid.NewGuid():N}.tmp";
         try
         {
-            if (File.Exists(path))
-                return path;
             Directory.CreateDirectory(_coverDirectory);
-            var temp = $"{path}.{Guid.NewGuid():N}.tmp";
             File.WriteAllBytes(temp, cover.Data);
             File.Move(temp, path, overwrite: true);
             return path;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            TryDelete(temp);
+            // Two tracks of one album, read at once, write the same cover; Windows
+            // refuses the second move while the first holds the name. The picture
+            // is the same either way.
+            if (File.Exists(path))
+                return path;
             AppLog.Write("local", $"couldn't keep a cover: {ex.Message}");
             return null;
         }
@@ -345,6 +352,17 @@ public sealed class LocalFileIndex : IDisposable
                 roots.Add(full);
         }
         return roots;
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
     }
 
     private void RaiseChanged() => Changed?.Invoke();
