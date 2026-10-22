@@ -230,6 +230,11 @@ file sink), never to files directly.
   and error states draw yellow and red, which read as warnings.
 - Lyrics degrade in explicit states: word-synced → line-synced → plain → "no
   lyrics found". Imported custom lyrics always win over providers.
+  A local track's own lyrics come next (`Lyrics/Store/LocalLyrics`): the
+  `.lrc` beside the file, then its tags (read through
+  `FfmpegMediaFileReader.ReadLyrics`, which waits for ffmpeg); a text that
+  parses as synced LRC shows synced. They are read on each lookup, never cached, and
+  whatever the online-lookup setting; the cache and LRCLIB come after them.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.
 - Card menus: a song card has the track menu (`TrackMenuModel`); album,
   playlist and artist cards have their own (`CollectionMenuModel`, acting
@@ -275,7 +280,8 @@ file sink), never to files directly.
   (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice.
   Library has two sources, YouTube Music and On this computer
   (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
-  Its lyrics cache file is `local.<n>.json`. Search's All tab puts the
+  Its lyrics cache file is `local.<n>.json`; its own lyrics (below, under
+  Lyrics) come before it. Search's All tab puts the
   index's matches (`Core/Local/LocalSearch`) on a shelf above YouTube Music's
   results, at most `SearchPageViewModel.LocalKept` rows, since that list
   doesn't virtualize; the shelf stays when YouTube Music can't be reached.

@@ -175,6 +175,18 @@ public class LocalTagValuesTests
     public void Year(string? text, int? expected) => Assert.Equal(expected, LocalTagValues.Year(text));
 
     [Theory]
+    [InlineData("lyrics", true)]
+    [InlineData("LYRICS", true)]
+    [InlineData("lyrics-eng", true)]
+    [InlineData("lyrics-Verse-eng", true)]
+    [InlineData("UNSYNCEDLYRICS", true)]
+    [InlineData("SyncedLyrics", true)]
+    [InlineData("LYRICIST", false)]
+    [InlineData("lyricsx", false)]
+    [InlineData("comment", false)]
+    public void IsLyricsKey(string key, bool expected) => Assert.Equal(expected, LocalTagValues.IsLyricsKey(key));
+
+    [Theory]
     [InlineData("-6.20 dB", -6.2)]
     [InlineData("+1.5 dB", 1.5)]
     [InlineData("-6.2", -6.2)]

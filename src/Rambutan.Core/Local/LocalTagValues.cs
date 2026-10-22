@@ -57,6 +57,19 @@ public static class LocalTagValues
             ? q78 / 256.0 + 5
             : null;
 
+    /// <summary>
+    /// Whether a tag holds the song's lyrics, as libav names it: <c>lyrics</c>
+    /// (MP4 <c>©lyr</c>, the Vorbis comment), <c>lyrics-eng</c> and the like
+    /// (ID3v2 <c>USLT</c>, with its language and any description after the
+    /// dash), and the Vorbis comments <c>UNSYNCEDLYRICS</c> and
+    /// <c>SYNCEDLYRICS</c>. Not <c>LYRICIST</c>, which names a person.
+    /// </summary>
+    public static bool IsLyricsKey(string key) =>
+        key.Equals("lyrics", StringComparison.OrdinalIgnoreCase)
+        || key.StartsWith("lyrics-", StringComparison.OrdinalIgnoreCase)
+        || key.Equals("unsyncedlyrics", StringComparison.OrdinalIgnoreCase)
+        || key.Equals("syncedlyrics", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>A text tag as the library keeps it: trimmed, and null when empty.</summary>
     public static string? Text(string? text) => string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 }

@@ -25,13 +25,8 @@ public sealed unsafe class FfmpegMediaFileReader : IMediaFileReader
         AVFormatContext* format = null;
         try
         {
-            var detected = Detect(path);
-            if (ffmpeg.avformat_open_input(&format, path, detected, null) < 0)
-            {
-                // A sniff that guessed wrong: let libav look for itself.
-                if (detected is null || ffmpeg.avformat_open_input(&format, path, null, null) < 0)
-                    return null;
-            }
+            if (!Open(path, &format))
+                return null;
 
             var stream = FirstAudioStream(format);
             if (Duration(format, stream) is null || stream is null)
@@ -80,6 +75,61 @@ public sealed unsafe class FfmpegMediaFileReader : IMediaFileReader
             if (format is not null)
                 ffmpeg.avformat_close_input(&format);
         }
+    }
+
+    /// <summary>
+    /// The lyrics the file's tags hold (<see cref="LocalTagValues.IsLyricsKey"/>),
+    /// container tags first, then the audio stream's, each as written; empty when
+    /// there are none or the file can't be opened. Thread-safe like
+    /// <see cref="Read"/>.
+    /// </summary>
+    public IReadOnlyList<string> ReadLyrics(string path)
+    {
+        AVFormatContext* format = null;
+        try
+        {
+            if (!Open(path, &format))
+                return [];
+            var found = new List<string>();
+            Lyrics(format->metadata, found);
+            var stream = FirstAudioStream(format);
+            if (stream is not null)
+                Lyrics(stream->metadata, found);
+            return found;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+        finally
+        {
+            if (format is not null)
+                ffmpeg.avformat_close_input(&format);
+        }
+    }
+
+    private static void Lyrics(AVDictionary* tags, List<string> found)
+    {
+        if (tags is null)
+            return;
+        AVDictionaryEntry* entry = null;
+        while ((entry = ffmpeg.av_dict_get(tags, "", entry, ffmpeg.AV_DICT_IGNORE_SUFFIX)) is not null)
+        {
+            if (Marshal.PtrToStringUTF8((IntPtr)entry->key) is { } key && LocalTagValues.IsLyricsKey(key)
+                && Marshal.PtrToStringUTF8((IntPtr)entry->value) is { } value && !string.IsNullOrWhiteSpace(value))
+                found.Add(value);
+        }
+    }
+
+    /// <summary>Opens the file as the format its content shows; false when libav
+    /// can't open it. The caller closes a context it gets.</summary>
+    private static bool Open(string path, AVFormatContext** format)
+    {
+        var detected = Detect(path);
+        if (ffmpeg.avformat_open_input(format, path, detected, null) >= 0)
+            return true;
+        // A sniff that guessed wrong: let libav look for itself.
+        return detected is not null && ffmpeg.avformat_open_input(format, path, null, null) >= 0;
     }
 
     /// <summary>The format from the bytes after any ID3v2 tag; null when no format

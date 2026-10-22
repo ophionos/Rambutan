@@ -3,13 +3,14 @@ using Rambutan.Lyrics.Providers;
 namespace Rambutan.Lyrics.Store;
 
 /// <summary>
-/// Finds lyrics for a track: the user's custom lyrics first, then the cache,
-/// then the provider chain, caching what the chain answers. One fetch per track
+/// Finds lyrics for a track: the user's custom lyrics first, then a local
+/// track's own (<see cref="LocalLyrics"/>, never cached), then the cache, then
+/// the provider chain, caching what the chain answers. One fetch per track
 /// at a time: a second request for a track already being fetched joins it.
 /// </summary>
 /// <remarks>
-/// The chain is asked only while <see cref="LookUpOnline"/> is on (a lookup sends the track's title and artist off the machine). Custom and
-/// cached lyrics need no lookup, so they are served either way.
+/// The chain is asked only while <see cref="LookUpOnline"/> is on (a lookup sends the track's title and artist off the machine). Custom,
+/// local and cached lyrics need no lookup, so they are served either way.
 /// </remarks>
 /// <remarks>
 /// A caller's cancellation (skipping to the next track) abandons only that
@@ -20,6 +21,7 @@ public sealed class LyricsService : IDisposable
 {
     private readonly CustomLyricsStore? _custom;
     private readonly LyricsCache? _cache;
+    private readonly LocalLyrics? _local;
     private readonly LyricsProviderChain _chain;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Dictionary<string, Task<LyricsLookup>> _inFlight = new(StringComparer.Ordinal);
@@ -34,17 +36,21 @@ public sealed class LyricsService : IDisposable
         set => _lookUpOnline = value;
     }
 
-    public LyricsService(LyricsProviderChain chain, LyricsCache? cache = null, CustomLyricsStore? custom = null)
+    public LyricsService(
+        LyricsProviderChain chain, LyricsCache? cache = null, CustomLyricsStore? custom = null, LocalLyrics? local = null)
     {
         _chain = chain;
         _cache = cache;
         _custom = custom;
+        _local = local;
     }
 
-    public static LyricsService Create(string dataDirectory, IReadOnlyList<ILyricsProvider> providers) => new(
+    public static LyricsService Create(
+        string dataDirectory, IReadOnlyList<ILyricsProvider> providers, LocalLyrics? local = null) => new(
         new LyricsProviderChain(providers),
         new LyricsCache(Path.Combine(dataDirectory, "lyrics", "cache")),
-        new CustomLyricsStore(Path.Combine(dataDirectory, "lyrics", "custom")));
+        new CustomLyricsStore(Path.Combine(dataDirectory, "lyrics", "custom")),
+        local);
 
     /// <summary>
     /// Never throws except <see cref="OperationCanceledException"/> for
@@ -104,6 +110,21 @@ public sealed class LyricsService : IDisposable
     {
         if (_custom?.TryGet(query.VideoId) is { } custom)
             return new LyricsLookup(LyricsStatus.Found, custom);
+
+        // Before the cache: lyrics LRCLIB gave the track earlier mustn't hide an
+        // .lrc file the user put beside it since.
+        if (_local is not null)
+        {
+            try
+            {
+                if (await _local.TryGetAsync(query.VideoId, _shutdown.Token) is { } own)
+                    return new LyricsLookup(LyricsStatus.Found, own);
+            }
+            catch (OperationCanceledException)
+            {
+                return LyricsLookup.Unavailable;
+            }
+        }
 
         var stale = false;
         var cached = _cache?.TryGet(query.VideoId, out stale);

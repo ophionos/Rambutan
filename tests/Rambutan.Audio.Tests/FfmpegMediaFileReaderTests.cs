@@ -63,6 +63,25 @@ public class FfmpegMediaFileReaderTests
         Assert.Equal(0.0, Read("tags.opus").TrackGainDb!.Value, 2);
     }
 
+    [Theory]
+    [InlineData("lyrics.mp3", "[00:00.20]Erste Zeile")] // ID3v2 USLT, read as lyrics-eng
+    [InlineData("lyrics.m4a", "[00:00.20]Erste Zeile")] // MP4 ©lyr
+    [InlineData("lyrics.flac", "Erste Zeile")]          // Vorbis LYRICS, beside a LYRICIST
+    [InlineData("lyrics.opus", "Erste Zeile")]          // Vorbis UNSYNCEDLYRICS, on the stream
+    public void ReadsTheLyricsTags_AndNothingElse(string name, string start)
+    {
+        var lyrics = _reader.ReadLyrics(Path.Combine(Fixtures, name));
+
+        Assert.StartsWith(start, Assert.Single(lyrics));
+    }
+
+    [Fact]
+    public void AFileWithoutLyrics_HasNone()
+    {
+        Assert.Empty(_reader.ReadLyrics(Path.Combine(Fixtures, "tags.flac")));
+        Assert.Empty(_reader.ReadLyrics(Path.Combine(Fixtures, "gone.mp3")));
+    }
+
     [Fact]
     public void AMisnamedFile_IsReadAsWhatItIs()
     {

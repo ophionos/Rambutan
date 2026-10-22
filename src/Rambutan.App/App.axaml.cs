@@ -348,8 +348,9 @@ public partial class App : Application
             sp.GetRequiredService<ArtworkCache>().GetBytesAsync));
         // The watched folders' music, read through libav once ffmpeg is ready
         // (not yt-dlp, which a first start offline can't fetch).
+        services.AddSingleton<FfmpegMediaFileReader>();
         services.AddSingleton(sp => new LocalLibraryScans(new LocalFileIndex(
-            dataDir, new FfmpegMediaFileReader(),
+            dataDir, sp.GetRequiredService<FfmpegMediaFileReader>(),
             ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct),
             () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [])));
         services.AddSingleton(sp => new KeptCovers(
@@ -514,14 +515,23 @@ public partial class App : Application
             return hub;
         });
 
-        // Lyrics: custom → cache → LRCLIB, stored under the data directory
-        // like the other stores. A demo answers LRCLIB from invented lyrics.
+        // Lyrics: custom → a local file's own → cache → LRCLIB, stored under the
+        // data directory like the other stores. A demo answers LRCLIB from
+        // invented lyrics. The tags are read through libav, so that waits for
+        // ffmpeg, as playback does: a restored local track asks at startup.
         services.AddSingleton(sp => LyricsService.Create(dataDir,
         [
             new LrcLibProvider(Demo is null
                 ? null
                 : new HttpClient(new DemoLyricsHandler(Demo, sp.GetRequiredService<QueueModel>()))),
-        ]));
+        ],
+        new LocalLyrics(
+            id => sp.GetRequiredService<LocalLibraryScans>().Index.Find(id) is { IsMissing: false } file ? file.Path : null,
+            async (path, ct) =>
+            {
+                await sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct);
+                return sp.GetRequiredService<FfmpegMediaFileReader>().ReadLyrics(path);
+            })));
         services.AddSingleton(sp => new LyricsViewModel(
             sp.GetRequiredService<LyricsService>(),
             sp.GetRequiredService<PlaybackCoordinator>(),

@@ -585,6 +585,8 @@ public sealed partial class LyricsViewModel : ViewModelBase
     {
         LrcLibProvider.SourceName => Strings.Get("lyrics.source.lrclib"),
         CustomLyricsStore.SourceName => Strings.Get("lyrics.source.custom"),
+        LocalLyrics.SidecarSourceName => Strings.Get("lyrics.source.lrcFile"),
+        LocalLyrics.TagsSourceName => Strings.Get("lyrics.source.tags"),
         _ => Strings.Format("lyrics.source.other", ("source", source)),
     };
 }
