@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -91,6 +92,21 @@ public partial class LocalLibraryViewModel : ViewModelBase
     }
 
     public void Hide() => _shown = false;
+
+    /// <summary>Searches the index off the UI thread (<see cref="LocalSearch"/>):
+    /// at most <paramref name="limit"/> rows, best first, and the total.</summary>
+    public Task<(IReadOnlyList<LocalTrackRow> Rows, int Total)> SearchAsync(
+        string query, int limit, CancellationToken ct)
+    {
+        var index = _scans.Index;
+        return Task.Run(() =>
+        {
+            var found = LocalSearch.Find(index.Files(), query, limit);
+            IReadOnlyList<LocalTrackRow> rows = found.Files
+                .Select(f => new LocalTrackRow(f, LocalTracks.ToTrack(f))).ToList();
+            return (rows, found.Total);
+        }, ct);
+    }
 
     /// <summary>Lists the index again, off the UI thread, and edits the rows to
     /// match. A refresh asked for while one runs runs once more after it.</summary>

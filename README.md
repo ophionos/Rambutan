@@ -41,7 +41,8 @@ your own YouTube Music account to use your library.
 - A queue you can reorder, restored when you start the app again.
 - A choice of output device.
 - Music files on your computer: choose the folders that hold them, and play
-  their songs beside YouTube Music, under Library, On this computer.
+  their songs beside YouTube Music, under Library, On this computer. Search
+  finds them too, with no connection.
 
 **Now Playing**
 - The artwork and the lyrics side by side, or either one alone, over a

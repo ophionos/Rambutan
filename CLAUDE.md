@@ -275,7 +275,10 @@ file sink), never to files directly.
   (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice.
   Library has two sources, YouTube Music and On this computer
   (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
-  Its lyrics cache file is `local.<n>.json`.
+  Its lyrics cache file is `local.<n>.json`. Search's All tab puts the
+  index's matches (`Core/Local/LocalSearch`) on a shelf above YouTube Music's
+  results, at most `SearchPageViewModel.LocalKept` rows, since that list
+  doesn't virtualize; the shelf stays when YouTube Music can't be reached.
 - Ids sent to YouTube: InnerTube's track calls (radio, mix, rating, playlist
   edits) and the stream resolver refuse any id that isn't YouTube-shaped
   (`Core/Models/YouTubeIds`, `NotAYouTubeTrackException`) before any request,
