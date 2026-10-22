@@ -39,6 +39,7 @@ public sealed class LocalFileIndex : IDisposable
     private long _nextId;
     private LocalScanStatus _status = LocalScanStatus.Idle;
     private CancellationTokenSource? _scanCts;
+    private IReadOnlyList<string>? _scanScope;
     private bool _dirty;
 
     /// <param name="dataDirectory">The profile's folder.</param>
@@ -121,27 +122,40 @@ public sealed class LocalFileIndex : IDisposable
     /// while one runs stops that one and starts over, so the latest folders win.
     /// Cancelling keeps what was read so far.
     /// </summary>
-    public async Task ScanAsync(CancellationToken ct = default)
+    public Task ScanAsync(CancellationToken ct = default) => ScanAsync(null, ct);
+
+    /// <summary>
+    /// Brings the index up to date with some watched folders: those inside
+    /// <paramref name="folders"/> (null for all). A scan this one stops has its
+    /// folders added, so they are still scanned (<see cref="LocalWatch.Merge"/>).
+    /// </summary>
+    public async Task ScanAsync(IReadOnlyList<string>? folders, CancellationToken ct = default)
     {
         CancellationTokenSource cts;
+        IReadOnlyList<string>? scope;
         lock (_lock)
         {
+            scope = _scanCts is null ? folders : LocalWatch.Merge(_scanScope, folders, _paths);
             _scanCts?.Cancel();
             cts = _scanCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _scanScope = scope;
         }
 
         await _scanGate.WaitAsync(CancellationToken.None);
         try
         {
             cts.Token.ThrowIfCancellationRequested();
-            await RunScanAsync(cts.Token);
+            await RunScanAsync(scope, cts.Token);
         }
         finally
         {
             lock (_lock)
             {
                 if (_scanCts == cts)
+                {
                     _scanCts = null;
+                    _scanScope = null;
+                }
                 _status = _status with { IsScanning = false };
             }
             SaveIfDirty();
@@ -151,20 +165,22 @@ public sealed class LocalFileIndex : IDisposable
         }
     }
 
-    private async Task RunScanAsync(CancellationToken ct)
+    private async Task RunScanAsync(IReadOnlyList<string>? scope, CancellationToken ct)
     {
         var started = Stopwatch.GetTimestamp();
         // Scanning from here: on a first run the reader can wait minutes for ffmpeg.
         lock (_lock)
-            _status = new LocalScanStatus(true, 0, 0, []);
+            _status = new LocalScanStatus(true, 0, 0, _status.UnavailableFolders);
         RaiseChanged();
         await _readerReady(ct);
 
-        var roots = Roots(_folders());
+        var watched = Roots(_folders());
+        var roots = LocalWatch.Within(watched, scope, _paths);
 
-        var (found, scanned, unavailable) = await Task.Run(() => List(roots, ct), ct);
+        var (found, scanned, notListed) = await Task.Run(() => List(roots, ct), ct);
 
         LocalScanPlan plan;
+        IReadOnlyList<string> unavailable;
         lock (_lock)
         {
             plan = LocalScan.Plan(_files.Values.Select(f => f.Known), found, scanned, _paths, _nextId);
@@ -173,6 +189,7 @@ public sealed class LocalFileIndex : IDisposable
             foreach (var id in plan.NowMissing)
                 _files[id] = _files[id] with { IsMissing = true };
             _dirty |= plan.NowMissing.Count > 0 || plan.ToRead.Count > 0;
+            unavailable = LocalWatch.Unavailable(_status.UnavailableFolders, roots, notListed, watched, _paths);
             _status = new LocalScanStatus(true, 0, plan.ToRead.Count, unavailable);
         }
         RaiseChanged();
@@ -212,7 +229,7 @@ public sealed class LocalFileIndex : IDisposable
 
         RemoveUnusedCovers();
         AppLog.Write("local",
-            $"scan: {found.Count} files in {roots.Count} folders ({unavailable.Count} unavailable), " +
+            $"scan: {found.Count} files in {roots.Count} folders ({notListed.Count} unavailable), " +
             $"{plan.ToRead.Count} read ({unreadable} unreadable), {plan.NowMissing.Count} now missing, " +
             $"{Stopwatch.GetElapsedTime(started).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)} s");
     }

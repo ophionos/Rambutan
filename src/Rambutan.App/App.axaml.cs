@@ -349,10 +349,15 @@ public partial class App : Application
         // The watched folders' music, read through libav once ffmpeg is ready
         // (not yt-dlp, which a first start offline can't fetch).
         services.AddSingleton<FfmpegMediaFileReader>();
-        services.AddSingleton(sp => new LocalLibraryScans(new LocalFileIndex(
-            dataDir, sp.GetRequiredService<FfmpegMediaFileReader>(),
-            ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct),
-            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [])));
+        // Watched while the app runs too, except the app's own folders, whose
+        // log and index writes would start a scan after every scan.
+        services.AddSingleton(sp => new LocalLibraryScans(
+            new LocalFileIndex(
+                dataDir, sp.GetRequiredService<FfmpegMediaFileReader>(),
+                ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct),
+                () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []),
+            new LocalFolderWatcher([dataDir, toolsDir]),
+            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []));
         services.AddSingleton(sp => new KeptCovers(
             sp.GetRequiredService<DownloadStore>(), sp.GetRequiredService<LocalLibraryScans>().Index));
         services.AddSingleton(sp =>
@@ -1083,7 +1088,7 @@ public partial class App : Application
         _services.GetRequiredService<TrackActionsViewModel>().FlushPendingRemovals();
         // Saves the jobs still waiting, so they resume at the next start.
         _services.GetRequiredService<DownloadStore>().Dispose();
-        _services.GetRequiredService<LocalLibraryScans>().Index.Dispose();
+        _services.GetRequiredService<LocalLibraryScans>().Dispose();
         _services.GetRequiredService<PlaybackCoordinator>().Dispose();
         (_services.GetRequiredService<IAudioPlayer>() as IDisposable)?.Dispose();
         _services.Dispose();

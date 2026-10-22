@@ -257,7 +257,16 @@ file sink), never to files directly.
   falls back to the listed video.
 - Local library: the watched folders are a setting (`AppSettings.WatchedFolders`,
   per profile like every setting). `LocalLibrary/LocalFileIndex` scans them at
-  startup, when a folder is added, and on Rescan, with no live watcher.
+  startup, when a folder is added, and on Rescan. While the app runs,
+  `LocalLibrary/LocalFolderWatcher` watches them (the outermost ones only:
+  on Linux each costs one of few inotify instances) and scans a folder again
+  once it has been quiet for 2 s; the rules, which events count and what an
+  error means, are `Core/Local/LocalWatch`. The app's own folders never
+  count, or its log writes would start a scan after each scan. A scan of
+  some folders leaves the others, and their unavailable state, as they were,
+  and one that stops a running scan takes on its folders. A watcher that
+  fails stops, and Settings says the folder isn't watched until a later scan
+  arms it again.
   The rules are in Core (`Core/Local/LocalScan`): a file is read again only when
   its size or modified time changed; its `local:<n>` id stays with its path and
   is never given again; a file that is gone stays in the index as missing; a

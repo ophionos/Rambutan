@@ -15,7 +15,8 @@ namespace Rambutan.App.ViewModels;
 
 /// <param name="IsUnavailable">The last scan couldn't list it (a drive that isn't
 /// attached); its files keep the state they had.</param>
-public sealed record WatchedFolderRow(string Path, bool IsUnavailable)
+/// <param name="IsNotWatched">Its changes aren't noticed while the app runs.</param>
+public sealed record WatchedFolderRow(string Path, bool IsUnavailable, bool IsNotWatched = false)
 {
     public string RemoveName => Strings.Format("settings.local.removeName", ("folder", Path));
 }
@@ -88,6 +89,7 @@ public partial class LocalFilesSettingsViewModel : ViewModelBase
         _app.WatchedFolders = [.. (_app.WatchedFolders ?? []).Where(f => !_paths.Comparer.Equals(f, row.Path))];
         _persist();
         Refresh();
+        _scans.FoldersChanged();
     }
 
     [RelayCommand]
@@ -97,13 +99,16 @@ public partial class LocalFilesSettingsViewModel : ViewModelBase
     {
         var status = _scans.Index.Status;
         var unavailable = status.UnavailableFolders.ToHashSet(_paths.Comparer);
+        // A folder inside another is watched with it.
+        var notWatched = _scans.NotWatched;
+        bool NotWatched(string folder) => notWatched.Any(w => _paths.IsUnder(folder, w));
         var folders = _app.WatchedFolders ?? [];
         if (!folders.SequenceEqual(Folders.Select(f => f.Path))
-            || Folders.Any(f => f.IsUnavailable != unavailable.Contains(f.Path)))
+            || Folders.Any(f => f.IsUnavailable != unavailable.Contains(f.Path) || f.IsNotWatched != NotWatched(f.Path)))
         {
             Folders.Clear();
             foreach (var folder in folders)
-                Folders.Add(new WatchedFolderRow(folder, unavailable.Contains(folder)));
+                Folders.Add(new WatchedFolderRow(folder, unavailable.Contains(folder), NotWatched(folder)));
         }
         HasFolders = folders.Count > 0;
         IsScanning = status.IsScanning;

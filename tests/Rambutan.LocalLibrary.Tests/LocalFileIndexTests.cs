@@ -301,6 +301,66 @@ public sealed class LocalFileIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task AScanOfOneFolder_LeavesTheOthersAsTheyWere()
+    {
+        var other = Path.Combine(_root, "other");
+        var usb = Path.Combine(_root, "usb");
+        Directory.CreateDirectory(other);
+        var song = Path.Combine(other, "b.mp3");
+        File.WriteAllText(song, "B");
+        _folders.Add(other);
+        _folders.Add(usb); // not there: unavailable
+        Write("a.mp3", "A");
+        using var library = Library();
+        await library.ScanAsync();
+        Assert.Equal([usb], library.Status.UnavailableFolders);
+
+        File.Delete(song);
+        var added = Write("c.mp3", "C");
+        _reader.Reads.Clear();
+        await library.ScanAsync([_music]);
+
+        Assert.Equal([added], _reader.Reads);
+        Assert.False(ByPath(library, song).IsMissing); // its folder wasn't looked at
+        Assert.Equal([usb], library.Status.UnavailableFolders);
+
+        await library.ScanAsync([other]);
+        Assert.True(ByPath(library, song).IsMissing);
+    }
+
+    [Fact]
+    public async Task AFolderScan_ThatStopsAFullOne_ScansEveryFolder()
+    {
+        var other = Path.Combine(_root, "other");
+        Directory.CreateDirectory(other);
+        var song = Path.Combine(other, "b.mp3");
+        File.WriteAllText(song, "B");
+        _folders.Add(other);
+        Write("a.mp3", "A");
+        var ready = new TaskCompletionSource();
+        using var library = Library(ct => ready.Task.WaitAsync(ct));
+
+        var full = library.ScanAsync();
+        var folder = library.ScanAsync([_music]);
+        ready.SetResult();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => full);
+        await folder;
+        Assert.Equal(2, library.Files().Count);
+    }
+
+    [Fact]
+    public async Task AScanOfAFolderNoLongerWatched_ScansNothing()
+    {
+        Write("a.mp3", "A");
+        using var library = Library();
+
+        await library.ScanAsync([Path.Combine(_root, "gone")]);
+
+        Assert.Empty(library.Files());
+    }
+
+    [Fact]
     public async Task Changed_IsRaised_AsTheScanGoes()
     {
         Write("a.mp3", "A");
