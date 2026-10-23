@@ -51,14 +51,18 @@ public class AccentColorTests
         var appearance = new AppearanceSettings { AccentSource = AccentSource.Artwork };
         var player = new PlayerBarViewModel { ArtworkUrl = "blue" };
         var reads = 0;
+        // Held until the default is checked: the read ends on the thread pool
+        // here (no UI thread), so a finished read could change the accent first.
+        var blue = new TaskCompletionSource<byte[]>();
         var colors = new ThemeColors(appearance, player, (url, _) =>
         {
             reads++;
-            return Task.FromResult(Png(url == "blue" ? SKColors.Blue : SKColors.Green));
+            return url == "blue" ? blue.Task : Task.FromResult(Png(SKColors.Green));
         });
         // Until the cover is read, the default.
         Assert.Equal(AccentPalette.Default.Base, colors.Accent);
 
+        blue.SetResult(Png(SKColors.Blue));
         await colors.Pending;
         Assert.True(colors.Accent.B > 0xC0 && colors.Accent.R < 0x60, colors.Accent.ToString());
         Assert.Null(colors.Color);
