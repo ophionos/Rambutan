@@ -164,6 +164,14 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost
 
     public bool CanDownload => _actions?.Downloads is not null;
 
+    public bool CanCopyToLocal => _navigation?.Collections.CanCopyToLocal == true;
+
+    /// <summary>Copies every page of the playlist, not only the rows loaded.</summary>
+    [RelayCommand]
+    private Task CopyToLocalAsync() =>
+        _navigation.Collections.CopyToLocalCommand.ExecuteAsync(
+            new PlaylistEntry { Title = Title, PlaylistId = _playlistId });
+
     private CollectionDownloadButton? _downloadButton;
 
     /// <summary>The header's Download button; null where downloads aren't offered.</summary>

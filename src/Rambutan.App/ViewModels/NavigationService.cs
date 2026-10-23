@@ -66,7 +66,10 @@ public partial class NavigationService : ViewModelBase
         _searchHistory = searchHistory;
         _stations = stations;
         _local = local;
-        Collections = new CollectionActionsViewModel(catalog, coordinator, actions, stations, OpenStation);
+        Collections = new CollectionActionsViewModel(catalog, coordinator, actions, stations, OpenStation)
+        {
+            OpenLocalPlaylist = OpenLocalPlaylist,
+        };
         if (local?.Downloads is not null)
             GoDownloads = OpenDownloads;
     }

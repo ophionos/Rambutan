@@ -356,6 +356,9 @@ file sink), never to files directly.
   dimmed, named missing, and left out of what plays. While it shows, it
   follows the playlists' file and the scans. A read-only file (a newer
   build's, or unreadable and left in place) offers no edits and says why.
+  A YouTube Music playlist's card menu and page copy it to a new local
+  playlist (`CollectionActionsViewModel.CopyToLocalAsync`): every page of it,
+  duplicates kept, under a name asked for; the copy never changes it.
   A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
   `LocalFileIndex.OpenAsync`) plays a download's file as its download's
   track, and otherwise keeps the id the index has for its path, else
