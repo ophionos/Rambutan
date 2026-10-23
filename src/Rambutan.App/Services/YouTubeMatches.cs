@@ -55,7 +55,8 @@ internal sealed partial class LocalMatchJsonContext : JsonSerializerContext;
 /// A match gives a file what its tags lack, as shown (<see cref="Fill"/>), and
 /// its cover when it has none (<see cref="CoverPathFor"/>): a copy kept in
 /// <c>local-match-covers</c>, so it shows offline too. The queue's tracks stay
-/// as they are, so turning the setting off takes it all back.
+/// as they are, so turning the setting off takes it all back, and deletes the
+/// kept covers.
 /// </summary>
 /// <param name="find">The indexed file for a local id.</param>
 /// <param name="fetchCover">A cover's bytes by URL (the artwork cache).</param>
@@ -66,6 +67,9 @@ public sealed class YouTubeMatches(
     private readonly string _path = Path.Combine(dataDirectory, "local-matches.json");
     private readonly string _covers = Path.Combine(dataDirectory, "local-match-covers");
     private readonly Lock _lock = new();
+    // Writes and removals of kept covers, one at a time, so a removal never
+    // takes a cover a write is about to finish.
+    private readonly SemaphoreSlim _coverFiles = new(1, 1);
     private bool _enabled;
     private bool _loaded;
     private bool _following;
@@ -85,6 +89,8 @@ public sealed class YouTubeMatches(
             _enabled = value;
             if (value)
                 Follow();
+            else
+                _ = Task.Run(RemoveUnusedCoversAsync);
             Changed?.Invoke();
         }
     }
@@ -175,17 +181,69 @@ public sealed class YouTubeMatches(
             try
             {
                 var bytes = await fetchCover(ArtworkUrls.Largest(url), CancellationToken.None).ConfigureAwait(false);
-                Directory.CreateDirectory(_covers);
-                var temp = path + ".tmp";
-                await File.WriteAllBytesAsync(temp, bytes).ConfigureAwait(false);
-                File.Move(temp, path, overwrite: true);
+                await _coverFiles.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    Directory.CreateDirectory(_covers);
+                    var temp = path + ".tmp";
+                    await File.WriteAllBytesAsync(temp, bytes).ConfigureAwait(false);
+                    File.Move(temp, path, overwrite: true);
+                }
+                finally
+                {
+                    _coverFiles.Release();
+                }
             }
             catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or IOException or UnauthorizedAccessException or TaskCanceledException)
             {
                 AppLog.Write("local", $"match cover unavailable: {ex.GetType().Name}");
             }
         }
+        // A file matched to another song may leave its old cover unused, and a
+        // cover that arrived after the setting went off goes with the rest.
+        await RemoveUnusedCoversAsync().ConfigureAwait(false);
         Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Deletes the kept covers that no current match uses for a file without a
+    /// cover of its own, and leftovers of writes a crash cut short; while the
+    /// setting is off, all of them. A file that is missing keeps its match's
+    /// cover, since it can come back. Never throws.
+    /// </summary>
+    public async Task RemoveUnusedCoversAsync()
+    {
+        await _coverFiles.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!Directory.Exists(_covers))
+                return;
+            if (!Enabled)
+            {
+                Directory.Delete(_covers, recursive: true);
+                return;
+            }
+            Load();
+            var used = matcher.Export()
+                .Where(e => find(e.Key) is { CoverPath: null } file && LocalMatchQuery.Of(file.Tags)?.Key == e.Value.Key)
+                .Select(e => e.Value.Song is { } song ? CoverFile(song) : null)
+                .OfType<string>()
+                .Select(Path.GetFileName)
+                .ToHashSet(StringComparer.Ordinal);
+            foreach (var path in Directory.EnumerateFiles(_covers))
+            {
+                if (!used.Contains(Path.GetFileName(path)))
+                    File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppLog.Write("local", $"couldn't remove unused match covers: {ex.GetType().Name}");
+        }
+        finally
+        {
+            _coverFiles.Release();
+        }
     }
 
     // Under the lock throughout, so nothing reads the matcher before the saved

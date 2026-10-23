@@ -753,8 +753,11 @@ public class AccessibilityTests
         window.Close();
     });
 
-    [Fact]
-    public void AWaitForTheNetwork_IsOnTheStatusStrip_AsAPoliteLiveRegion() => Headless.Run(() =>
+    public static TheoryData<string> StatusRegions => ["NetworkWait", "ReadingFiles"];
+
+    [Theory]
+    [MemberData(nameof(StatusRegions))]
+    public void AWaitForTheNetwork_OrFilesBeingRead_IsOnTheStatusStrip_AsAPoliteLiveRegion(string region) => Headless.Run(() =>
     {
         AccessibleNames.Install();
         ShellResources.Ensure();
@@ -769,8 +772,8 @@ public class AccessibilityTests
 
         // The region is in the tree, empty, before the wait starts: Avalonia
         // announces a live region when an existing element's Name changes.
-        var text = strip.GetVisualDescendants().OfType<TextBlock>()
-            .Single(t => AutomationProperties.GetLiveSetting(t) == AutomationLiveSetting.Polite);
+        var text = strip.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == region);
+        Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(text));
         Assert.True(text.IsEffectivelyVisible);
         var peer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(text);
         var named = new List<object?>();
@@ -780,18 +783,22 @@ public class AccessibilityTests
                 named.Add(e.NewValue);
         };
 
-        vm.TrackWaitingForNetwork = new TrackInfo { VideoId = "a", Title = "Aerodynamic", Artists = [] };
+        if (region == "NetworkWait")
+            vm.TrackWaitingForNetwork = new TrackInfo { VideoId = "a", Title = "Aerodynamic", Artists = [] };
+        else
+            vm.ReadingFiles = 120;
         window.UpdateLayout();
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
         Assert.True(vm.HasStatus);
         Assert.True(strip.Bounds.Height > 0);
-        Assert.Contains("Aerodynamic", text.Text);
+        Assert.Contains(region == "NetworkWait" ? "Aerodynamic" : "Reading 120 files…", text.Text);
         Assert.Equal(text.Text, peer.GetName());
         Assert.Equal(AutomationLiveSetting.Polite, peer.GetLiveSetting());
         Assert.Equal([text.Text], named);
 
         vm.TrackWaitingForNetwork = null;
+        vm.ReadingFiles = null;
         window.UpdateLayout();
         Assert.False(vm.HasStatus);
         Assert.Equal(0, strip.Bounds.Height);

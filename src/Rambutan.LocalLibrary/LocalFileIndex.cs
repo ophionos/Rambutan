@@ -382,12 +382,16 @@ public sealed class LocalFileIndex : IDisposable
     /// while a queue holds it. A file is read again only when it changed.
     /// Files that aren't there or can't be read as audio are left out.
     /// </summary>
-    public async Task<IReadOnlyList<LocalFile>> OpenAsync(IReadOnlyList<string> paths, CancellationToken ct = default)
+    /// <param name="listed">Told how many files were found under the paths,
+    /// before any is read; not called when there are none. On any thread.</param>
+    public async Task<IReadOnlyList<LocalFile>> OpenAsync(
+        IReadOnlyList<string> paths, Action<int>? listed = null, CancellationToken ct = default)
     {
         await _readerReady(ct);
         var found = await Task.Run(() => ListOpened(paths, ct), ct);
         if (found.Count == 0)
             return [];
+        listed?.Invoke(found.Count);
         var roots = Roots(_folders());
 
         var items = new List<(FileToRead Item, bool Read)>(found.Count);
