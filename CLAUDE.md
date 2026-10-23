@@ -321,8 +321,11 @@ file sink), never to files directly.
   album names in the player bar, Now Playing and the media session
   (`YouTubeMatches.Fill`, without the song's links) and, for a file with no
   cover of its own or its folder's, the song's cover, kept in
-  `local-match-covers` and found through `KeptCovers`. The queue keeps the
-  file's own track, so turning matching off takes all of it back.
+  `local-match-covers` and found through `KeptCovers`; a kept cover stays only
+  while a current match of a file without a cover of its own uses it (a
+  missing file's too). The queue keeps the file's own track, so turning
+  matching off takes all of it back, and deletes the kept covers; the saved
+  matches stay.
   A file whose tags carry `YOUTUBE_VIDEO_ID` has that song as its match
   whatever the setting, and is never searched: its download's track while
   that exists, else one made from the tags (`YouTubeMatches.Tagged`).
@@ -347,7 +350,9 @@ file sink), never to files directly.
   to its end; elsewhere the files play after the current track
   (`PlaybackCoordinator.PlayAfterCurrentAsync`); the queue is never replaced.
   Its lyrics cache file is `local.<n>.json`; its own lyrics (below, under
-  Lyrics) come before it. Search's All tab puts the
+  Lyrics) come before it. Reading opened files for longer than
+  `LocalFileOpener.ShowAfter` shows on the status strip, with the number of
+  files once they are listed, until the last open ends. Search's All tab puts the
   index's matches (`Core/Local/LocalSearch`) on a shelf above YouTube Music's
   results, at most `SearchPageViewModel.LocalKept` rows, since that list
   doesn't virtualize; the shelf stays when YouTube Music can't be reached.
