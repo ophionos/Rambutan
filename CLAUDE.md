@@ -315,8 +315,11 @@ file sink), never to files directly.
   album names in the player bar, Now Playing and the media session
   (`YouTubeMatches.Fill`, without the song's links) and, for a file with no
   cover of its own or its folder's, the song's cover, kept in
-  `local-match-covers` and found through `KeptCovers`. The queue keeps the
-  file's own track, so turning matching off takes all of it back.
+  `local-match-covers` and found through `KeptCovers`; a kept cover stays only
+  while a current match of a file without a cover of its own uses it (a
+  missing file's too). The queue keeps the file's own track, so turning
+  matching off takes all of it back, and deletes the kept covers; the saved
+  matches stay.
   Library has two sources, YouTube Music and On this computer
   (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
   A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
