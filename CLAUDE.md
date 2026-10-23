@@ -245,7 +245,8 @@ file sink), never to files directly.
   from the keyboard too. A card doesn't know whether it is saved or subscribed,
   so its menu offers only to add, and to remove only in a list that says its
   cards are in the library (`CollectionMenu.InLibrary`, the Library tabs).
-  Signed out, neither shows. No Rename or Delete on a card: they stay on the
+  Signed out, neither shows; a playlist card's copy to a local playlist
+  does, since it only reads. No Rename or Delete on a card: they stay on the
   playlist's page.
 - Offline pages: `Core/Downloads/OfflineCatalog` wraps the `ICatalog` that App
   registers. When an album or playlist page, or the Library's Albums or Playlists
@@ -356,6 +357,9 @@ file sink), never to files directly.
   dimmed, named missing, and left out of what plays. While it shows, it
   follows the playlists' file and the scans. A read-only file (a newer
   build's, or unreadable and left in place) offers no edits and says why.
+  A YouTube Music playlist's card menu and page copy it to a new local
+  playlist (`CollectionActionsViewModel.CopyToLocalAsync`): every page of it,
+  duplicates kept, under a name asked for; the copy never changes it.
   A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
   `LocalFileIndex.OpenAsync`) plays a download's file as its download's
   track, and otherwise keeps the id the index has for its path, else

@@ -92,6 +92,11 @@
                    IsVisible="{Binding DownloadButton.IsDownloading, FallbackValue=False}" />
             </Panel>
           </Button>
+          <Button Classes="icon outline" Command="{Binding CopyToLocalCommand}" IsEnabled="{Binding !!Tracks.Count}"
+                  IsVisible="{Binding CanCopyToLocal}"
+                  ToolTip.Tip="{l:T playlist.copyToLocalTip}" AutomationProperties.Name="{l:T menu.copyToLocalPlaylist}">
+            <PathIcon Data="{StaticResource Icon.AddToPlaylist}" Width="18" Height="18" />
+          </Button>
           <!-- Rename and Delete only on the account's own playlists. -->
           <Button Classes="icon outline" Command="{Binding RenameCommand}" IsVisible="{Binding IsEditable}"
                   ToolTip.Tip="{l:T common.rename}" AutomationProperties.Name="{l:T common.rename}">
@@ -101,7 +106,7 @@
                   ToolTip.Tip="{l:T common.delete}" AutomationProperties.Name="{l:T common.delete}">
             <PathIcon Data="{StaticResource Icon.Delete}" Width="18" Height="18" />
           </Button>
-          <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
+          <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsBusy}" />
         </StackPanel>
         <ContentControl Content="{Binding LoadError}"
                       ContentTemplate="{StaticResource ErrorState.Compact}"

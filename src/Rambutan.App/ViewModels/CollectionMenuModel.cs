@@ -50,6 +50,9 @@ public static class CollectionMenuModel
                 }
                 if (actions.CanDownload)
                     library.Add(new(Strings.Get("menu.download"), "Icon.Download", actions.DownloadAllCommand, entry, idle));
+                if (entry is PlaylistEntry && actions.CanCopyToLocal)
+                    library.Add(new(Strings.Get("menu.copyToLocalPlaylist"), "Icon.AddToPlaylist",
+                        actions.CopyToLocalCommand, entry, idle));
                 break;
 
             case ArtistEntry:

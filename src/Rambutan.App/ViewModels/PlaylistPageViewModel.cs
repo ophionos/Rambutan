@@ -35,7 +35,8 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost
     /// since the rows loaded so far may be only the first page.</summary>
     [ObservableProperty] private string _summary = "";
     [ObservableProperty] private string? _thumbnailUrl;
-    [ObservableProperty] private bool _isLoading = true;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsBusy))] private bool _isLoading = true;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsBusy))] private bool _isCopying;
     [ObservableProperty] private bool _isLoadingMore;
     [ObservableProperty] private bool _hasMore;
     [ObservableProperty] private LoadError? _loadError;
@@ -163,6 +164,31 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost
             : Task.CompletedTask;
 
     public bool CanDownload => _actions?.Downloads is not null;
+
+    public bool CanCopyToLocal => _navigation?.Collections.CanCopyToLocal == true;
+
+    /// <summary>The page loads, or the copy loads every page of the playlist.</summary>
+    public bool IsBusy => IsLoading || IsCopying;
+
+    /// <summary>Copies every page of the playlist, not only the rows loaded. The
+    /// header shows the load, as a card does (not the name prompt that follows).</summary>
+    [RelayCommand]
+    private async Task CopyToLocalAsync()
+    {
+        var collections = _navigation.Collections;
+        var entry = new PlaylistEntry { Title = Title, PlaylistId = _playlistId };
+        void Follow() => IsCopying = collections.IsLoading(entry);
+        collections.LoadingChanged += Follow;
+        try
+        {
+            await collections.CopyToLocalCommand.ExecuteAsync(entry);
+        }
+        finally
+        {
+            collections.LoadingChanged -= Follow;
+            IsCopying = false;
+        }
+    }
 
     private CollectionDownloadButton? _downloadButton;
 

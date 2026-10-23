@@ -10,6 +10,7 @@ using Rambutan.Core.Downloads;
 using Rambutan.Core.Links;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Playlists;
 
 namespace Rambutan.App.ViewModels;
 
@@ -54,6 +55,13 @@ public sealed partial class CollectionActionsViewModel
     public bool CanChangeLibrary => IsSignedIn?.Invoke() == true;
 
     public bool CanDownload => _actions.Downloads is not null;
+
+    /// <summary>A playlist can be copied to one on this computer.</summary>
+    public bool CanCopyToLocal => _actions.LocalPlaylists is not null;
+
+    /// <summary>Opens a playlist on this computer by id; set by navigation, so
+    /// the copy's toast can open it.</summary>
+    public Action<string>? OpenLocalPlaylist { get; set; }
 
     /// <summary>Whether an artist's Last.fm station can open: only while Last.fm
     /// stations are on and connected, as on the artist's page.</summary>
@@ -121,6 +129,58 @@ public sealed partial class CollectionActionsViewModel
             return;
         }
         _actions.DownloadAll(download.Tracks, download.Keep);
+    }
+
+    /// <summary>
+    /// Copies a YouTube Music playlist to a new one on this computer, every
+    /// page of it, duplicates included (maintainer's decision: a copy keeps what
+    /// it was copied from). The name is asked for, the playlist's own offered.
+    /// The copy never changes the playlist it came from.
+    /// </summary>
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    public async Task CopyToLocalAsync(CatalogEntry? entry)
+    {
+        if (entry is not PlaylistEntry playlist || _actions.LocalPlaylists is not { } library)
+            return;
+        if (library.IsReadOnly)
+        {
+            _actions.ReportError(TrackActionsViewModel.ReadOnlyNote(library));
+            return;
+        }
+        var (done, loaded) = await WhileLoadingAsync(entry, _ => AllPlaylistTracksAsync(playlist.PlaylistId),
+            Failed("toast.localPlaylist.copyFailed"));
+        if (!done)
+            return;
+        if (loaded.Tracks.Count == 0)
+        {
+            _actions.Report(Strings.Format("toast.localPlaylist.nothingToCopy", ("title", entry.Title)));
+            return;
+        }
+        var title = loaded.Page.Title is { Length: > 0 } t ? t : entry.Title;
+        var name = _actions.TextPrompt is null ? title : await _actions.TextPrompt(Strings.Get("prompt.copyPlaylist"), title);
+        if (LocalPlaylists.CleanName(name) is not { } clean)
+            return;
+        try
+        {
+            var copy = library.Copy(clean, loaded.Tracks, playlist.PlaylistId);
+            var message = Strings.Format("toast.localPlaylist.copied", ("count", copy.Items.Count), ("name", copy.Name));
+            if (OpenLocalPlaylist is { } open)
+                _actions.Toasts.Offer(message, Strings.Get("common.open"), () =>
+                {
+                    open(copy.Id);
+                    return Task.CompletedTask;
+                });
+            else
+                _actions.Report(message);
+        }
+        catch (LocalPlaylistsReadOnlyException)
+        {
+            _actions.ReportError(TrackActionsViewModel.ReadOnlyNote(library));
+        }
+        catch (Exception ex)
+        {
+            _actions.ReportError(Failed("toast.localPlaylist.copyFailed")(entry, ex));
+        }
     }
 
     /// <summary>Opens an album's artist, which only the album's page names.</summary>
@@ -254,15 +314,7 @@ public sealed partial class CollectionActionsViewModel
             }
             case PlaylistEntry playlist:
             {
-                var page = await _catalog.GetPlaylistAsync(playlist.PlaylistId);
-                var tracks = page.Tracks.ToList();
-                var next = page.Continuation;
-                for (var n = 0; n < MaxPlaylistPages && next is not null; n++)
-                {
-                    var more = await _catalog.GetPlaylistContinuationAsync(playlist.PlaylistId, next);
-                    tracks.AddRange(more.Tracks);
-                    next = more.Continuation;
-                }
+                var (page, tracks) = await AllPlaylistTracksAsync(playlist.PlaylistId);
                 var owner = PlaylistPageViewModel.OwnerOf(page);
                 return (tracks, page.KeptAt is null
                     ? new KeptCollection(KeptCollectionKind.Playlist, playlist.PlaylistId, page.Title,
@@ -272,6 +324,21 @@ public sealed partial class CollectionActionsViewModel
             default:
                 return ([], null);
         }
+    }
+
+    /// <summary>The playlist's header and every page of its tracks.</summary>
+    private async Task<(PlaylistPage Page, List<TrackInfo> Tracks)> AllPlaylistTracksAsync(string playlistId)
+    {
+        var page = await _catalog.GetPlaylistAsync(playlistId);
+        var tracks = page.Tracks.ToList();
+        var next = page.Continuation;
+        for (var n = 0; n < MaxPlaylistPages && next is not null; n++)
+        {
+            var more = await _catalog.GetPlaylistContinuationAsync(playlistId, next);
+            tracks.AddRange(more.Tracks);
+            next = more.Continuation;
+        }
+        return (page, tracks);
     }
 
     /// <summary>Loads the entry's tracks, then hands them on.</summary>
