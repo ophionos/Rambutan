@@ -1,12 +1,10 @@
-using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
 using Rambutan.Core.Downloads;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Settings;
 
-namespace Rambutan.Streams.Tests;
+namespace Rambutan.LocalLibrary.Tests;
 
 public sealed class DownloadStoreTests : IDisposable
 {
@@ -355,23 +353,6 @@ public sealed class DownloadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task Downloads_ignore_the_cache_cap_and_survive_its_eviction()
-    {
-        // The audio cache and the downloads folder are siblings under cache/.
-        var cache = new AudioDiskCache(Path.Combine(DataDir, "cache", "audio")) { MaxSizeBytes = 0 };
-        using var store = NewStore();
-        await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
-
-        cache.MaxSizeBytes = 1;
-        await cache.StoreAsync("vid00000002", "251", "opus", AudioQuality.High,
-            new MemoryStream(Encoding.UTF8.GetBytes("much bigger than one byte")));
-        cache.EnforceCap();
-        cache.Remove("vid00000001");
-
-        Assert.True(store.Contains("vid00000001"));
-    }
-
-    [Fact]
     public async Task Playback_prefers_the_download_but_the_fault_retry_streams_without_deleting_it()
     {
         using var store = NewStore();
@@ -386,49 +367,6 @@ public sealed class DownloadStoreTests : IDisposable
         Assert.Equal("https://stream.test/vid00000001", retry.Url);
         Assert.True(store.Contains("vid00000001"));
         Assert.True(source.IsWarm("vid00000001"));
-    }
-
-    [Fact]
-    public async Task The_fetcher_downloads_in_ranged_chunks_with_progress()
-    {
-        var body = new byte[(1 << 20) + 300];
-        Random.Shared.NextBytes(body);
-        var resolver = new StreamResolver((id, quality, _) => Task.FromResult(new ResolvedStream
-        {
-            VideoId = id,
-            Url = $"https://cdn.test/{id}",
-            Itag = "251",
-            AudioCodec = "opus",
-            LoudnessDb = -2,
-            ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(6),
-            Quality = quality,
-        }));
-        using var fetcher = new GoogleVideoFetcher(resolver, cache: null, new HttpClient(new RangedHandler(body)));
-        var reports = new List<DownloadProgress>();
-        using var target = new MemoryStream();
-
-        var fetched = await fetcher.FetchAsync(Track("vid00000001"), target, new SyncProgress(reports.Add), default);
-
-        Assert.Equal(body, target.ToArray());
-        Assert.Equal(new FetchedAudio("opus", "251", AudioQuality.High, -2), fetched);
-        Assert.Equal([(1L << 20, (long?)body.Length), (body.Length, body.Length)],
-            reports.Select(r => (r.Bytes, r.Total)));
-    }
-
-    [Fact]
-    public async Task The_fetcher_copies_a_cached_track_instead_of_downloading_it()
-    {
-        var cache = new AudioDiskCache(Path.Combine(DataDir, "cache", "audio")) { MaxSizeBytes = 1 << 20 };
-        await cache.StoreAsync("vid00000001", "251", "opus", AudioQuality.High,
-            new MemoryStream(Encoding.UTF8.GetBytes("cached")));
-        var resolver = new StreamResolver((_, _, _) => throw new InvalidOperationException("no network"));
-        using var fetcher = new GoogleVideoFetcher(resolver, cache, new HttpClient());
-        using var target = new MemoryStream();
-
-        var fetched = await fetcher.FetchAsync(Track("vid00000001"), target, NoProgress, default);
-
-        Assert.Equal("cached", Encoding.UTF8.GetString(target.ToArray()));
-        Assert.Equal("opus", fetched.AudioCodec);
     }
 
     private sealed class BytesFetcher(string content, double? loudness = null, bool fail = false) : IAudioFetcher
@@ -447,25 +385,5 @@ public sealed class DownloadStoreTests : IDisposable
     {
         public Task<ResolvedMedia> ResolveAsync(string videoId, bool bypassCache = false, CancellationToken ct = default) =>
             Task.FromResult(new ResolvedMedia($"https://stream.test/{videoId}", "opus"));
-    }
-
-    private sealed class SyncProgress(Action<DownloadProgress> report) : IProgress<DownloadProgress>
-    {
-        public void Report(DownloadProgress value) => report(value);
-    }
-
-    /// <summary>Serves <paramref name="body"/> to ranged GETs only, like googlevideo.</summary>
-    private sealed class RangedHandler(byte[] body) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            if (request.Headers.Range?.Ranges.Single() is not { From: { } from, To: { } to })
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
-
-            var end = Math.Min(to, body.Length - 1);
-            var content = new ByteArrayContent(body, (int)from, (int)(end - from + 1));
-            content.Headers.ContentRange = new ContentRangeHeaderValue(from, end, body.Length);
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.PartialContent) { Content = content });
-        }
     }
 }

@@ -2,7 +2,7 @@ using System.Text.Json;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Downloads;
 
-namespace Rambutan.Streams;
+namespace Rambutan.LocalLibrary;
 
 /// <summary>
 /// The kept copies of downloaded albums and playlists, in

@@ -1,4 +1,6 @@
-namespace Rambutan.Streams.Tests;
+using Rambutan.Core.Models;
+
+namespace Rambutan.Core.Tests;
 
 public class ArtworkUrlsTests
 {

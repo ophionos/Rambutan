@@ -5,7 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Rambutan.App.Localization;
 using Rambutan.App.Services;
-using Rambutan.Streams;
+using Rambutan.LocalLibrary;
 
 namespace Rambutan.App.ViewModels;
 

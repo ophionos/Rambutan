@@ -7,7 +7,7 @@ using Rambutan.Core.Downloads;
 using Rambutan.Core.Models;
 using Rambutan.Core.Queue;
 using Rambutan.Core.Settings;
-using Rambutan.Streams;
+using Rambutan.LocalLibrary;
 
 namespace Rambutan.App.Tests;
 

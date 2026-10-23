@@ -1,7 +1,7 @@
 using Rambutan.Core.Downloads;
 using Rambutan.Core.Models;
 
-namespace Rambutan.Streams.Tests;
+namespace Rambutan.LocalLibrary.Tests;
 
 public sealed class KeptCollectionStoreTests : IDisposable
 {

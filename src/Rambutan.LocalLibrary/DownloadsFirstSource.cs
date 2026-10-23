@@ -1,6 +1,6 @@
 using Rambutan.Core.Playback;
 
-namespace Rambutan.Streams;
+namespace Rambutan.LocalLibrary;
 
 /// <summary>
 /// <see cref="IStreamSource"/> decorator that plays a track's download when it has

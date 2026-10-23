@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Net.Http;
 using Rambutan.App.Services.Demo;
-using Rambutan.Streams;
+using Rambutan.Core.Models;
 
 namespace Rambutan.App.Tests;
 
