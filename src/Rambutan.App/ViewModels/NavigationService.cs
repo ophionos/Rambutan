@@ -121,6 +121,11 @@ public partial class NavigationService : ViewModelBase
     {
         if (oldValue is LibraryPageViewModel library && !ReferenceEquals(newValue, library))
             library.OnHidden();
+        // A local playlist follows its file and the scans only while it shows.
+        if (oldValue is LocalPlaylistPageViewModel left && !ReferenceEquals(newValue, left))
+            left.Hide();
+        if (newValue is LocalPlaylistPageViewModel shown && !ReferenceEquals(oldValue, shown))
+            _ = shown.ShowAsync();
     }
 
     public void GoTo(ViewModelBase page, NavSection section = NavSection.None) =>
@@ -159,6 +164,15 @@ public partial class NavigationService : ViewModelBase
         var page = new PlaylistPageViewModel(_catalog, _coordinator, this, _actions, playlistId);
         Push(page);
         _ = page.LoadAsync();
+    }
+
+    /// <summary>A playlist on this computer. Null-safe where local playlists
+    /// aren't composed: nothing opens.</summary>
+    public void OpenLocalPlaylist(string id)
+    {
+        if (_local?.PlaylistLibrary is not { } library)
+            return;
+        Push(new LocalPlaylistPageViewModel(library, id, _local.Scans, _coordinator, this, _actions));
     }
 
     /// <summary>The Moods &amp; genres grid, from Home's header.</summary>

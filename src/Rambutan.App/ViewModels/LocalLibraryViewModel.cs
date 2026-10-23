@@ -15,6 +15,7 @@ using Rambutan.Core.Downloads;
 using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Playlists;
 
 namespace Rambutan.App.ViewModels;
 
@@ -55,6 +56,25 @@ public sealed record LocalTrackRow(LocalFile? File, TrackInfo Track, DownloadedT
     }
 }
 
+/// <summary>A playlist on this computer, as the Playlists filter lists it.</summary>
+public sealed record LocalPlaylistRow(LocalPlaylist Playlist) : IHasAccessibleName
+{
+    // A changed playlist is a new row.
+    public event PropertyChangedEventHandler? PropertyChanged { add { } remove { } }
+
+    public string Name => Playlist.Name;
+
+    /// <summary>"12 songs • 48 min"; "No songs yet" for an empty one.</summary>
+    public string Summary => Playlist.Items.Count == 0
+        ? Strings.Get("localPlaylist.noSongs")
+        : Rambutan.App.Converters.DurationFormat.Summary(Playlist.Items.Select(i => i.Track).ToList());
+
+    /// <summary>The first song's cover, if it has one.</summary>
+    public TrackInfo? Cover => Playlist.Items.FirstOrDefault()?.Track;
+
+    public string AccessibleName => Strings.Format("queue.row.nameWithArtist", ("title", Name), ("artist", Summary));
+}
+
 /// <summary>
 /// Library → On this computer: the readable files in the watched folders and
 /// the downloads, as the filter lists them (<see cref="LocalListing"/>), and
@@ -78,13 +98,36 @@ public partial class LocalLibraryViewModel : ViewModelBase
     /// aren't composed, and then only the folders' files are listed.</summary>
     public DownloadsViewModel? Downloads { get; }
 
-    public IReadOnlyList<LocalSource> Filters { get; } = Enum.GetValues<LocalSource>();
+    /// <summary>The playlists on this computer; null where they aren't composed.</summary>
+    public LocalPlaylistLibrary? PlaylistLibrary { get; }
+
+    public LocalLibraryScans Scans => _scans;
+
+    /// <summary>The Playlists filter's rows, the one changed last first.</summary>
+    public ObservableCollection<LocalPlaylistRow> Playlists { get; } = [];
+
+    /// <summary>All and Folders, then Downloads and Playlists where they are composed.</summary>
+    public IReadOnlyList<LocalSource> Filters { get; }
+
+    /// <summary>All and Folders alone don't need a choice shown.</summary>
+    public bool ShowsFilters => Filters.Count > 2;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsDownloadsFilter))]
+    [NotifyPropertyChangedFor(nameof(IsDownloadsFilter), nameof(IsPlaylistsFilter), nameof(ListsFiles))]
     private LocalSource _filter;
 
     public bool IsDownloadsFilter => Filter == LocalSource.Downloads;
+
+    public bool IsPlaylistsFilter => Filter == LocalSource.Playlists;
+
+    /// <summary>The filter lists the watched folders' files, so the scan and Rescan belong to it.</summary>
+    public bool ListsFiles => Filter is LocalSource.All or LocalSource.Folders;
+
+    /// <summary>The Playlists filter has none to list.</summary>
+    [ObservableProperty] private bool _noPlaylists;
+
+    /// <summary>New playlist works: the playlists aren't read-only.</summary>
+    [ObservableProperty] private bool _canCreatePlaylist;
 
     /// <summary>The filter lists the folders' files, and no folder is watched:
     /// it offers Settings. Under All, only while there is no download either.</summary>
@@ -108,13 +151,24 @@ public partial class LocalLibraryViewModel : ViewModelBase
     /// <param name="post">Runs on the UI thread; tests pass their own.</param>
     public LocalLibraryViewModel(
         LocalLibraryScans scans, PlaybackCoordinator? coordinator,
-        Func<IReadOnlyList<string>> folders, Action<Action>? post = null, DownloadsViewModel? downloads = null)
+        Func<IReadOnlyList<string>> folders, Action<Action>? post = null, DownloadsViewModel? downloads = null,
+        LocalPlaylistLibrary? playlists = null)
     {
         _scans = scans;
         _coordinator = coordinator;
         _folders = folders;
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
         Downloads = downloads;
+        PlaylistLibrary = playlists;
+        Filters =
+        [
+            LocalSource.All, LocalSource.Folders,
+            .. downloads is null ? Array.Empty<LocalSource>() : [LocalSource.Downloads],
+            .. playlists is null ? Array.Empty<LocalSource>() : [LocalSource.Playlists],
+        ];
+        // Raised on the thread that made the change.
+        if (playlists is not null)
+            playlists.Changed += () => _post(RefreshIfShown);
         // Only while shown: a library of thousands isn't sorted for no one.
         scans.Changed += () => _post(RefreshIfShown);
         if (downloads is not null)
@@ -187,6 +241,9 @@ public partial class LocalLibraryViewModel : ViewModelBase
                 .Select(item => new LocalTrackRow(item.File, item.Track, item.Download))
                 .ToList());
             Apply(Tracks, rows);
+            ApplyPlaylists(filter == LocalSource.Playlists && PlaylistLibrary is { } library
+                ? library.All.Select(p => new LocalPlaylistRow(p)).ToList()
+                : []);
             UpdateStatus();
         } while (_refreshAgain);
     }
@@ -203,8 +260,16 @@ public partial class LocalLibraryViewModel : ViewModelBase
             LocalSource.All => Tracks.Count == 0 && !hasJobs,
             _ => false,
         };
-        IsEmpty = HasFolders && !IsDownloadsFilter && !IsScanning && Tracks.Count == 0;
+        IsEmpty = HasFolders && ListsFiles && !IsScanning && Tracks.Count == 0;
         NoDownloads = IsDownloadsFilter && Tracks.Count == 0 && !hasJobs;
+        NoPlaylists = IsPlaylistsFilter && Playlists.Count == 0;
+        CanCreatePlaylist = PlaylistLibrary is { IsReadOnly: false };
+        if (IsPlaylistsFilter)
+        {
+            Status = Playlists.Count == 0 ? "" : Strings.Format("library.local.statusPlaylists", ("count", Playlists.Count));
+            Problems = PlaylistLibrary is { IsReadOnly: true } library ? TrackActionsViewModel.ReadOnlyNote(library) : "";
+            return;
+        }
         if (IsDownloadsFilter)
         {
             // The space the downloads use, as Settings says it.
@@ -269,6 +334,21 @@ public partial class LocalLibraryViewModel : ViewModelBase
                 present.Add(row.Id);
             }
         }
+    }
+
+    /// <summary>The playlists are few, but a rename shouldn't move the focus off
+    /// the others: only the rows that changed are replaced.</summary>
+    private void ApplyPlaylists(IReadOnlyList<LocalPlaylistRow> wanted)
+    {
+        for (var i = 0; i < wanted.Count; i++)
+        {
+            if (i == Playlists.Count)
+                Playlists.Add(wanted[i]);
+            else if (Playlists[i].Playlist != wanted[i].Playlist)
+                Playlists[i] = wanted[i];
+        }
+        while (Playlists.Count > wanted.Count)
+            Playlists.RemoveAt(Playlists.Count - 1);
     }
 
     // The index and the store keep an unchanged entry's instances, so a new

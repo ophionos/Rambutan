@@ -334,7 +334,7 @@ file sink), never to files directly.
   that exists, else one made from the tags (`YouTubeMatches.Tagged`).
   Library has two sources, YouTube Music and On this computer
   (`LocalLibraryViewModel`), signed out too. There is no Downloads page: On
-  this computer has the source filters All, Folders and Downloads
+  this computer has the source filters All, Folders, Downloads and Playlists
   (`Core/Local/LocalListing`), and the jobs running or failed above them
   (`DownloadsViewModel`, one for the app's lifetime). All is the folders'
   files and the present downloads in library order, a download sorting by
@@ -343,7 +343,16 @@ file sink), never to files directly.
   download, newest first, a missing one dimmed with Download again, and only
   that filter shows the space used and Export. A download row has Remove
   under each filter; a folder file has none. With no watched folder,
-  All (when nothing else lists) and Folders offer Settings.
+  All (when nothing else lists) and Folders offer Settings. Playlists lists
+  the local playlists (`Core/Playlists/LocalPlaylistLibrary`), the one changed
+  last first, with New playlist; it needs no folder. A local playlist opens as
+  its own page (`LocalPlaylistPageViewModel`), never through `ICatalog`, and
+  edits as the account's own YouTube Music playlist does. Each time it shows,
+  its rows are found again (`LocalPlaylists.ResolveAll`: by id, then path, then
+  one file with the same tags) and what was found is kept; a file not found is
+  dimmed, named missing, and left out of what plays. While it shows, it
+  follows the playlists' file and the scans. A read-only file (a newer
+  build's, or unreadable and left in place) offers no edits and says why.
   A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
   `LocalFileIndex.OpenAsync`) plays a download's file as its download's
   track, and otherwise keeps the id the index has for its path, else

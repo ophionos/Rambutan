@@ -74,6 +74,7 @@ public static class Converters
         {
             LocalSource.Folders => "library.local.filter.folders",
             LocalSource.Downloads => "library.local.filter.downloads",
+            LocalSource.Playlists => "library.local.filter.playlists",
             _ => "library.local.filter.all",
         }));
 

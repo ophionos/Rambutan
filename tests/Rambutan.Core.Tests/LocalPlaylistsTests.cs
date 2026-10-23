@@ -59,6 +59,31 @@ public class LocalPlaylistsTests
     }
 
     [Theory]
+    [InlineData(1, "axb")]
+    [InlineData(0, "xab")]
+    [InlineData(9, "abx")]
+    [InlineData(-1, "xab")]
+    public void Insert_puts_the_row_back_at_its_place(int index, string expected)
+    {
+        var playlist = Playlist(LocalPlaylistItem.Of(Song("a")), LocalPlaylistItem.Of(Song("b")));
+
+        var next = LocalPlaylists.Insert(playlist, index, LocalPlaylistItem.Of(Song("x")), Now);
+
+        Assert.Equal(expected, string.Concat(next.Items.Select(i => i.Track.VideoId)));
+        Assert.Equal(Now, next.ChangedAt);
+    }
+
+    [Fact]
+    public void Insert_puts_back_a_song_the_playlist_still_holds()
+    {
+        var playlist = Playlist(LocalPlaylistItem.Of(Song("a")));
+
+        var next = LocalPlaylists.Insert(playlist, 0, LocalPlaylistItem.Of(Song("a")), Now);
+
+        Assert.Equal(["a", "a"], next.Items.Select(i => i.Track.VideoId));
+    }
+
+    [Theory]
     [InlineData(0, 2, "bca")]
     [InlineData(2, 0, "cab")]
     [InlineData(1, 1, "abc")]

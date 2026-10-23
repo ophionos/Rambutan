@@ -14,6 +14,10 @@ public enum LocalSource
 
     /// <summary>The downloads, missing ones too.</summary>
     Downloads,
+
+    /// <summary>The playlists on this computer; it lists playlists, not files,
+    /// so <see cref="LocalListing.For"/> has no rows for it.</summary>
+    Playlists,
 }
 
 /// <summary>A row of On this computer: a watched folder's file, playing under
@@ -40,6 +44,8 @@ public static class LocalListing
         LocalPaths? paths = null)
     {
         paths ??= LocalPaths.Platform;
+        if (source == LocalSource.Playlists)
+            return [];
         if (source == LocalSource.Downloads)
             return downloads.Select(d => new LocalListItem(d.Track, Download: d)).ToList();
 

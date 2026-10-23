@@ -73,7 +73,7 @@
           <Button.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
               <Binding Path="Local.HasFolders" />
-              <Binding Path="!Local.IsDownloadsFilter" />
+              <Binding Path="Local.ListsFiles" />
             </MultiBinding>
           </Button.IsVisible>
           <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
@@ -82,7 +82,7 @@
           <ProgressBar.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
               <Binding Path="Local.IsScanning" />
-              <Binding Path="!Local.IsDownloadsFilter" />
+              <Binding Path="Local.ListsFiles" />
             </MultiBinding>
           </ProgressBar.IsVisible>
         </ProgressBar>
@@ -303,7 +303,7 @@
                          SelectedItem="{Binding Filter}"
                          SelectionMode="AlwaysSelected"
                          Background="Transparent"
-                         IsVisible="{Binding Downloads, Converter={x:Static ObjectConverters.IsNotNull}}">
+                         IsVisible="{Binding ShowsFilters}">
         <controls:ChipList.ItemTemplate>
           <DataTemplate x:DataType="local:LocalSource">
             <TextBlock Text="{Binding Converter={x:Static vm:Converters.LocalSourceName}}" />
@@ -413,7 +413,54 @@
         </StackPanel>
       </StackPanel>
 
+      <!-- The Playlists filter: New playlist, as the YouTube Music side has. -->
+      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="4,0,16,12">
+        <StackPanel.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="IsPlaylistsFilter" />
+            <Binding Path="CanCreatePlaylist" />
+          </MultiBinding>
+        </StackPanel.IsVisible>
+        <Button Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).NewLocalPlaylistCommand}"
+                AutomationProperties.Name="{l:T library.newPlaylist}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+            <TextBlock Text="{l:T library.newPlaylist}" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+
       <Panel>
+        <StackPanel Margin="0,0,12,0" Classes="empty" IsVisible="{Binding NoPlaylists}">
+          <PathIcon Data="{StaticResource Icon.Queue}" />
+          <TextBlock Classes="title" Text="{l:T library.local.noPlaylistsTitle}" />
+          <TextBlock Classes="hint" Text="{l:T library.local.noPlaylistsHint}" />
+        </StackPanel>
+
+        <ListBox Classes="tracks" Background="Transparent" Margin="4,0,12,0"
+                 ItemsSource="{Binding Playlists}"
+                 IsVisible="{Binding !!Playlists.Count}"
+                 AutomationProperties.Name="{l:T library.local.playlistsName}"
+                 controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).OpenLocalPlaylistCommand}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:LocalPlaylistRow">
+              <Grid ColumnDefinitions="Auto,*" Margin="0,2" Background="Transparent">
+                <Border Classes="rowart">
+                  <Panel>
+                    <PathIcon Data="{StaticResource Icon.Queue}" Width="16" Height="16" Opacity="0.35" />
+                    <controls:RemoteImage Url="{Binding Cover, Converter={x:Static conv:ArtworkConverter.Instance}}"
+                                          Stretch="UniformToFill" DecodeWidth="96" />
+                  </Panel>
+                </Border>
+                <StackPanel Grid.Column="1" Classes="rowtext" Spacing="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                  <TextBlock Classes="rowtitle" Text="{Binding Name}" />
+                  <TextBlock Classes="rowmeta" Text="{Binding Summary}" />
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
         <StackPanel Margin="0,0,12,0" Classes="empty" IsVisible="{Binding NeedsFolders}">
           <PathIcon Data="{StaticResource Icon.MusicNote}" />
           <TextBlock Classes="title" Text="{l:T library.local.noFoldersTitle}" />
@@ -442,7 +489,7 @@
             <MultiBinding Converter="{x:Static BoolConverters.And}">
               <Binding Path="IsScanning" />
               <Binding Path="!Tracks.Count" />
-              <Binding Path="!IsDownloadsFilter" />
+              <Binding Path="ListsFiles" />
             </MultiBinding>
           </StackPanel.IsVisible>
           <Border Classes="skeleton" Height="48" CornerRadius="8" />

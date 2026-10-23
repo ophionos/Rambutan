@@ -598,7 +598,8 @@ public partial class TrackActionsViewModel : ViewModelBase
         return new(offersYouTube, playlists, youTubeNote, canCreate, true, local, localNote, readOnly);
     }
 
-    private static string ReadOnlyNote(LocalPlaylistLibrary library) =>
+    /// <summary>Why the local playlists can't be changed.</summary>
+    internal static string ReadOnlyNote(LocalPlaylistLibrary library) =>
         Strings.Get(library.Problem is LocalPlaylistsProblem.Newer
             ? "localPlaylists.readOnly.newer"
             : "localPlaylists.readOnly.unreadable");

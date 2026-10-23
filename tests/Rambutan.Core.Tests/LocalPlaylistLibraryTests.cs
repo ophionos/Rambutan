@@ -100,7 +100,10 @@ public class LocalPlaylistLibraryTests
 
         Assert.True(library.Move(id, 0, 2));
         Assert.True(library.RemoveAt(id, 0));
+        Assert.True(library.Insert(id, 0, LocalPlaylistItem.Of(Song("b"))));
+        Assert.True(library.RemoveAt(id, 0));
         Assert.True(library.Rename(id, "Renamed"));
+        Assert.False(library.Insert("nope", 0, LocalPlaylistItem.Of(Song("b"))));
         Assert.Equal(["c", "a"], library.Find(id)!.Items.Select(i => i.Track.VideoId));
         Assert.Equal("Renamed", library.Find(id)!.Name);
 
@@ -108,7 +111,7 @@ public class LocalPlaylistLibraryTests
         Assert.False(library.Delete(id));
         Assert.Null(library.Find(id));
         Assert.Empty(store.Saves[^1]);
-        Assert.Equal(5, store.Saves.Count);
+        Assert.Equal(7, store.Saves.Count);
     }
 
     [Fact]

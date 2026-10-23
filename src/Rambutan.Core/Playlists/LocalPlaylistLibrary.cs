@@ -166,6 +166,9 @@ public sealed class LocalPlaylistLibrary
 
     public bool RemoveAt(string id, int index) => Update(id, p => LocalPlaylists.RemoveAt(p, index, _now()));
 
+    public bool Insert(string id, int index, LocalPlaylistItem item) =>
+        Update(id, p => LocalPlaylists.Insert(p, index, item, _now()));
+
     public bool Move(string id, int from, int to) => Update(id, p => LocalPlaylists.Move(p, from, to, _now()));
 
     /// <summary>Throws <see cref="ArgumentException"/> for a blank name.</summary>

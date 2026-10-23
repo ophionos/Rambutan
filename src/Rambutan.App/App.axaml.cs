@@ -607,7 +607,8 @@ public partial class App : Application
         services.AddSingleton(sp => new LocalLibraryViewModel(
             sp.GetRequiredService<LocalLibraryScans>(), sp.GetRequiredService<PlaybackCoordinator>(),
             () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [],
-            downloads: sp.GetRequiredService<DownloadsViewModel>()));
+            downloads: sp.GetRequiredService<DownloadsViewModel>(),
+            playlists: sp.GetRequiredService<LocalPlaylistLibrary>()));
         services.AddSingleton<NavigationService>();
         services.AddSingleton(sp => new QueueViewModel(
             sp.GetRequiredService<QueueModel>(), sp.GetRequiredService<PlaybackCoordinator>(),

@@ -35,6 +35,16 @@ public static class LocalPlaylists
         return playlist with { Items = items, ChangedAt = now };
     }
 
+    /// <summary>Puts <paramref name="item"/> back at <paramref name="index"/>
+    /// (clamped to the rows there are), as Undo of a remove does: a song the
+    /// playlist holds goes in again, since a copy can hold it twice.</summary>
+    public static LocalPlaylist Insert(LocalPlaylist playlist, int index, LocalPlaylistItem item, DateTimeOffset now)
+    {
+        var items = playlist.Items.ToList();
+        items.Insert(Math.Clamp(index, 0, items.Count), item);
+        return playlist with { Items = items, ChangedAt = now };
+    }
+
     /// <summary>Moves the row at <paramref name="from"/> so it ends up at
     /// <paramref name="to"/>. Out of range, or no move, changes nothing.</summary>
     public static LocalPlaylist Move(LocalPlaylist playlist, int from, int to, DateTimeOffset now)
