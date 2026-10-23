@@ -153,6 +153,26 @@ public class DownloadQueueTests
         Assert.Equal(1, new DownloadProgress(300, 200).Fraction);
     }
 
+    [Fact]
+    public async Task ADownloadThatFinishesAfterItsCancel_IsAnnounced_OutsideTheLock()
+    {
+        var store = new FakeDownloadStore { IgnoresCancel = true };
+        var queue = new DownloadQueue(store);
+        var announced = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        // A subscriber that waits for another thread reading the queue: under the
+        // queue's lock this would never finish.
+        queue.DownloadsChanged += _ => announced.TrySetResult(Task.Run(() => queue.Jobs).Wait(TimeSpan.FromSeconds(2)));
+
+        queue.Enqueue([Track("a")]);
+        await store.WaitStartedAsync("a");
+        queue.Cancel("a");
+        store.Finish("a");
+
+        Assert.True(await announced.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.True(queue.IsDownloaded("a"));
+        Assert.Empty(queue.Jobs);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
@@ -174,6 +194,10 @@ public class DownloadQueueTests
         public readonly HashSet<string> Done = [];
         public readonly List<string> Cancelled = [];
         public IReadOnlyList<PendingDownload> Pending { get; private set; } = [];
+
+        /// <summary>Finishes a download even after it was cancelled, as a store
+        /// that commits before it sees the token does.</summary>
+        public bool IgnoresCancel { get; init; }
 
         /// <summary>The order each started download was handed, by videoId.</summary>
         public readonly Dictionary<string, DownloadOrder> Orders = [];
@@ -208,7 +232,7 @@ public class DownloadQueueTests
 
             try
             {
-                await running.Completion.Task.WaitAsync(ct);
+                await running.Completion.Task.WaitAsync(IgnoresCancel ? CancellationToken.None : ct);
             }
             catch (OperationCanceledException)
             {
