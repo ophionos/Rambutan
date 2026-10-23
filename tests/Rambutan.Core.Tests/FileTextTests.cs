@@ -1,17 +1,17 @@
 using System.Text;
-using Rambutan.Lyrics.Parsing;
+using Rambutan.Core.Text;
 
-namespace Rambutan.Lyrics.Tests;
+namespace Rambutan.Core.Tests;
 
-public class LrcFileTextTests
+public class FileTextTests
 {
     private const string Line = "[00:01.00]Café";
 
-    static LrcFileTextTests() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    static FileTextTests() => Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
     [Fact]
     public void Valid_utf8_is_utf8_whatever_the_legacy_page() =>
-        Assert.Equal(Line, LrcFileText.Decode(Encoding.UTF8.GetBytes(Line), Encoding.GetEncoding(936)));
+        Assert.Equal(Line, FileText.Decode(Encoding.UTF8.GetBytes(Line), Encoding.GetEncoding(936)));
 
     [Theory]
     [InlineData("utf-8")]
@@ -23,7 +23,7 @@ public class LrcFileTextTests
         var encoding = Encoding.GetEncoding(name);
         byte[] bytes = [.. encoding.GetPreamble(), .. encoding.GetBytes(Line)];
 
-        Assert.Equal(Line, LrcFileText.Decode(bytes, Encoding.Latin1));
+        Assert.Equal(Line, FileText.Decode(bytes, Encoding.Latin1));
     }
 
     [Theory]
@@ -35,7 +35,7 @@ public class LrcFileTextTests
     {
         var legacy = Encoding.GetEncoding(codePage);
 
-        Assert.Equal(text, LrcFileText.Decode(legacy.GetBytes(text), legacy));
+        Assert.Equal(text, FileText.Decode(legacy.GetBytes(text), legacy));
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class LrcFileTextTests
     {
         // Windows-1252 outside Windows, and the ANSI code page of CI's and most
         // Western systems; no replacement characters either way.
-        var text = LrcFileText.Decode(Encoding.GetEncoding(1252).GetBytes(Line));
+        var text = FileText.Decode(Encoding.GetEncoding(1252).GetBytes(Line));
 
         Assert.DoesNotContain('�', text);
         Assert.StartsWith("[00:01.00]Caf", text);

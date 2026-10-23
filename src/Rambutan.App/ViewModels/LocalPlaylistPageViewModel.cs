@@ -14,6 +14,7 @@ using Rambutan.App.Services;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Playlists;
+using Rambutan.LocalLibrary;
 
 namespace Rambutan.App.ViewModels;
 
@@ -305,6 +306,47 @@ public partial class LocalPlaylistPageViewModel : ViewModelBase, ITrackMenuHost
         {
             Title = name;
             _actions.Report(Strings.Get("toast.playlist.renamed"));
+        }
+    }
+
+    /// <summary>Picks where to save the playlist file, from a suggested file
+    /// name; null when nothing was picked. Set by the view.</summary>
+    public Func<string, Task<PickedFile?>>? PickExportFile { get; set; }
+
+    /// <summary>
+    /// Writes the playlist's files as an <c>.m3u8</c>, each where it is now (a
+    /// missing one where it was last), YouTube Music songs left out and counted
+    /// (<see cref="M3u"/>). It changes nothing, so a read-only playlist exports too.
+    /// </summary>
+    [RelayCommand]
+    private async Task ExportAsync()
+    {
+        if (PickExportFile is null || Rows.Count == 0)
+            return;
+        var items = Rows.Select(r => r.Item).ToList();
+        if (!items.Any(i => i.IsLocal))
+        {
+            _actions.Report(Strings.Format("toast.localPlaylist.nothingToExport", ("title", Title)));
+            return;
+        }
+        if (await PickExportFile(Rambutan.Core.Downloads.DownloadExport.SafeName(Title) + M3u.Extension) is not { } picked)
+            return;
+        if (picked.LocalPath is not { } path)
+        {
+            _actions.ReportError(Strings.Get("toast.localPlaylist.exportNotLocal"));
+            return;
+        }
+        try
+        {
+            var (written, leftOut) = await M3uPlaylistFiles.WriteAsync(items, path);
+            var message = Strings.Format("toast.localPlaylist.exported", ("count", written), ("name", System.IO.Path.GetFileName(path)));
+            if (leftOut > 0)
+                message += " " + Strings.Format("toast.localPlaylist.exportLeftOut", ("count", leftOut));
+            _actions.Report(message);
+        }
+        catch (Exception ex)
+        {
+            _actions.ReportError(Strings.Format("toast.localPlaylist.exportFailed", ("error", ex.Message)));
         }
     }
 

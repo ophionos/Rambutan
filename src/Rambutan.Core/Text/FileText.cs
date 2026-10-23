@@ -1,16 +1,17 @@
 using System.Text;
 using System.Text.Unicode;
 
-namespace Rambutan.Lyrics.Parsing;
+namespace Rambutan.Core.Text;
 
 /// <summary>
-/// The text of a lyrics file from its bytes. A byte order mark names the
-/// encoding. Without one, bytes that are valid UTF-8 are UTF-8, and anything
-/// else is in the legacy code page older <c>.lrc</c> files were written in: the
-/// system's ANSI code page on Windows (GBK, Big5, Shift-JIS, Windows-1252…),
-/// and Windows-1252 elsewhere, which has none. The maintainer's decision.
+/// The text of a lyrics file or a playlist from its bytes. A byte order mark
+/// names the encoding. Without one, bytes that are valid UTF-8 are UTF-8, and
+/// anything else is in the legacy code page older <c>.lrc</c> and <c>.m3u</c>
+/// files were written in: the system's ANSI code page on Windows (GBK, Big5,
+/// Shift-JIS, Windows-1252…), and Windows-1252 elsewhere, which has none. The
+/// maintainer's decision, for both.
 /// </summary>
-public static class LrcFileText
+public static class FileText
 {
     private const int Windows1252 = 1252;
     private const int Utf8CodePage = 65001;

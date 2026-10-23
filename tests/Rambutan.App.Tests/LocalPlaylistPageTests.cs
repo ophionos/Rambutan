@@ -325,6 +325,51 @@ public sealed class LocalPlaylistPageTests : IDisposable
         Assert.Equal(["A"], Titles(page));
     }
 
+    [Fact]
+    public async Task Export_WritesTheFiles_AndCountsTheSongsLeftOut()
+    {
+        var file = await FileAsync("a.mp3", "Bonnie Tyler|Faster|1|Total Eclipse");
+        var page = await OpenAsync(LocalPlaylistItem.Of(file), LocalPlaylistItem.Of(Song("dQw4w9WgXcQ")));
+        var target = Path.Combine(_dir, "lists", "Out.m3u8");
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        string? suggested = null;
+        page.PickExportFile = name =>
+        {
+            suggested = name;
+            return Task.FromResult<PickedFile?>(new PickedFile(target));
+        };
+
+        await page.ExportCommand.ExecuteAsync(null);
+
+        Assert.Equal("Evening walk.m3u8", suggested);
+        Assert.Contains(Path.Combine("..", "music", "a.mp3"), File.ReadAllText(target));
+        Assert.Equal("Saved 1 file to Out.m3u8. 1 YouTube Music song was left out.", LastToast);
+    }
+
+    [Fact]
+    public async Task Export_OfSongsOnly_SaysThereIsNothing_WithoutAskingWhere()
+    {
+        var page = await OpenAsync(LocalPlaylistItem.Of(Song("dQw4w9WgXcQ")));
+        page.PickExportFile = _ => throw new InvalidOperationException("asked");
+
+        await page.ExportCommand.ExecuteAsync(null);
+
+        Assert.Equal("“Evening walk” has no files on this computer to export.", LastToast);
+    }
+
+    [Fact]
+    public async Task Export_ToAPlaceWithNoPath_SaysSo()
+    {
+        var file = await FileAsync("a.mp3", "A|B|1|C");
+        var page = await OpenAsync(LocalPlaylistItem.Of(file));
+        page.PickExportFile = _ => Task.FromResult<PickedFile?>(new PickedFile(null));
+
+        await page.ExportCommand.ExecuteAsync(null);
+
+        Assert.True(_toasts.Toasts[^1].IsError);
+        Assert.Equal("Choose a folder on this computer to save the playlist in.", LastToast);
+    }
+
     private sealed class TagReader : IMediaFileReader
     {
         public LocalFileTags? Read(string path)

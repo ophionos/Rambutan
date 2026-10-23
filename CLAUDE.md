@@ -232,7 +232,7 @@ file sink), never to files directly.
   lyrics found". Imported custom lyrics always win over providers.
   A local track's own lyrics come next (`Lyrics/Store/LocalLyrics`): the
   `.lrc` beside the file (found ignoring case; its bytes decoded by
-  `Lyrics/Parsing/LrcFileText`: a byte order mark, else UTF-8 if valid, else
+  `Core/Text/FileText`: a byte order mark, else UTF-8 if valid, else
   the system's ANSI code page, Windows-1252 off Windows), then an ID3v2
   tag's `SYLT` (`Lyrics/Parsing/SyltParser`; libav doesn't expose it), then
   its other tags (read through `FfmpegMediaFileReader.ReadLyrics`, which
@@ -360,6 +360,16 @@ file sink), never to files directly.
   A YouTube Music playlist's card menu and page copy it to a new local
   playlist (`CollectionActionsViewModel.CopyToLocalAsync`): every page of it,
   duplicates kept, under a name asked for; the copy never changes it.
+  An M3U file imports as a new local playlist named after it, and a local
+  playlist exports as an `.m3u8` (`Core/Playlists/M3u`,
+  `LocalLibrary/M3uPlaylistFiles`). Import keeps the entries' order and
+  duplicates, skips URLs (not `file:` ones) and files that aren't playable
+  audio, and reads a plain `.m3u` as an `.lrc` is read. A path that isn't
+  there gets an index entry that is never seen (`LocalFile.IsNeverSeen`):
+  unlisted, kept only while a playlist holds it, and read under its id by
+  the scan or open that finds the file. Export writes paths relative to the
+  playlist file's folder where they can be (same drive), the files where
+  they are now, and leaves out YouTube Music songs, counted in the toast.
   A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
   `LocalFileIndex.OpenAsync`) plays a download's file as its download's
   track, and otherwise keeps the id the index has for its path, else

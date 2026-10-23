@@ -1,5 +1,6 @@
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Local;
+using Rambutan.Core.Text;
 using Rambutan.Lyrics.Models;
 using Rambutan.Lyrics.Parsing;
 
@@ -81,7 +82,7 @@ public sealed class LocalLyrics(
     {
         try
         {
-            return FindSidecar(audioPath) is { } lrc ? LrcFileText.Decode(File.ReadAllBytes(lrc)) : null;
+            return FindSidecar(audioPath) is { } lrc ? FileText.Decode(File.ReadAllBytes(lrc)) : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

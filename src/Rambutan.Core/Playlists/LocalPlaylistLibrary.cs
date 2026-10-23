@@ -151,6 +151,18 @@ public sealed class LocalPlaylistLibrary
         return copy;
     }
 
+    /// <summary>A new playlist holding <paramref name="items"/> as they are,
+    /// duplicates included, as a copy does: an imported playlist file.
+    /// Throws <see cref="ArgumentException"/> for a blank name.</summary>
+    public LocalPlaylist Import(string name, IEnumerable<LocalPlaylistItem> items)
+    {
+        var clean = LocalPlaylists.CleanName(name) ?? throw new ArgumentException("A playlist needs a name.", nameof(name));
+        var now = _now();
+        var imported = new LocalPlaylist(_newId(), clean, items.ToList(), now, now);
+        Change(list => list.Add(imported));
+        return imported;
+    }
+
     /// <summary>Appends what the playlist doesn't hold yet; how many were added,
     /// or null when there is no such playlist.</summary>
     public int? Add(string id, IEnumerable<LocalPlaylistItem> items)

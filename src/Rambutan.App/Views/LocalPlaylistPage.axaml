@@ -42,6 +42,10 @@
                   ToolTip.Tip="{l:T playlist.shuffleTip}" AutomationProperties.Name="{l:T common.shuffle}">
             <PathIcon Data="{StaticResource Icon.Shuffle}" Width="18" Height="18" />
           </Button>
+          <Button Classes="icon outline" Command="{Binding ExportCommand}" IsVisible="{Binding !!Rows.Count}"
+                  ToolTip.Tip="{l:T localPlaylist.exportTip}" AutomationProperties.Name="{l:T localPlaylist.export}">
+            <PathIcon Data="{StaticResource Icon.Export}" Width="18" Height="18" />
+          </Button>
           <Button Classes="icon outline" Command="{Binding RenameCommand}" IsVisible="{Binding IsEditable}"
                   ToolTip.Tip="{l:T common.rename}" AutomationProperties.Name="{l:T common.rename}">
             <PathIcon Data="{StaticResource Icon.Edit}" Width="18" Height="18" />
