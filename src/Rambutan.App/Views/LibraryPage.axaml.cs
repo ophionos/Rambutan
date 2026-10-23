@@ -39,6 +39,23 @@ public partial class LibraryPage : UserControl
         _vm = DataContext as LibraryPageViewModel;
         if (_vm is not null)
             _vm.PropertyChanged += OnViewModelChanged;
+        if (_vm is not null)
+            _vm.PickPlaylistFile = async () =>
+            {
+                if (TopLevel.GetTopLevel(this)?.StorageProvider is not { CanOpen: true } storage)
+                    return null;
+                var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
+                {
+                    Title = Strings.Get("library.local.importPickTitle"),
+                    AllowMultiple = false,
+                    FileTypeFilter =
+                    [
+                        new FilePickerFileType(Strings.Get("library.local.playlistFileType")) { Patterns = ["*.m3u8", "*.m3u"] },
+                        FilePickerFileTypes.All,
+                    ],
+                });
+                return files.Count == 0 ? null : new PickedFile(files[0].TryGetLocalPath());
+            };
         if (_vm?.Local?.Downloads is { } downloads)
             downloads.PickFolder = async start =>
             {

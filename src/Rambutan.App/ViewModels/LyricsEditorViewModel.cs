@@ -126,7 +126,7 @@ public sealed partial class LyricsEditorViewModel : ViewModelBase
     private void KeepLyrics() => IsConfirmingRemove = false;
 
     /// <summary>Replaces the text with a file's contents (.lrc or .txt), in the
-    /// encoding <see cref="Rambutan.Lyrics.Parsing.LrcFileText"/> finds.</summary>
+    /// encoding <see cref="Rambutan.Core.Text.FileText"/> finds.</summary>
     public async Task LoadFileAsync(Stream stream)
     {
         try
@@ -143,7 +143,7 @@ public sealed partial class LyricsEditorViewModel : ViewModelBase
                 return;
             }
 
-            Text = Rambutan.Lyrics.Parsing.LrcFileText.Decode(buffer.AsSpan(0, read)).Replace("\r\n", "\n");
+            Text = Rambutan.Core.Text.FileText.Decode(buffer.AsSpan(0, read)).Replace("\r\n", "\n");
             Error = null;
         }
         catch (Exception ex)

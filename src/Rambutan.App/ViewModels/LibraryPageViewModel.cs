@@ -8,6 +8,7 @@ using Rambutan.Core.Catalog;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Playlists;
+using Rambutan.LocalLibrary;
 using Rambutan.App.Localization;
 
 namespace Rambutan.App.ViewModels;
@@ -223,6 +224,69 @@ public partial class LibraryPageViewModel : ViewModelBase
         catch (Exception ex)
         {
             _actions.ReportError(Strings.Format("toast.playlist.createFailed", ("error", ex.Message)));
+        }
+    }
+
+    /// <summary>Picks a playlist file to import; null when nothing was picked.
+    /// Set by the view, which has the window's storage provider.</summary>
+    public Func<Task<PickedFile?>>? PickPlaylistFile { get; set; }
+
+    /// <summary>A playlist file is being read: its files' tags take a while.</summary>
+    [ObservableProperty] private bool _isImportingPlaylist;
+
+    /// <summary>
+    /// Imports an M3U playlist as a new local playlist named after the file,
+    /// each entry in its order (rules in <see cref="M3u"/>), and offers to open it.
+    /// </summary>
+    [RelayCommand]
+    private async Task ImportLocalPlaylistAsync()
+    {
+        if (_actions is null || PickPlaylistFile is null || Local is not { PlaylistLibrary: { } library } local)
+            return;
+        if (library.IsReadOnly)
+        {
+            _actions.ReportError(TrackActionsViewModel.ReadOnlyNote(library));
+            return;
+        }
+        if (await PickPlaylistFile() is not { } picked)
+            return;
+        if (picked.LocalPath is not { } path)
+        {
+            _actions.ReportError(Strings.Get("toast.localPlaylist.importNotLocal"));
+            return;
+        }
+
+        IsImportingPlaylist = true;
+        try
+        {
+            var read = await M3uPlaylistFiles.ReadAsync(local.Scans.Index, path);
+            if (read.Items.Count == 0)
+            {
+                _actions.Report(Strings.Format("toast.localPlaylist.nothingToImport", ("name", read.Name)));
+                return;
+            }
+            var imported = library.Import(read.Name, read.Items);
+            var message = Strings.Format("toast.localPlaylist.imported", ("count", imported.Items.Count), ("name", imported.Name));
+            if (read.Skipped > 0)
+                message += " " + Strings.Format("toast.localPlaylist.importSkipped", ("count", read.Skipped));
+            _actions.Toasts.Offer(message, Strings.Get("common.open"), () =>
+            {
+                _navigation.OpenLocalPlaylist(imported.Id);
+                return Task.CompletedTask;
+            });
+        }
+        catch (LocalPlaylistsReadOnlyException)
+        {
+            _actions.ReportError(TrackActionsViewModel.ReadOnlyNote(library));
+        }
+        catch (Exception ex)
+        {
+            _actions.ReportError(Strings.Format("toast.localPlaylist.importFailed",
+                ("name", System.IO.Path.GetFileName(path)), ("error", ex.Message)));
+        }
+        finally
+        {
+            IsImportingPlaylist = false;
         }
     }
 

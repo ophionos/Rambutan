@@ -154,7 +154,7 @@ public sealed class LocalFileIndex : IDisposable
     }
 
     private bool IsListed(LocalFile file, IReadOnlyList<string> roots) =>
-        file.Download is null && roots.Any(r => _paths.IsUnder(file.Path, r));
+        file.Download is null && !file.IsNeverSeen && roots.Any(r => _paths.IsUnder(file.Path, r));
 
     /// <summary>The file with this id, wherever it is; null when the index has none.</summary>
     public LocalFile? Find(string id)
@@ -461,6 +461,36 @@ public sealed class LocalFileIndex : IDisposable
     }
 
     /// <summary>
+    /// The entries for <paramref name="paths"/> (full paths of files that aren't
+    /// there), in their order: the one the index has for a path, else a new one
+    /// that is missing and never seen (<see cref="LocalFile.IsNeverSeen"/>). A
+    /// scan or an open that finds the file later reads it under that id.
+    /// </summary>
+    public IReadOnlyList<LocalFile> Remember(IReadOnlyList<string> paths)
+    {
+        var entries = new List<LocalFile>(paths.Count);
+        lock (_lock)
+        {
+            var byPath = new Dictionary<string, LocalFile>(_paths.Comparer);
+            foreach (var file in _files.Values)
+                byPath.TryAdd(file.Path, file);
+            foreach (var path in paths)
+            {
+                if (!byPath.TryGetValue(path, out var file))
+                {
+                    file = new LocalFile(LocalIds.Format(_nextId++), path, 0, default, Tags: null,
+                        IsMissing: true, IsOpened: true);
+                    _files[file.Id] = byPath[path] = file;
+                    _dirty = true;
+                }
+                entries.Add(file);
+            }
+        }
+        SaveIfDirty();
+        return entries;
+    }
+
+    /// <summary>
     /// Forgets the opened files whose ids aren't in <paramref name="kept"/>; their
     /// ids aren't given again. A file in a watched folder by now stays, as a
     /// scanned one. Only while nothing else uses the index: the cover sweep would
@@ -473,7 +503,8 @@ public sealed class LocalFileIndex : IDisposable
         {
             foreach (var file in _files.Values.Where(f => f.IsOpened && !kept.Contains(f.Id)).ToList())
             {
-                if (file.Download is not null || roots.Any(r => _paths.IsUnder(file.Path, r)))
+                // One never seen would be listed as missing for good.
+                if (!file.IsNeverSeen && (file.Download is not null || roots.Any(r => _paths.IsUnder(file.Path, r))))
                     _files[file.Id] = file with { IsOpened = false };
                 else
                     _files.Remove(file.Id);

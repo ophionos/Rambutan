@@ -125,7 +125,8 @@ public sealed class DownloadExport(IExportWriter writer, Func<string, bool> file
         return SafeName(raw);
     }
 
-    internal static string SafeName(string raw)
+    /// <summary>The text made safe as a file name on Windows and Linux alike.</summary>
+    public static string SafeName(string raw)
     {
         var chars = raw.Select(c => c < 32 || InvalidChars.Contains(c) ? '_' : c).ToArray();
         var name = new string(chars).Trim();
