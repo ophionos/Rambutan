@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Playlists;
 using Rambutan.App.Localization;
 
 namespace Rambutan.App.ViewModels;
@@ -188,6 +189,41 @@ public partial class LibraryPageViewModel : ViewModelBase
         var tracks = Songs.Items.OfType<SongEntry>().Select(e => e.Track).ToList();
         var index = tracks.FindIndex(t => t.VideoId == song.Track.VideoId);
         return index >= 0 ? _coordinator.PlayQueueAsync(tracks, index) : Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private void OpenLocalPlaylist(LocalPlaylistRow? row)
+    {
+        if (row is not null)
+            _navigation.OpenLocalPlaylist(row.Playlist.Id);
+    }
+
+    /// <summary>On this computer's New playlist: an empty playlist, opened, so
+    /// its page says how songs get into it.</summary>
+    [RelayCommand]
+    private async Task NewLocalPlaylistAsync()
+    {
+        if (_actions?.TextPrompt is null || Local?.PlaylistLibrary is not { } library)
+            return;
+
+        var name = await _actions.TextPrompt(Strings.Get("prompt.newPlaylist"), "");
+        if (LocalPlaylists.CleanName(name) is not { } clean)
+            return;
+
+        try
+        {
+            var created = library.Create(clean);
+            _actions.Report(Strings.Format("toast.playlist.created", ("name", created.Name)));
+            _navigation.OpenLocalPlaylist(created.Id);
+        }
+        catch (LocalPlaylistsReadOnlyException)
+        {
+            _actions.ReportError(TrackActionsViewModel.ReadOnlyNote(library));
+        }
+        catch (Exception ex)
+        {
+            _actions.ReportError(Strings.Format("toast.playlist.createFailed", ("error", ex.Message)));
+        }
     }
 
     [RelayCommand]

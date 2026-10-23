@@ -21,6 +21,11 @@ public interface IMediaFileReader
 /// <param name="TrackGainDb">The ReplayGain track gain: the change in dB that
 /// brings the track to the ReplayGain reference level.</param>
 /// <param name="AlbumGainDb">The same for the album.</param>
+/// <param name="YouTubeVideoId">The YouTube video the file was exported from
+/// (<see cref="LocalTagValues.YouTubeVideoIdKey"/>); null when it names none, or
+/// names something that isn't a YouTube id.</param>
+/// <param name="YouTubeSongId">The album audio track it was exported as
+/// (<see cref="Models.TrackInfo.SongId"/>), when it had one.</param>
 public sealed record LocalFileTags(
     string Codec,
     TimeSpan? Duration = null,
@@ -34,7 +39,9 @@ public sealed record LocalFileTags(
     int? Year = null,
     double? TrackGainDb = null,
     double? AlbumGainDb = null,
-    LocalCover? Cover = null);
+    LocalCover? Cover = null,
+    string? YouTubeVideoId = null,
+    string? YouTubeSongId = null);
 
 /// <summary>An embedded cover picture.</summary>
 /// <param name="Extension">The file extension its format takes, with the dot

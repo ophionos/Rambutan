@@ -105,9 +105,18 @@ public static class TrackMenuModel
 
         var groups = new List<IReadOnlyList<MenuEntry>> { play };
         if (onYouTube)
+        {
             groups.Add(library);
-        else if (actions.YouTubeMatches?.StatusOf(track) is { } match)
-            groups.Add(MatchGroup(match, actions));
+        }
+        else
+        {
+            // Its own label: a match's group below has Save to playlist too,
+            // which saves the song, not the file.
+            if (actions.LocalPlaylists is not null)
+                groups.Add([new(Strings.Get("menu.saveToLocalPlaylist"), "Icon.AddToPlaylist", actions.AddToPlaylistCommand, track)]);
+            if (actions.YouTubeMatches?.StatusOf(track) is { } match)
+                groups.Add(MatchGroup(match, actions));
+        }
         groups.Add(navigate);
         if (extras.Edit is { Count: > 0 } edit)
             groups.Add(edit);

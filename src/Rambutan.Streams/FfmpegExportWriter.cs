@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Text;
 using Rambutan.Core.Downloads;
+using Rambutan.Core.Local;
+using Rambutan.Core.Models;
 
 namespace Rambutan.Streams;
 
@@ -13,6 +15,11 @@ namespace Rambutan.Streams;
 /// cover is a base64 <c>METADATA_BLOCK_PICTURE</c> comment (ffmpeg's Ogg muxer
 /// takes no picture stream), easily longer than a Windows command line allows.
 /// .m4a and .mp3 take the cover as an attached picture stream.
+/// </para>
+/// <para>
+/// The track's YouTube ids go in too (<see cref="LocalTagValues.YouTubeVideoIdKey"/>):
+/// a Vorbis comment, an ID3 <c>TXXX</c> frame, and in an .m4a, whose muxer drops
+/// tags it doesn't know, a freeform atom added afterwards (<see cref="Mp4FreeformTags"/>).
 /// </para>
 /// </summary>
 public sealed class FfmpegExportWriter(Func<CancellationToken, Task<string>> ffmpegPath) : IExportWriter
@@ -37,6 +44,9 @@ public sealed class FfmpegExportWriter(Func<CancellationToken, Task<string>> ffm
                 environment: FfmpegManager.ProcessEnvironment(ffmpeg));
             if (result.ExitCode != 0)
                 throw new InvalidOperationException($"ffmpeg exited with {result.ExitCode}: {LastLine(result.StdErr)}");
+            // Without them the file is still a good export, only not linked to its download.
+            if (job.Target == ExportTarget.M4a)
+                Mp4FreeformTags.Add(partPath, YouTubeIds(job.Track));
 
             // Never replaces a file that appeared meanwhile: the user's files are theirs.
             File.Move(partPath, job.OutputPath, overwrite: false);
@@ -80,14 +90,16 @@ public sealed class FfmpegExportWriter(Func<CancellationToken, Task<string>> ffm
         return args;
     }
 
-    /// <summary>The ffmetadata file: title, artist and album, plus the Ogg cover
-    /// as a Vorbis comment when <paramref name="oggCover"/> is given.</summary>
+    /// <summary>The ffmetadata file: title, artist, album and the YouTube ids,
+    /// plus the Ogg cover as a Vorbis comment when <paramref name="oggCover"/> is given.</summary>
     internal static string Metadata(ExportJob job, byte[]? oggCover)
     {
         var text = new StringBuilder(";FFMETADATA1\n");
         Add("title", job.Track.Title);
         Add("artist", job.Track.ArtistDisplay);
         Add("album", job.Track.Album);
+        foreach (var (name, value) in YouTubeIds(job.Track))
+            Add(name, value);
         if (oggCover is not null && PictureBlock(oggCover) is { } block)
             Add("METADATA_BLOCK_PICTURE", Convert.ToBase64String(block));
         return text.ToString();
@@ -97,6 +109,17 @@ public sealed class FfmpegExportWriter(Func<CancellationToken, Task<string>> ffm
             if (!string.IsNullOrWhiteSpace(value))
                 text.Append(key).Append('=').Append(Escape(value)).Append('\n');
         }
+    }
+
+    /// <summary>The tags that name the track's YouTube ids, those it has.</summary>
+    internal static IReadOnlyList<(string Name, string Value)> YouTubeIds(TrackInfo track)
+    {
+        var tags = new List<(string, string)>();
+        if (LocalTagValues.YouTubeId(track.VideoId) is { } video)
+            tags.Add((LocalTagValues.YouTubeVideoIdKey, video));
+        if (LocalTagValues.YouTubeId(track.SongId) is { } song)
+            tags.Add((LocalTagValues.YouTubeSongIdKey, song));
+        return tags;
     }
 
     /// <summary>ffmetadata escapes '=', ';', '#', '\' and newlines with a backslash.</summary>

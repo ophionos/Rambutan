@@ -175,11 +175,18 @@ public static class LocalScan
 /// embedded or there is none.</param>
 /// <param name="IsOpened">The user opened or dropped the file, outside the watched
 /// folders: it is kept only while a queue holds it.</param>
+/// <param name="Download">The download this file is, when the app downloaded it;
+/// null for the user's own files. A download plays under its YouTube id, never
+/// this file's id.</param>
 public sealed record LocalFile(
     string Id, string Path, long Size, DateTimeOffset ModifiedAt,
     LocalFileTags? Tags, string? CoverPath = null, bool IsMissing = false, FoundFile? FolderCover = null,
-    bool IsOpened = false)
+    bool IsOpened = false, LocalDownload? Download = null)
 {
+    /// <summary>A download no scan or open has read: it has no tags because
+    /// nothing looked, not because it isn't audio, so it isn't listed.</summary>
+    public bool IsUnreadDownload => Download is not null && Tags is null;
+
     public bool IsUnreadable => Tags is null;
 
     public KnownFile Known => new(Id, Path, Size, ModifiedAt, IsMissing);

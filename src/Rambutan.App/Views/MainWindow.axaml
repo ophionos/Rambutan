@@ -35,9 +35,6 @@
     <DataTemplate DataType="{x:Type vm:LibraryPageViewModel}">
       <views:LibraryPage />
     </DataTemplate>
-    <DataTemplate DataType="{x:Type vm:DownloadsPageViewModel}">
-      <views:DownloadsPage />
-    </DataTemplate>
     <DataTemplate DataType="{x:Type vm:SettingsPageViewModel}">
       <views:SettingsPage />
     </DataTemplate>
@@ -46,6 +43,9 @@
     </DataTemplate>
     <DataTemplate DataType="{x:Type vm:PlaylistPageViewModel}">
       <views:PlaylistPage />
+    </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:LocalPlaylistPageViewModel}">
+      <views:LocalPlaylistPage />
     </DataTemplate>
     <DataTemplate DataType="{x:Type vm:ArtistPageViewModel}">
       <views:ArtistPage />
@@ -678,13 +678,6 @@
               <StackPanel Orientation="Horizontal" Spacing="12">
                 <PathIcon Data="{StaticResource Icon.Library}" Width="20" Height="20" VerticalAlignment="Center" />
                 <TextBlock Text="{l:T nav.library}" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
-            <Button Classes="nav" Command="{Binding GoDownloadsCommand}" ToolTip.Tip="{l:T nav.downloads}"
-                    Classes.active="{Binding Navigation.Section, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:NavSection.Downloads}}">
-              <StackPanel Orientation="Horizontal" Spacing="12">
-                <PathIcon Data="{StaticResource Icon.Download}" Width="20" Height="20" VerticalAlignment="Center" />
-                <TextBlock Text="{l:T nav.downloads}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
             <Button Classes="nav" Command="{Binding GoSettingsCommand}" ToolTip.Tip="{l:T nav.settings}"

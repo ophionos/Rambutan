@@ -39,7 +39,7 @@ public class CollectionMenuTests
         public bool Contains(string videoId) => false;
         public Task DownloadAsync(TrackInfo track, DownloadOrder order, IProgress<DownloadProgress> progress, CancellationToken ct) =>
             Task.Delay(Timeout.Infinite, ct);
-        public void Delete(string videoId) { }
+        public void Delete(IReadOnlyCollection<string> videoIds) { }
         public IReadOnlyList<PendingDownload> LoadPending() => [];
         public void SavePending(IReadOnlyList<PendingDownload> pending) { }
     }

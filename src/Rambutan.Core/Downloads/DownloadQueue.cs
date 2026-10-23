@@ -182,11 +182,30 @@ public sealed class DownloadQueue(IDownloadStore store, int maxParallel = 2)
         job.Progress = default;
     }
 
-    public void Delete(string videoId)
+    public void Delete(string videoId) => Delete([videoId]);
+
+    /// <summary>Stops the tracks' jobs and deletes their downloads together: the
+    /// store saves its records once, not once per track.</summary>
+    public void Delete(IReadOnlyCollection<string> videoIds)
     {
-        Cancel(videoId);
-        store.Delete(videoId);
-        DownloadsChanged?.Invoke(videoId);
+        if (videoIds.Count == 0)
+            return;
+        var ids = videoIds.ToHashSet(StringComparer.Ordinal);
+        List<DownloadJob> stopped;
+        lock (_lock)
+        {
+            stopped = _jobs.Where(j => ids.Contains(j.Track.VideoId)).ToList();
+            foreach (var job in stopped)
+                _jobs.Remove(job);
+        }
+        foreach (var job in stopped)
+            job.Cts?.Cancel();
+        if (stopped.Count > 0)
+            Changed();
+
+        store.Delete(ids);
+        foreach (var id in ids)
+            DownloadsChanged?.Invoke(id);
     }
 
     private void Changed()

@@ -18,8 +18,8 @@ using Rambutan.Core.Playback;
 
 namespace Rambutan.App.ViewModels;
 
-/// <summary>A job on the downloads page: waiting, downloading with its
-/// progress, or failed with Retry.</summary>
+/// <summary>A job in On this computer's Downloading section: waiting,
+/// downloading with its progress, or failed with Retry.</summary>
 public partial class DownloadJobRow(TrackInfo track) : ObservableObject
 {
     public TrackInfo Track { get; } = track;
@@ -48,35 +48,22 @@ public partial class DownloadJobRow(TrackInfo track) : ObservableObject
             DownloadJobState.Queued => Strings.Get("downloads.waiting"),
             DownloadJobState.Failed => Strings.Get("downloads.failed"),
             _ when job.Progress is { Fraction: { } f, Total: { } total } => Strings.Format("downloads.progress",
-                ("percent", (int)(f * 100)), ("size", DownloadsPageViewModel.FormatSize(total))),
+                ("percent", (int)(f * 100)), ("size", DownloadsViewModel.FormatSize(total))),
             _ => Strings.Get("downloads.starting"),
         };
     }
 }
 
-/// <summary>A finished download. A missing one stays listed, says so, and
-/// offers to download it again rather than to play.</summary>
-public sealed record DownloadedRow(TrackInfo Track, bool IsMissing, string Size) : IHasAccessibleName
-{
-    /// <summary>The dimming is visual only, so a missing file goes into the name.</summary>
-    public string AccessibleName => IsMissing
-        ? Strings.Format("downloads.row.missing", ("name", AccessibleNames.For(Track)))
-        : AccessibleNames.For(Track) ?? Track.Title;
-
-    // Immutable: a changed row is a new row.
-    event PropertyChangedEventHandler? INotifyPropertyChanged.PropertyChanged { add { } remove { } }
-}
-
 /// <summary>
-/// The downloads page: jobs still running or failed on top, finished downloads
-/// below, newest first. One instance for the app's lifetime, so it follows the
-/// queue while it isn't on screen too; queue events arrive on job threads and
-/// are posted to the UI thread here.
+/// The downloads as On this computer shows them (<see cref="LocalLibraryViewModel"/>):
+/// the jobs still running or failed, the finished downloads with their space
+/// used, and what acts on them (remove, download again, export). One instance
+/// for the app's lifetime, so it follows the queue while it isn't on screen
+/// too; queue events arrive on job threads and are posted to the UI thread here.
 /// </summary>
-public partial class DownloadsPageViewModel : ViewModelBase
+public partial class DownloadsViewModel : ViewModelBase
 {
     private readonly DownloadQueue _queue;
-    private readonly PlaybackCoordinator? _coordinator;
     private readonly TrackActionsViewModel? _actions;
     private readonly Action<Action> _post;
     private readonly ExportSettings? _exportSettings;
@@ -85,7 +72,13 @@ public partial class DownloadsPageViewModel : ViewModelBase
     private CancellationTokenSource? _exportCts;
 
     public ObservableCollection<DownloadJobRow> Jobs { get; } = [];
-    public ObservableCollection<DownloadedRow> Downloaded { get; } = [];
+
+    /// <summary>The finished downloads, newest first, without those a page's
+    /// "Remove downloads" is offering to undo. Replaced, never edited.</summary>
+    public IReadOnlyList<DownloadedTrack> Downloaded { get; private set; } = [];
+
+    /// <summary><see cref="Downloaded"/> changed; raised on the UI thread.</summary>
+    public event Action? DownloadedChanged;
 
     [ObservableProperty] private string _summary = "";
     [ObservableProperty] private string _jobsSummary = "";
@@ -117,13 +110,12 @@ public partial class DownloadsPageViewModel : ViewModelBase
     /// <param name="post">Runs an action on the UI thread; tests pass one that runs it at once.</param>
     /// <param name="exportSource">The download's files for export (the store's
     /// <c>ExportSourceFor</c>).</param>
-    public DownloadsPageViewModel(
-        DownloadQueue queue, PlaybackCoordinator? coordinator, TrackActionsViewModel? actions,
+    public DownloadsViewModel(
+        DownloadQueue queue, TrackActionsViewModel? actions,
         Action<Action>? post = null, ExportSettings? exportSettings = null, DownloadExport? export = null,
         Func<string, ExportSource?>? exportSource = null)
     {
         _queue = queue;
-        _coordinator = coordinator;
         _actions = actions;
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
         _exportSettings = exportSettings;
@@ -203,9 +195,7 @@ public partial class DownloadsPageViewModel : ViewModelBase
     {
         var downloads = _queue.Downloaded
             .Where(d => _actions?.IsPendingRemoval(d.Track.VideoId) != true).ToList();
-        Downloaded.Clear();
-        foreach (var d in downloads)
-            Downloaded.Add(new DownloadedRow(d.Track, d.IsMissing, FormatSize(d.SizeBytes)));
+        Downloaded = downloads;
 
         HasDownloaded = Downloaded.Count > 0;
         OnPropertyChanged(nameof(CanExport));
@@ -214,6 +204,7 @@ public partial class DownloadsPageViewModel : ViewModelBase
                 ("count", downloads.Count), ("size", FormatSize(downloads.Sum(d => d.SizeBytes))))
             : "";
         IsEmpty = !HasJobs && !HasDownloaded;
+        DownloadedChanged?.Invoke();
     }
 
     /// <summary>"84 MB", "1.2 GB".</summary>
@@ -227,34 +218,8 @@ public partial class DownloadsPageViewModel : ViewModelBase
             : Strings.Format("downloads.sizeMb", ("value", Math.Round(Math.Max(megabytes, bytes > 0 ? 1 : 0))));
     }
 
-    private IReadOnlyList<TrackInfo> Playable() =>
-        Downloaded.Where(r => !r.IsMissing).Select(r => r.Track).ToList();
-
     [RelayCommand]
-    private Task PlayAllAsync() =>
-        _coordinator is not null && Playable() is { Count: > 0 } tracks
-            ? _coordinator.PlayQueueAsync(tracks)
-            : Task.CompletedTask;
-
-    /// <summary>Plays the downloads from this row on; a missing row downloads again instead.</summary>
-    [RelayCommand]
-    private Task PlayFromAsync(DownloadedRow? row)
-    {
-        if (row is null || _coordinator is null)
-            return Task.CompletedTask;
-        if (row.IsMissing)
-        {
-            DownloadAgain(row);
-            return Task.CompletedTask;
-        }
-
-        var tracks = Playable();
-        var index = tracks.ToList().FindIndex(t => t.VideoId == row.Track.VideoId);
-        return _coordinator.PlayQueueAsync(tracks, Math.Max(0, index));
-    }
-
-    [RelayCommand]
-    private void Remove(DownloadedRow? row)
+    private void Remove(DownloadedTrack? row)
     {
         if (row is null)
             return;
@@ -263,7 +228,7 @@ public partial class DownloadsPageViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void DownloadAgain(DownloadedRow? row)
+    private void DownloadAgain(DownloadedTrack? row)
     {
         if (row is null)
             return;
@@ -298,7 +263,7 @@ public partial class DownloadsPageViewModel : ViewModelBase
         ExportAsync(Downloaded.Where(r => !r.IsMissing).Select(r => r.Track.VideoId).ToList());
 
     [RelayCommand]
-    private Task ExportOneAsync(DownloadedRow? row) =>
+    private Task ExportOneAsync(DownloadedTrack? row) =>
         row is null || row.IsMissing ? Task.CompletedTask : ExportAsync([row.Track.VideoId]);
 
     [RelayCommand]

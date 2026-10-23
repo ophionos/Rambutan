@@ -2,11 +2,11 @@ using System.Text.Json;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Downloads;
 
-namespace Rambutan.Streams;
+namespace Rambutan.LocalLibrary;
 
 /// <summary>
 /// The kept copies of downloaded albums and playlists, in
-/// <c>downloads-collections.json</c> beside <c>downloads.json</c>. An unreadable
+/// <c>downloads-collections.json</c> in the profile's folder. An unreadable
 /// file is set aside and read as empty: the downloads themselves don't depend on it.
 /// </summary>
 public sealed class KeptCollectionStore(string dataDirectory) : IKeptCollectionStore
@@ -50,7 +50,7 @@ public sealed class KeptCollectionStore(string dataDirectory) : IKeptCollectionS
         }
         catch (Exception ex)
         {
-            // The copies are a convenience: the downloads still play from the Downloads page.
+            // The copies are a convenience: the downloads still play from On this computer.
             AppLog.Write("downloads", $"couldn't save downloads-collections.json: {ex.Message}");
         }
     }
@@ -80,7 +80,7 @@ public sealed class KeptCollectionStore(string dataDirectory) : IKeptCollectionS
     };
 }
 
-/// <summary><c>downloads-collections.json</c>, with its own DTOs like <c>downloads.json</c>.</summary>
+/// <summary><c>downloads-collections.json</c>, with its own DTOs like the local index.</summary>
 public sealed class SavedKeptCollections
 {
     public const int CurrentVersion = 1;

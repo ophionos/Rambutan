@@ -5,7 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Rambutan.App.Localization;
 using Rambutan.App.Services;
-using Rambutan.Streams;
+using Rambutan.LocalLibrary;
 
 namespace Rambutan.App.ViewModels;
 
@@ -69,7 +69,7 @@ public partial class DownloadsSettingsViewModel : ViewModelBase
         Folder = DownloadsFolders.Effective(_app, _defaultFolder);
         IsDefaultFolder = string.IsNullOrWhiteSpace(_app.DownloadsFolder);
         Usage = Strings.Format("settings.downloads.usageValue",
-            ("count", _store.List().Count), ("size", DownloadsPageViewModel.FormatSize(_store.TotalBytes)));
+            ("count", _store.List().Count), ("size", DownloadsViewModel.FormatSize(_store.TotalBytes)));
     }
 
     [RelayCommand]

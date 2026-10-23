@@ -6,8 +6,8 @@ using Rambutan.Core.Downloads;
 namespace Rambutan.App.Services;
 
 /// <summary>
-/// Export of downloads, shared live between Settings and the Downloads page: the
-/// page's Export buttons appear the moment the setting is turned on. Reads and
+/// Export of downloads, shared live between Settings and On this computer: its
+/// Export buttons appear the moment the setting is turned on. Reads and
 /// writes straight through to <see cref="AppSettings"/> and saves on each change.
 /// Off by default (maintainer, 2026-10-03).
 /// </summary>

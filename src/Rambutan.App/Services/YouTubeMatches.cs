@@ -10,7 +10,6 @@ using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Stations;
-using Rambutan.Streams;
 
 namespace Rambutan.App.Services;
 
@@ -58,12 +57,18 @@ internal sealed partial class LocalMatchJsonContext : JsonSerializerContext;
 /// <c>local-match-covers</c>, so it shows offline too. The queue's tracks stay
 /// as they are, so turning the setting off takes it all back, and deletes the
 /// kept covers.
+///
+/// A file whose tags name its song (<see cref="LocalTagValues.YouTubeVideoIdKey"/>,
+/// as an export writes them) has that song as its match, whatever the setting,
+/// and is never searched: nothing is sent that the file didn't already say.
 /// </summary>
 /// <param name="find">The indexed file for a local id.</param>
 /// <param name="fetchCover">A cover's bytes by URL (the artwork cache).</param>
+/// <param name="downloaded">The track a video's download keeps; null without one.
+/// A tagged file's song is that track while it exists, else made from the tags.</param>
 public sealed class YouTubeMatches(
     LocalMatcher matcher, Func<string, LocalFile?> find, string dataDirectory,
-    Func<string, CancellationToken, Task<byte[]>> fetchCover)
+    Func<string, CancellationToken, Task<byte[]>> fetchCover, Func<string, TrackInfo?>? downloaded = null)
 {
     private readonly string _path = Path.Combine(dataDirectory, "local-matches.json");
     private readonly string _covers = Path.Combine(dataDirectory, "local-match-covers");
@@ -98,11 +103,13 @@ public sealed class YouTubeMatches(
 
     /// <summary>
     /// What is known for the track's file, with a search started when nothing
-    /// is (so that reads as searching). Null while the setting is off or for a
-    /// track that isn't a local file.
+    /// is (so that reads as searching). Null while the setting is off, unless
+    /// the file's tags name its song, or for a track that isn't a local file.
     /// </summary>
     public LocalMatchStatus? StatusOf(TrackInfo track)
     {
+        if (Tagged(track.VideoId) is { } tagged)
+            return new LocalMatchStatus(LocalMatchState.Found, tagged);
         if (!Enabled || !LocalIds.IsLocal(track.VideoId))
             return null;
         Load();
@@ -124,9 +131,12 @@ public sealed class YouTubeMatches(
     }
 
     /// <summary>The matched song's id, for autoplay's radio; waits for a search
-    /// under way. Null while off, or without a match. Throws when the search fails.</summary>
+    /// under way. Null while off (unless the tags name the song), or without a
+    /// match. Throws when the search fails.</summary>
     public async Task<string?> RadioSeedAsync(TrackInfo track, CancellationToken ct)
     {
+        if (Tagged(track.VideoId) is { } tagged)
+            return tagged.VideoId;
         if (!Enabled || !LocalIds.IsLocal(track.VideoId))
             return null;
         Load();
@@ -147,12 +157,20 @@ public sealed class YouTubeMatches(
 
     private TrackInfo? Known(string id)
     {
+        if (Tagged(id) is { } tagged)
+            return tagged;
         if (!Enabled || !LocalIds.IsLocal(id))
             return null;
         Load();
         var status = matcher.StatusOf(id, QueryOf(id));
         return status.State == LocalMatchState.Found ? status.Song : null;
     }
+
+    private TrackInfo? Tagged(string id) =>
+        LocalIds.IsLocal(id) && find(id) is { IsMissing: false, Tags: { YouTubeVideoId: { } videoId } tags } file
+            ? downloaded?.Invoke(videoId)
+                ?? LocalTracks.ToTrack(file) with { VideoId = videoId, SongId = tags.YouTubeSongId }
+            : null;
 
     private LocalMatchQuery? QueryOf(string id) =>
         find(id) is { IsMissing: false } file ? LocalMatchQuery.Of(file.Tags) : null;

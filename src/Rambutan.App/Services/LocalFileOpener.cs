@@ -100,7 +100,9 @@ public sealed class LocalFileOpener(
             return;
         }
 
-        var tracks = files.Select(f => LocalTracks.ToTrack(f)).ToList();
+        // A download opened as a file plays as the download, under its YouTube id,
+        // so the queue, likes and lyrics take it as that song.
+        var tracks = files.Select(f => f.Download?.Track ?? LocalTracks.ToTrack(f)).ToList();
         if (playNow)
         {
             await playAfterCurrent(tracks);

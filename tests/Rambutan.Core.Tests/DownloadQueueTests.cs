@@ -118,6 +118,25 @@ public class DownloadQueueTests
     }
 
     [Fact]
+    public async Task DeletingMany_StopsTheirJobs_AndDeletesInOneStoreCall()
+    {
+        var store = new FakeDownloadStore();
+        store.Done.UnionWith(["a", "b"]);
+        var queue = new DownloadQueue(store, maxParallel: 1);
+        queue.Enqueue([Track("c"), Track("d")]);
+        await store.WaitStartedAsync("c");
+        List<string> changed = [];
+        queue.DownloadsChanged += changed.Add;
+
+        queue.Delete(["a", "b", "c", "d"]);
+
+        Assert.Equal(["a", "b", "c", "d"], Assert.Single(store.Deletes).Order());
+        Assert.Empty(queue.Jobs);
+        Assert.False(queue.IsDownloaded("a"));
+        Assert.Equal(["a", "b", "c", "d"], changed.Order());
+    }
+
+    [Fact]
     public void Delete_RemovesTheDownloadAndSaysSo()
     {
         var store = new FakeDownloadStore();
@@ -243,9 +262,15 @@ public class DownloadQueueTests
 
         public void Report(string videoId, DownloadProgress progress) => Get(videoId).Progress.Report(progress);
 
-        public void Delete(string videoId)
+        public List<IReadOnlyCollection<string>> Deletes { get; } = [];
+
+        public void Delete(IReadOnlyCollection<string> videoIds)
         {
-            lock (_lock) Done.Remove(videoId);
+            lock (_lock)
+            {
+                Done.ExceptWith(videoIds);
+                Deletes.Add(videoIds.ToList());
+            }
         }
 
         public IReadOnlyList<PendingDownload> LoadPending() => Pending;

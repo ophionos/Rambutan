@@ -189,6 +189,49 @@ public sealed class LocalFileIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task TheYouTubeIdsOfAFile_AreKeptAcrossStarts()
+    {
+        var a = Write("a.mp3", "ids:YQHsXMglC9A,khnokW3Mw24");
+        using (var first = Library())
+            await first.ScanAsync();
+
+        using var second = Library();
+        var tags = ByPath(second, a).Tags;
+
+        Assert.Equal("YQHsXMglC9A", tags?.YouTubeVideoId);
+        Assert.Equal("khnokW3Mw24", tags?.YouTubeSongId);
+    }
+
+    private static void RecordDownload(LocalFileIndex library, string path, string videoId)
+    {
+        var info = new FileInfo(path);
+        library.RecordDownload(path, info.Length, info.LastWriteTimeUtc,
+            new LocalDownload(new Rambutan.Core.Models.TrackInfo { VideoId = videoId, Title = "Downloaded", Artists = [] },
+                "opus", null, null, null, info.Length, DateTimeOffset.UtcNow), []);
+    }
+
+    [Fact]
+    public async Task ADownloadInAWatchedFolder_IsNotAmongTheFiles_UntilItIsDeleted()
+    {
+        var download = Write(Path.Combine("downloads", "YQHsXMglC9A.opus"), "Downloaded");
+        var copy = Write(Path.Combine("exports", "Hello.mp3"), "ids:YQHsXMglC9A,khnokW3Mw24");
+        using var library = Library();
+        var raised = 0;
+        library.Changed += () => raised++;
+        RecordDownload(library, download, "YQHsXMglC9A");
+        await library.ScanAsync();
+
+        Assert.Equal([copy], library.Files().Select(f => f.Path));
+        Assert.Equal((1, 0, 0), library.Counts());
+
+        raised = 0;
+        Assert.Equal(1, library.RemoveDownloads(["YQHsXMglC9A"], []));
+
+        Assert.Equal([download, copy], library.Files().Select(f => f.Path).Order());
+        Assert.Equal(1, raised);
+    }
+
+    [Fact]
     public async Task ADamagedIndex_IsSetAside_AndNewIdsCannotMeetItsOldOnes()
     {
         Directory.CreateDirectory(_data);
@@ -650,6 +693,9 @@ public sealed class LocalFileIndexTests : IDisposable
             var text = File.ReadAllText(path);
             if (text == "bad")
                 return null;
+            if (text.StartsWith("ids:", StringComparison.Ordinal))
+                return new LocalFileTags("mp3", Title: text,
+                    YouTubeVideoId: text[4..].Split(',')[0], YouTubeSongId: text[4..].Split(',')[1]);
             return text.StartsWith("cover:", StringComparison.Ordinal)
                 ? new LocalFileTags("mp3", Title: text["cover:".Length..],
                     Cover: new LocalCover(System.Text.Encoding.UTF8.GetBytes(text["cover:".Length..].Split(',')[0]), ".jpg"))

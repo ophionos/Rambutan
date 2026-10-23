@@ -1,12 +1,12 @@
-using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
+using System.Text.Json.Nodes;
 using Rambutan.Core.Downloads;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Settings;
 
-namespace Rambutan.Streams.Tests;
+namespace Rambutan.LocalLibrary.Tests;
 
 public sealed class DownloadStoreTests : IDisposable
 {
@@ -16,8 +16,22 @@ public sealed class DownloadStoreTests : IDisposable
     private string DataDir => Path.Combine(_root, "data");
     private string Folder => Path.Combine(_root, "data", "cache", "downloads");
 
+    private readonly List<string> _watched = [];
+    private LocalFileIndex? _index;
+    private TextReader? _reader;
+
+    /// <summary>A new index on the data folder, as at a start; the one before
+    /// is disposed first, so its last save can't land after this one's.</summary>
+    private LocalFileIndex NewIndex()
+    {
+        _index?.Dispose();
+        _reader = new TextReader();
+        return _index = new LocalFileIndex(DataDir, _reader, _ => Task.CompletedTask, () => _watched);
+    }
+
     public void Dispose()
     {
+        _index?.Dispose();
         try
         {
             Directory.Delete(_root, recursive: true);
@@ -38,7 +52,7 @@ public sealed class DownloadStoreTests : IDisposable
     };
 
     private DownloadStore NewStore(IAudioFetcher? fetcher = null, string? folder = null) =>
-        new(DataDir, () => folder ?? Folder, fetcher ?? new BytesFetcher("audio"));
+        new(NewIndex(), DataDir, () => folder ?? Folder, fetcher ?? new BytesFetcher("audio"));
 
     private static readonly IProgress<DownloadProgress> NoProgress = new Progress<DownloadProgress>();
 
@@ -62,14 +76,15 @@ public sealed class DownloadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task The_manifest_round_trips_with_its_version()
+    public async Task A_record_round_trips_through_the_local_index()
     {
         using (var store = NewStore())
             await store.DownloadAsync(Track("vid00000001") with { TrackNumber = 7, SongId = "aud00000001" }, Now, NoProgress, default);
 
-        var json = File.ReadAllText(Path.Combine(DataDir, "downloads.json"));
+        var json = File.ReadAllText(Path.Combine(DataDir, "local-index.json"));
         Assert.Contains("\"version\":1", json);
         Assert.Contains("\"songId\":\"aud00000001\"", json);
+        Assert.False(File.Exists(Path.Combine(DataDir, "downloads.json")));
 
         using var reloaded = NewStore();
         var download = Assert.Single(reloaded.List());
@@ -117,12 +132,44 @@ public sealed class DownloadStoreTests : IDisposable
         await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
         var path = store.TryGetMedia("vid00000001")!.Url;
 
-        store.Delete("vid00000001");
+        store.Delete(["vid00000001"]);
 
         Assert.False(File.Exists(path));
         Assert.Empty(store.List());
         using var reloaded = NewStore();
         Assert.Empty(reloaded.List());
+    }
+
+    [Fact]
+    public async Task Deleting_many_saves_the_index_once()
+    {
+        using var store = NewStore();
+        string[] ids = ["vid00000001", "vid00000002", "vid00000003"];
+        foreach (var id in ids)
+            await store.DownloadAsync(Track(id), Now, NoProgress, default);
+        var paths = ids.Select(id => store.TryGetMedia(id)!.Url).ToList();
+        var index = _index!;
+        var saves = index.Saves;
+
+        store.Delete([.. ids, "vid00000001", "notdownload"]);
+
+        Assert.Equal(1, index.Saves - saves);
+        Assert.Empty(store.List());
+        Assert.All(paths, path => Assert.False(File.Exists(path)));
+        using var reloaded = NewStore();
+        Assert.Empty(reloaded.List());
+    }
+
+    [Fact]
+    public void Deleting_nothing_downloaded_doesnt_save()
+    {
+        using var store = NewStore();
+        var index = _index!;
+        var saves = index.Saves;
+
+        store.Delete(["vid00000001"]);
+
+        Assert.Equal(saves, index.Saves);
     }
 
     [Fact]
@@ -133,7 +180,7 @@ public sealed class DownloadStoreTests : IDisposable
         var path = store.TryGetMedia("vid00000001")!.Url;
         store.DeleteFile = _ => false; // the decoder holds it open
 
-        store.Delete("vid00000001");
+        store.Delete(["vid00000001"]);
 
         Assert.Empty(store.List());
         Assert.False(store.Contains("vid00000001"));
@@ -158,7 +205,7 @@ public sealed class DownloadStoreTests : IDisposable
             await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
             path = store.TryGetMedia("vid00000001")!.Url;
             store.DeleteFile = _ => false;
-            store.Delete("vid00000001");
+            store.Delete(["vid00000001"]);
         }
         Assert.True(File.Exists(path));
 
@@ -166,7 +213,7 @@ public sealed class DownloadStoreTests : IDisposable
 
         Assert.False(File.Exists(path));
         Assert.Empty(reloaded.List());
-        Assert.DoesNotContain("leftoverPaths", File.ReadAllText(Path.Combine(DataDir, "downloads.json")));
+        Assert.DoesNotContain("downloadLeftovers", File.ReadAllText(Path.Combine(DataDir, "local-index.json")));
     }
 
     [Fact]
@@ -175,7 +222,7 @@ public sealed class DownloadStoreTests : IDisposable
         using var store = NewStore();
         await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
         store.DeleteFile = _ => false;
-        store.Delete("vid00000001");
+        store.Delete(["vid00000001"]);
         store.DeleteFile = p => { File.Delete(p); return true; };
 
         await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
@@ -189,7 +236,7 @@ public sealed class DownloadStoreTests : IDisposable
     private static readonly byte[] Jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3];
 
     private DownloadStore StoreWithCovers(List<string> fetched, bool fail = false) =>
-        new(DataDir, () => Folder, new BytesFetcher("audio"), (url, _) =>
+        new(NewIndex(), DataDir, () => Folder, new BytesFetcher("audio"), (url, _) =>
         {
             fetched.Add(url);
             return fail ? Task.FromException<byte[]>(new HttpRequestException("offline")) : Task.FromResult(Jpeg);
@@ -209,7 +256,7 @@ public sealed class DownloadStoreTests : IDisposable
         using (var reloaded = NewStore())
             Assert.Equal(cover, reloaded.ArtworkPathFor("vid00000001"));
 
-        store.Delete("vid00000001");
+        store.Delete(["vid00000001"]);
 
         Assert.False(File.Exists(cover));
         Assert.Null(store.ArtworkPathFor("vid00000001"));
@@ -263,7 +310,7 @@ public sealed class DownloadStoreTests : IDisposable
     public async Task Changing_the_folder_keeps_existing_downloads_where_they_are()
     {
         var folder = Folder;
-        using var store = new DownloadStore(DataDir, () => folder, new BytesFetcher("audio"));
+        using var store = new DownloadStore(NewIndex(), DataDir, () => folder, new BytesFetcher("audio"));
         await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
 
         folder = Path.Combine(_root, "elsewhere");
@@ -355,23 +402,6 @@ public sealed class DownloadStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task Downloads_ignore_the_cache_cap_and_survive_its_eviction()
-    {
-        // The audio cache and the downloads folder are siblings under cache/.
-        var cache = new AudioDiskCache(Path.Combine(DataDir, "cache", "audio")) { MaxSizeBytes = 0 };
-        using var store = NewStore();
-        await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
-
-        cache.MaxSizeBytes = 1;
-        await cache.StoreAsync("vid00000002", "251", "opus", AudioQuality.High,
-            new MemoryStream(Encoding.UTF8.GetBytes("much bigger than one byte")));
-        cache.EnforceCap();
-        cache.Remove("vid00000001");
-
-        Assert.True(store.Contains("vid00000001"));
-    }
-
-    [Fact]
     public async Task Playback_prefers_the_download_but_the_fault_retry_streams_without_deleting_it()
     {
         using var store = NewStore();
@@ -388,47 +418,190 @@ public sealed class DownloadStoreTests : IDisposable
         Assert.True(source.IsWarm("vid00000001"));
     }
 
-    [Fact]
-    public async Task The_fetcher_downloads_in_ranged_chunks_with_progress()
+    private string Manifest => Path.Combine(DataDir, "downloads.json");
+
+    private static string Json(string s) => s.Replace("\\", "\\\\");
+
+    /// <summary>A downloads.json as builds before the merge wrote it, with the
+    /// audio files it names.</summary>
+    private string WriteManifest(string[] ids, string[]? leftovers = null)
     {
-        var body = new byte[(1 << 20) + 300];
-        Random.Shared.NextBytes(body);
-        var resolver = new StreamResolver((id, quality, _) => Task.FromResult(new ResolvedStream
+        Directory.CreateDirectory(Folder);
+        var records = ids.Select(id =>
         {
-            VideoId = id,
-            Url = $"https://cdn.test/{id}",
-            Itag = "251",
-            AudioCodec = "opus",
-            LoudnessDb = -2,
-            ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(6),
-            Quality = quality,
-        }));
-        using var fetcher = new GoogleVideoFetcher(resolver, cache: null, new HttpClient(new RangedHandler(body)));
-        var reports = new List<DownloadProgress>();
-        using var target = new MemoryStream();
-
-        var fetched = await fetcher.FetchAsync(Track("vid00000001"), target, new SyncProgress(reports.Add), default);
-
-        Assert.Equal(body, target.ToArray());
-        Assert.Equal(new FetchedAudio("opus", "251", AudioQuality.High, -2), fetched);
-        Assert.Equal([(1L << 20, (long?)body.Length), (body.Length, body.Length)],
-            reports.Select(r => (r.Bytes, r.Total)));
+            var path = Path.Combine(Folder, id + ".webm");
+            File.WriteAllText(path, "audio");
+            return $$"""{"videoId":"{{id}}","title":"Song {{id}}","path":"{{Json(path)}}","audioCodec":"opus","sizeBytes":5,"downloadedAt":"2026-10-01T00:00:00Z"}""";
+        });
+        var left = leftovers is null ? "" : $$""","leftoverPaths":[{{string.Join(",", leftovers.Select(p => $"\"{Json(p)}\""))}}]""";
+        var json = $$"""{"version":1,"downloads":[{{string.Join(",", records)}}]{{left}}}""";
+        File.WriteAllText(Manifest, json);
+        return json;
     }
 
     [Fact]
-    public async Task The_fetcher_copies_a_cached_track_instead_of_downloading_it()
+    public void The_first_start_takes_in_downloads_json_and_leaves_it_as_it_was()
     {
-        var cache = new AudioDiskCache(Path.Combine(DataDir, "cache", "audio")) { MaxSizeBytes = 1 << 20 };
-        await cache.StoreAsync("vid00000001", "251", "opus", AudioQuality.High,
-            new MemoryStream(Encoding.UTF8.GetBytes("cached")));
-        var resolver = new StreamResolver((_, _, _) => throw new InvalidOperationException("no network"));
-        using var fetcher = new GoogleVideoFetcher(resolver, cache, new HttpClient());
-        using var target = new MemoryStream();
+        var leftover = Path.Combine(Folder, "vid00000009.webm");
+        var json = WriteManifest(["vid00000001", "vid00000002"], [leftover]);
+        File.WriteAllText(leftover, "old");
 
-        var fetched = await fetcher.FetchAsync(Track("vid00000001"), target, NoProgress, default);
+        using var store = NewStore();
 
-        Assert.Equal("cached", Encoding.UTF8.GetString(target.ToArray()));
-        Assert.Equal("opus", fetched.AudioCodec);
+        Assert.Equal(["vid00000001", "vid00000002"], store.List().Select(d => d.Track.VideoId).Order());
+        Assert.Equal(Path.Combine(Folder, "vid00000001.webm"), store.TryGetMedia("vid00000001")!.Url);
+        Assert.False(File.Exists(leftover));
+        Assert.Equal(json, File.ReadAllText(Manifest));
+        Assert.Contains("\"downloadsImported\":true", File.ReadAllText(Path.Combine(DataDir, "local-index.json")));
+    }
+
+    [Fact]
+    public async Task Downloads_json_is_taken_in_once()
+    {
+        WriteManifest(["vid00000001"]);
+        using (var store = NewStore())
+        {
+            await store.DownloadAsync(Track("vid00000002"), Now, NoProgress, default);
+            store.Delete(["vid00000001"]);
+        }
+
+        using var reloaded = NewStore();
+
+        Assert.Equal(["vid00000002"], reloaded.List().Select(d => d.Track.VideoId));
+    }
+
+    [Fact]
+    public async Task An_index_an_older_build_saved_takes_the_records_in_again_without_doubles()
+    {
+        // An older build reads the index, drops the fields it doesn't know and
+        // saves it: the entries stay, the downloads and the flag go.
+        WriteManifest(["vid00000001"]);
+        using (var store = NewStore())
+            await store.DownloadAsync(Track("vid00000002"), Now, NoProgress, default);
+        var indexPath = Path.Combine(DataDir, "local-index.json");
+        var saved = JsonNode.Parse(File.ReadAllText(indexPath))!.AsObject();
+        saved.Remove("downloadsImported");
+        foreach (var file in saved["files"]!.AsArray())
+            file!.AsObject().Remove("download");
+        File.WriteAllText(indexPath, saved.ToJsonString());
+
+        using var reloaded = NewStore();
+
+        // vid00000002 was made after the import, so downloads.json never had it.
+        Assert.Equal(["vid00000001"], reloaded.List().Select(d => d.Track.VideoId));
+        Assert.Equal(2, JsonNode.Parse(File.ReadAllText(indexPath))!["files"]!.AsArray().Count);
+    }
+
+    [Fact]
+    public void Two_entries_for_one_video_keep_the_newer_download()
+    {
+        Directory.CreateDirectory(DataDir);
+        Directory.CreateDirectory(Folder);
+        string Entry(string id, string file, string at)
+        {
+            var path = Path.Combine(Folder, file);
+            File.WriteAllText(path, "audio");
+            return $$$"""{"id":"{{{id}}}","path":"{{{Json(path)}}}","size":5,"modifiedAt":"{{{at}}}","unreadable":true,"download":{"videoId":"vid00000001","title":"T","audioCodec":"opus","sizeBytes":5,"downloadedAt":"{{{at}}}"}}""";
+        }
+        File.WriteAllText(Path.Combine(DataDir, "local-index.json"),
+            $$"""{"version":1,"nextId":3,"downloadsImported":true,"files":[{{Entry("local:1", "old.webm", "2026-10-01T00:00:00Z")}},{{Entry("local:2", "new.webm", "2026-10-02T00:00:00Z")}},{{Entry("local:3", "older.webm", "2026-09-01T00:00:00Z")}}]}""");
+
+        using var store = NewStore();
+
+        Assert.Equal(Path.Combine(Folder, "new.webm"), store.TryGetMedia("vid00000001")!.Url);
+        Assert.Single(store.List());
+    }
+
+    [Fact]
+    public async Task A_download_onto_a_scanned_file_becomes_that_entry()
+    {
+        _watched.Add(Folder);
+        Directory.CreateDirectory(Folder);
+        File.WriteAllText(Path.Combine(Folder, "vid00000001.webm"), "mine");
+        using var store = NewStore();
+        await _index!.ScanAsync();
+        var scanned = Assert.Single(_index.Files());
+
+        await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
+
+        Assert.Empty(_index.Files());
+        var file = Assert.Single(_index.Downloads());
+        Assert.Equal(scanned.Id, file.Id);
+        Assert.Equal("vid00000001", file.Download?.Track.VideoId);
+    }
+
+    [Fact]
+    public async Task A_download_in_a_watched_folder_is_read_by_a_scan_and_stays_a_download()
+    {
+        _watched.Add(Folder);
+        using var store = NewStore();
+        await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
+        Assert.Null(Assert.Single(_index!.Downloads()).Tags);
+
+        await _index.ScanAsync();
+        Assert.Equal("audio", Assert.Single(_index.Downloads()).Tags?.Title);
+
+        var path = store.TryGetMedia("vid00000001")!.Url;
+        File.WriteAllText(path, "changed");
+        File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
+        await _index.ScanAsync();
+
+        Assert.Empty(_index.Files());
+        var file = Assert.Single(_index.Downloads());
+        Assert.Equal("changed", file.Tags?.Title);
+        Assert.True(store.Contains("vid00000001"));
+    }
+
+    [Fact]
+    public async Task A_download_deleted_while_a_scan_reads_it_stays_deleted()
+    {
+        _watched.Add(Folder);
+        using var store = NewStore();
+        await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
+        var reader = _reader!;
+        reader.Hold = new ManualResetEventSlim();
+        var scan = _index!.ScanAsync();
+        Assert.True(reader.Reading.Wait(TimeSpan.FromSeconds(10)));
+
+        store.DeleteFile = _ => false; // still open, so the read finishes
+        store.Delete(["vid00000001"]);
+        reader.Hold.Set();
+        await scan;
+
+        Assert.False(store.Contains("vid00000001"));
+        Assert.Empty(store.List());
+        Assert.All(_index.Files(), f => Assert.Null(f.Download));
+    }
+
+    [Fact]
+    public async Task Opening_a_downloaded_file_keeps_it_a_download()
+    {
+        using var store = NewStore();
+        await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
+        var path = store.TryGetMedia("vid00000001")!.Url;
+
+        var opened = Assert.Single(await _index!.OpenAsync([path]));
+
+        Assert.Equal("audio", opened.Tags?.Title);
+        Assert.Equal("vid00000001", opened.Download?.Track.VideoId);
+        Assert.True(store.Contains("vid00000001"));
+    }
+
+    [Fact]
+    public async Task Downloads_finishing_together_during_a_scan_are_all_kept()
+    {
+        _watched.Add(Folder);
+        Directory.CreateDirectory(Folder);
+        for (var i = 0; i < 20; i++)
+            File.WriteAllText(Path.Combine(Folder, $"mine{i}.mp3"), $"mine {i}");
+        var ids = Enumerable.Range(1, 20).Select(i => $"vid{i:D8}").ToArray();
+        using (var store = NewStore())
+            await Task.WhenAll([_index!.ScanAsync(), .. ids.Select(id => Task.Run(() => store.DownloadAsync(Track(id), Now, NoProgress, default)))]);
+
+        using var reloaded = NewStore();
+
+        Assert.Equal(ids, reloaded.List().Select(d => d.Track.VideoId).Order());
+        Assert.Equal(20, _index!.Files().Count(f => f.Download is null));
     }
 
     private sealed class BytesFetcher(string content, double? loudness = null, bool fail = false) : IAudioFetcher
@@ -443,29 +616,25 @@ public sealed class DownloadStoreTests : IDisposable
         }
     }
 
+    /// <summary>Reads a file's text as its title.</summary>
+    private sealed class TextReader : IMediaFileReader
+    {
+        /// <summary>When set, a read waits for it.</summary>
+        public ManualResetEventSlim? Hold { get; set; }
+
+        public ManualResetEventSlim Reading { get; } = new();
+
+        public LocalFileTags? Read(string path)
+        {
+            Reading.Set();
+            Hold?.Wait(TimeSpan.FromSeconds(10));
+            return new("opus", Title: File.ReadAllText(path));
+        }
+    }
+
     private sealed class UrlSource : IStreamSource
     {
         public Task<ResolvedMedia> ResolveAsync(string videoId, bool bypassCache = false, CancellationToken ct = default) =>
             Task.FromResult(new ResolvedMedia($"https://stream.test/{videoId}", "opus"));
-    }
-
-    private sealed class SyncProgress(Action<DownloadProgress> report) : IProgress<DownloadProgress>
-    {
-        public void Report(DownloadProgress value) => report(value);
-    }
-
-    /// <summary>Serves <paramref name="body"/> to ranged GETs only, like googlevideo.</summary>
-    private sealed class RangedHandler(byte[] body) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
-        {
-            if (request.Headers.Range?.Ranges.Single() is not { From: { } from, To: { } to })
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
-
-            var end = Math.Min(to, body.Length - 1);
-            var content = new ByteArrayContent(body, (int)from, (int)(end - from + 1));
-            content.Headers.ContentRange = new ContentRangeHeaderValue(from, end, body.Length);
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.PartialContent) { Content = content });
-        }
     }
 }

@@ -23,7 +23,7 @@ public sealed record LoadError(string Title, string Hint, string Detail, IComman
     /// <summary>The request never got an answer: the network, not YouTube Music.</summary>
     public bool IsOffline { get; init; }
 
-    /// <summary>Opens the Downloads page, which still plays offline; shown beside
+    /// <summary>Opens the downloads (On this computer), which still play offline; shown beside
     /// Try again when set. Only Home sets it.</summary>
     public ICommand? GoToDownloads { get; init; }
 

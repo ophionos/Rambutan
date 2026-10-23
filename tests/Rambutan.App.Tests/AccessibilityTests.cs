@@ -307,7 +307,7 @@ public class AccessibilityTests
             Assert.EndsWith(", downloaded", AccessibleNames.RowName(new QueueItemViewModel(Track(downloaded))));
             Assert.Equal("Instant Crush, Daft Punk, Julian Casablancas",
                 AccessibleNames.RowName(Track("dl-name-other")));
-            // The plain name, which the Downloads page builds on, stays plain.
+            // The plain name, which a missing download's row builds on, stays plain.
             Assert.Equal("Instant Crush, Daft Punk, Julian Casablancas", AccessibleNames.For(Track(downloaded)));
         }
         finally
@@ -909,15 +909,15 @@ public class AccessibilityTests
 
         int Last(Visual within) => lap.FindLastIndex(v => within.IsVisualAncestorOf(v));
         int First(Visual within) => lap.FindIndex(v => within.IsVisualAncestorOf(v));
-        Assert.Equal(["Search", "Library", "Downloads", "Settings"],
-            lap.Take(4).Select(v => AutomationProperties.GetName((Control)v)));
-        Assert.Equal(4, First(page));
+        Assert.Equal(["Search", "Library", "Settings"],
+            lap.Take(3).Select(v => AutomationProperties.GetName((Control)v)));
+        Assert.Equal(3, First(page));
         Assert.True(Last(page) < First(queue), "the queue came before the end of the page");
         Assert.True(Last(queue) < lap.IndexOf(repeat), "the player bar came before the queue");
 
         // Shift+Tab walks the same lap backwards: from the page's first control
         // back into the sidebar, not into the queue.
-        ((IInputElement)lap[4]).Focus(NavigationMethod.Tab);
+        ((IInputElement)lap[3]).Focus(NavigationMethod.Tab);
         window.KeyPress(Key.Tab, RawInputModifiers.Shift, PhysicalKey.Tab, null);
         Assert.Equal("Settings", AutomationProperties.GetName((Control)window.FocusManager!.GetFocusedElement()!));
         window.Close();

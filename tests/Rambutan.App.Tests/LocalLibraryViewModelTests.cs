@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using Rambutan.App.Services;
 using Rambutan.App.ViewModels;
 using Rambutan.Core.Local;
+using Rambutan.Core.Models;
+using Rambutan.Core.Playlists;
 using Rambutan.LocalLibrary;
 
 namespace Rambutan.App.Tests;
@@ -69,8 +71,77 @@ public sealed class LocalLibraryViewModelTests : IDisposable
         Assert.True(_vm.HasFolders);
         Assert.False(_vm.IsEmpty);
         Assert.False(_vm.IsScanning);
-        Assert.Equal("3 music files", _vm.Status);
+        Assert.Equal("3 songs", _vm.Status);
         Assert.Equal("1 file couldn't be read as music.", _vm.Problems);
+    }
+
+    [Fact]
+    public async Task ThePlaylistsFilter_ListsThePlaylists_TheOneChangedLastFirst()
+    {
+        var clock = DateTimeOffset.UnixEpoch;
+        var library = new LocalPlaylistLibrary(new MemoryPlaylists(), () => clock = clock.AddMinutes(1));
+        var vm = new LocalLibraryViewModel(_scans, coordinator: null, () => _folders, post: _ => { }, playlists: library);
+        library.Create("Old");
+        var recent = library.Create("Recent", [LocalPlaylistItem.Of(new TrackInfo { VideoId = "v", Title = "V", Artists = [] })]);
+
+        vm.Filter = LocalSource.Playlists;
+        await vm.ShowAsync();
+
+        Assert.Equal([LocalSource.All, LocalSource.Folders, LocalSource.Playlists], vm.Filters);
+        Assert.True(vm.ShowsFilters);
+        Assert.Equal(["Recent", "Old"], vm.Playlists.Select(p => p.Name));
+        Assert.Equal("1 song", vm.Playlists[0].Summary);
+        Assert.Equal("No songs yet", vm.Playlists[1].Summary);
+        Assert.Equal("2 playlists", vm.Status);
+        Assert.Empty(vm.Tracks);
+        // It lists no files, so it needs no folder.
+        Assert.False(vm.NeedsFolders);
+        Assert.False(vm.IsEmpty);
+        Assert.False(vm.NoPlaylists);
+        Assert.True(vm.CanCreatePlaylist);
+
+        library.Delete(recent.Id);
+        await vm.RefreshAsync();
+        Assert.Equal(["Old"], vm.Playlists.Select(p => p.Name));
+    }
+
+    [Fact]
+    public async Task ThePlaylistsFilter_WithNone_SaysSo_AndReadOnlyOnesSayWhy()
+    {
+        var empty = new LocalLibraryViewModel(_scans, coordinator: null, () => _folders, post: _ => { },
+            playlists: new LocalPlaylistLibrary(new MemoryPlaylists())) { Filter = LocalSource.Playlists };
+        await empty.ShowAsync();
+        Assert.True(empty.NoPlaylists);
+        Assert.Equal("", empty.Status);
+
+        var newer = new LocalLibraryViewModel(_scans, coordinator: null, () => _folders, post: _ => { },
+            playlists: new LocalPlaylistLibrary(new MemoryPlaylists(new([], LocalPlaylistsProblem.Newer))))
+        { Filter = LocalSource.Playlists };
+        await newer.ShowAsync();
+        Assert.False(newer.CanCreatePlaylist);
+        Assert.StartsWith("Your playlists on this computer were saved by a newer version", newer.Problems);
+
+        var setAside = new LocalLibraryViewModel(_scans, coordinator: null, () => _folders, post: _ => { },
+            playlists: new LocalPlaylistLibrary(new MemoryPlaylists(new([], LocalPlaylistsProblem.Unreadable, "x.unreadable"))))
+        { Filter = LocalSource.Playlists };
+        await setAside.ShowAsync();
+        Assert.True(setAside.CanCreatePlaylist);
+        Assert.Equal(
+            "Your playlists on this computer couldn't be read, so the file was kept as x.unreadable and a new list was started.",
+            setAside.Problems);
+    }
+
+    [Fact]
+    public void WithoutDownloadsOrPlaylists_NoFilterShows()
+    {
+        Assert.Equal([LocalSource.All, LocalSource.Folders], _vm.Filters);
+        Assert.False(_vm.ShowsFilters);
+    }
+
+    private sealed class MemoryPlaylists(LoadedLocalPlaylists? loaded = null) : ILocalPlaylistStore
+    {
+        public LoadedLocalPlaylists Load() => loaded ?? new([]);
+        public void Save(IReadOnlyList<LocalPlaylist> playlists) { }
     }
 
     [Fact]

@@ -64,6 +64,28 @@ public class FfmpegMediaFileReaderTests
     }
 
     [Theory]
+    [InlineData("ids.mp3")]  // ID3v2 TXXX
+    [InlineData("ids.opus")] // Vorbis comments, on the stream
+    [InlineData("ids.m4a")]  // MP4 freeform atoms under com.apple.iTunes
+    public void ReadsTheYouTubeIdsAnExportWrote(string name)
+    {
+        var tags = Read(name);
+
+        Assert.Equal("YQHsXMglC9A", tags.YouTubeVideoId);
+        Assert.Equal("khnokW3Mw24", tags.YouTubeSongId);
+    }
+
+    [Fact]
+    public void AYouTubeIdTagThatIsNotAnId_IsDropped()
+    {
+        var tags = Read("bad-ids.flac");
+
+        Assert.Null(tags.YouTubeVideoId);
+        Assert.Equal("khnokW3Mw24", tags.YouTubeSongId);
+        Assert.Null(Read("tags.flac").YouTubeVideoId);
+    }
+
+    [Theory]
     [InlineData("lyrics.mp3", "[00:00.20]Erste Zeile")] // ID3v2 USLT, read as lyrics-eng
     [InlineData("lyrics.m4a", "[00:00.20]Erste Zeile")] // MP4 ©lyr
     [InlineData("lyrics.flac", "Erste Zeile")]          // Vorbis LYRICS, beside a LYRICIST

@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Rambutan.Core.Downloads;
 using Rambutan.Core.Models;
 using Rambutan.Core.Settings;
-using Rambutan.Streams;
 
 namespace Rambutan.App.Services.Demo;
 

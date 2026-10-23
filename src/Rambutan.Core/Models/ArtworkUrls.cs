@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Rambutan.Streams;
+namespace Rambutan.Core.Models;
 
 /// <summary>What a download keeps of a cover: the URL to fetch, and the file
 /// extension its bytes call for.</summary>

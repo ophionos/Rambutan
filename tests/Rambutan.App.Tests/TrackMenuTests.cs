@@ -5,6 +5,7 @@ using Rambutan.App.Controls;
 using Rambutan.App.ViewModels;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Models;
+using Rambutan.Core.Playlists;
 using Rambutan.Core.Queue;
 
 namespace Rambutan.App.Tests;
@@ -55,6 +56,37 @@ public class TrackMenuTests
             ],
             Headers(groups));
         Assert.All(groups[1], e => Assert.False(e.IsEnabled));
+    }
+
+    [Fact]
+    public void ALocalFile_CanBeSavedToALocalPlaylist_UnderItsOwnLabel()
+    {
+        var actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, new ToastHostViewModel())
+        {
+            LocalPlaylists = new LocalPlaylistLibrary(new NoPlaylists()),
+        };
+        var local = Track("local:1", artistBrowseId: null, albumBrowseId: null);
+
+        var groups = TrackMenuModel.Build(local, actions);
+
+        Assert.Equal(
+            [
+                ["Play next", "Add to queue"],
+                ["Save to a local playlist"],
+                ["Go to album", "Go to artist", "Share"],
+            ],
+            Headers(groups));
+        Assert.True(groups[1][0].IsEnabled);
+        Assert.True(groups[1][0].Command.CanExecute(local));
+    }
+
+    private sealed class NoPlaylists : ILocalPlaylistStore
+    {
+        public LoadedLocalPlaylists Load() => new([]);
+
+        public void Save(IReadOnlyList<LocalPlaylist> playlists)
+        {
+        }
     }
 
     [Fact]

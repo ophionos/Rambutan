@@ -2,35 +2,70 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:l="using:Rambutan.App.Localization"
         xmlns:core="using:Rambutan.Core.Models"
+        xmlns:pl="using:Rambutan.Core.Playlists"
         x:Class="Rambutan.App.Views.PlaylistPickDialog"
         Title="{l:T common.addToPlaylist}"
-        Width="420" Height="480"
+        Width="420" Height="560"
         WindowStartupLocation="CenterOwner"
         Background="#FF16161C">
 
-  <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="20">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="20">
     <TextBlock Grid.Row="0" Text="{l:T dialog.pickPlaylist.heading}" FontSize="15" FontWeight="SemiBold"
                Margin="0,0,0,10" />
 
-    <ListBox x:Name="List" Grid.Row="1" Background="Transparent"
-             DoubleTapped="OnListDoubleTapped">
-      <ListBox.ItemTemplate>
-        <DataTemplate x:DataType="core:PlaylistEntry">
-          <StackPanel Spacing="1" Margin="0,2">
-            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-            <TextBlock Text="{Binding Subtitle}" FontSize="11" Opacity="0.65"
-                       TextTrimming="CharacterEllipsis" />
-          </StackPanel>
-        </DataTemplate>
-      </ListBox.ItemTemplate>
-    </ListBox>
+    <!-- Each group says where its playlists are and ends with its own New
+         playlist, so creating never lands on the other side by default. -->
+    <Grid x:Name="Groups" Grid.Row="1">
+      <DockPanel x:Name="YouTubeGroup">
+        <TextBlock DockPanel.Dock="Top" Text="{l:T dialog.pickPlaylist.youTube}" FontWeight="SemiBold"
+                   Opacity="0.85" Margin="0,0,0,4" />
+        <TextBlock x:Name="YouTubeNote" DockPanel.Dock="Top" IsVisible="False" FontSize="12" Opacity="0.7"
+                   TextWrapping="Wrap" Margin="0,0,0,6" />
+        <Grid x:Name="YouTubeCreate" DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+          <TextBox x:Name="YouTubeNameBox" PlaceholderText="{l:T dialog.pickPlaylist.newName}"
+                   AutomationProperties.Name="{l:T dialog.pickPlaylist.newYouTubeName}" />
+          <Button Grid.Column="1" Content="{l:T dialog.pickPlaylist.createAndAdd}" Margin="8,0,0,0"
+                  AutomationProperties.Name="{l:T dialog.pickPlaylist.newYouTubeName}" Click="OnCreateOnYouTube" />
+        </Grid>
+        <ListBox x:Name="YouTubeList" Background="Transparent"
+                 AutomationProperties.Name="{l:T dialog.pickPlaylist.youTubeList}"
+                 SelectionChanged="OnYouTubeSelected" DoubleTapped="OnListDoubleTapped">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="core:PlaylistEntry">
+              <StackPanel Spacing="1" Margin="0,2">
+                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Subtitle}" FontSize="11" Opacity="0.65"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
 
-    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,12,0,0">
-      <TextBox x:Name="NewNameBox" PlaceholderText="{l:T dialog.pickPlaylist.newName}" />
-      <Button Grid.Column="1" Content="{l:T dialog.pickPlaylist.createAndAdd}" Margin="8,0,0,0" Click="OnCreate" />
+      <DockPanel x:Name="LocalGroup">
+        <TextBlock DockPanel.Dock="Top" Text="{l:T dialog.pickPlaylist.local}" FontWeight="SemiBold"
+                   Opacity="0.85" Margin="0,0,0,4" />
+        <TextBlock x:Name="LocalNote" DockPanel.Dock="Top" IsVisible="False" FontSize="12" Opacity="0.7"
+                   TextWrapping="Wrap" Margin="0,0,0,6" />
+        <Grid x:Name="LocalCreate" DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+          <TextBox x:Name="LocalNameBox" PlaceholderText="{l:T dialog.pickPlaylist.newName}"
+                   AutomationProperties.Name="{l:T dialog.pickPlaylist.newLocalName}" />
+          <Button Grid.Column="1" Content="{l:T dialog.pickPlaylist.createAndAdd}" Margin="8,0,0,0"
+                  AutomationProperties.Name="{l:T dialog.pickPlaylist.newLocalName}" Click="OnCreateLocal" />
+        </Grid>
+        <ListBox x:Name="LocalList" Background="Transparent"
+                 AutomationProperties.Name="{l:T dialog.pickPlaylist.localList}"
+                 SelectionChanged="OnLocalSelected" DoubleTapped="OnListDoubleTapped">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="pl:LocalPlaylist">
+              <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="0,4" />
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
     </Grid>
 
-    <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="10"
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="10"
                 HorizontalAlignment="Right" Margin="0,14,0,0">
       <Button Content="{l:T common.cancel}" IsCancel="True" Click="OnCancel" />
       <Button Content="{l:T common.add}" Classes="accent" Click="OnAdd" />

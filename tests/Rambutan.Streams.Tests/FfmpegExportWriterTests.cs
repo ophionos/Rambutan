@@ -29,6 +29,7 @@ public sealed class FfmpegExportWriterTests : IDisposable
         Title = "Hello",
         Artists = [new ArtistRef("Adele", null)],
         Album = "25",
+        SongId = "khnokW3Mw24",
     };
 
     private static ExportJob Job(ExportTarget target, string output = "out.ogg") =>
@@ -50,11 +51,19 @@ public sealed class FfmpegExportWriterTests : IDisposable
     }
 
     [Fact]
-    public void Metadata_HoldsTitleArtistAlbum_AndSkipsEmptyValues()
+    public void Metadata_HoldsTitleArtistAlbumAndTheYouTubeIds_AndSkipsEmptyValues()
     {
         var job = Job(ExportTarget.M4a) with { Track = Hello with { Album = null } };
 
-        Assert.Equal(";FFMETADATA1\ntitle=Hello\nartist=Adele\n", FfmpegExportWriter.Metadata(job, null));
+        Assert.Equal(";FFMETADATA1\ntitle=Hello\nartist=Adele\nYOUTUBE_VIDEO_ID=YQHsXMglC9A\nYOUTUBE_SONG_ID=khnokW3Mw24\n",
+            FfmpegExportWriter.Metadata(job, null));
+    }
+
+    [Fact]
+    public void YouTubeIds_LeaveOutASongIdTheTrackLacks_AndAnythingNotYouTubeShaped()
+    {
+        Assert.Equal([("YOUTUBE_VIDEO_ID", "YQHsXMglC9A")], FfmpegExportWriter.YouTubeIds(Hello with { SongId = null }));
+        Assert.Empty(FfmpegExportWriter.YouTubeIds(Hello with { VideoId = "local:4", SongId = "a b" }));
     }
 
     [Fact]
@@ -168,6 +177,8 @@ public sealed class FfmpegExportWriterTests : IDisposable
         Assert.Contains("\"Hello\"", probe);
         Assert.Contains("\"Adele\"", probe);
         Assert.Contains("\"25\"", probe);
+        Assert.Contains("YOUTUBE_VIDEO_ID=\"YQHsXMglC9A\"", probe);
+        Assert.Contains("YOUTUBE_SONG_ID=\"khnokW3Mw24\"", probe);
         Assert.Contains("codec_name=\"mjpeg\"", probe);
         Assert.Contains("attached_pic=1", probe);
         if (extension != ".m4a") // MP4 has no picture types

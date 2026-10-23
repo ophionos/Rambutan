@@ -97,9 +97,9 @@ libraries; a type two of them share belongs in Core.
 |---|---|
 | `Rambutan.Core` | Playback coordinator + state machine, queue, ports (`ICatalog`, `IStreamSource`, `IAudioPlayer`), `AppLog`. **Pure C#, zero I/O, no package refs** without discussion. |
 | `Rambutan.InnerTube` | YTM API client implementing `ICatalog`. Parsers tested against recorded fixtures. |
-| `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, download store (kept apart from the cache: no cap, no eviction), export through the ffmpeg executable. The **only** project that touches stream extraction. |
+| `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, the downloads' fetcher (`GoogleVideoFetcher`, Core's `IAudioFetcher`), export through the ffmpeg executable (with the track's ids in keys of our own, `YOUTUBE_VIDEO_ID` and `YOUTUBE_SONG_ID`, `Core/Local/LocalTagValues`: a Vorbis comment, an ID3 `TXXX` frame, and in an .m4a, whose muxer drops unknown tags, freeform atoms `Mp4FreeformTags` adds afterwards; never rename them, they stay in users' files). The **only** project that touches stream extraction. |
 | `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). Also reads local files' tags, length and cover (`FfmpegMediaFileReader`), so libav stays in one project. |
-| `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`, and plays them (`LocalFirstSource`). |
+| `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`, and plays them (`LocalFirstSource`). Also the downloads (`DownloadStore`, played by `DownloadsFirstSource`; kept apart from the cache: no cap, no eviction), recorded on their files' entries in that index, the offline copies of pages (`KeptCollectionStore`), and the local playlists' file (`LocalPlaylistStore`, `local-playlists.json`; their rules and `LocalPlaylistLibrary` are `Core/Playlists`). |
 | `Rambutan.Lyrics` | Lyrics model + timing rules, LRC parser/writer, Lyricsfile (YAML subset) parser for LRCLIB's word-synced records, LRCLIB provider + chain, per-track cache, custom-lyrics store, `LyricsService`. |
 | `Rambutan.Integrations` | SMTC (Windows), MPRIS and the tray-host check (Linux, over D-Bus), single-instance, Velopack updates, Discord Rich Presence (hand-rolled IPC), Last.fm scrobbling and stations. |
 | `Rambutan.LocalApi` | Kestrel host started on demand: `/remote` (the phone remote, on the LAN only while its setting is on; token pairing, state over SSE) and `/overlay` (the OBS overlay, in its own host on loopback only, port 41742 for the installed app's data folder, with its own read-only key; style file `overlay-style.json`, versioned). |
@@ -250,14 +250,17 @@ file sink), never to files directly.
 - Offline pages: `Core/Downloads/OfflineCatalog` wraps the `ICatalog` that App
   registers. When an album or playlist page, or the Library's Albums or Playlists
   tab, can't load, it serves the copy that "Download all" kept
-  (`downloads-collections.json`, `Streams/KeptCollectionStore`), marked
+  (`downloads-collections.json`, `LocalLibrary/KeptCollectionStore`), marked
   `KeptAt` / `IsOfflineCopy` so the page says so.
 - Which id plays: a row's `TrackInfo.SongId` (YTM's credits link) names the
   album audio track. Album pages play the `SongId` when a row has one and fall
   back to the `VideoId` if it doesn't resolve; every other surface plays the
   video it lists. Lyrics, downloads and the now-playing marker follow the id that
   plays. `Core/Models/AlbumAudio` swaps the ids and `PlaybackCoordinator`
-  falls back to the listed video.
+  falls back to the listed video. A download plays under its YouTube id; the
+  `local:<n>` id of its entry in the local index stays inside LocalLibrary.
+  Builds before downloads were in the index kept them in `downloads.json`: the
+  first start takes its records in once and leaves the file as it was.
 - Local library: the watched folders are a setting (`AppSettings.WatchedFolders`,
   per profile like every setting). `LocalLibrary/LocalFileIndex` scans them at
   startup, when a folder is added, and on Rescan. While the app runs,
@@ -276,7 +279,10 @@ file sink), never to files directly.
   watched folder that can't be listed (an unplugged drive) leaves its files as
   they were, and so does one that lists no audio file while the index has
   files present under it (a Linux mount whose drive is down lists empty);
-  files of a folder no longer watched stay in the index, unlisted.
+  files of a folder no longer watched stay in the index, unlisted. The
+  index's `Files()` are the watched folders' files only, never a download's
+  entry, even one stored in a watched folder; the downloads come from the
+  store. yt-dlp's `purl` and `comment` URLs are never read as ids.
   The reader detects the format from the content after any ID3v2 tag, never the
   extension, and reads stream info only when the open gives no length. Its tests
   need the ffmpeg shared libraries (`RAMBUTAN_FFMPEG_LIBS`, else the app's tools
@@ -296,9 +302,15 @@ file sink), never to files directly.
   Discord or `queue.json`; when the index changes, the player bar, the queue
   rows and the media session read the playing file's cover again
   (`IMediaSessionService.UpdateArtwork`). The YouTube-only actions (radio, like, library,
-  playlists, download, share) are off for such a track
+  YouTube Music playlists, download, share) are off for such a track
   (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice,
-  unless the track has a YouTube Music match.
+  unless the track has a YouTube Music match. Its menu has its own Save to a
+  local playlist, apart from the match group's Save to playlist, which saves
+  the song. The playlist picker has two groups, YouTube Music and On this
+  computer, each with its own New playlist; a local file sees only the
+  second, and the first says why it is empty (signed out, failed to load)
+  without hiding the second. A local file's row keeps its index entry's
+  tags and path, never what its match filled in.
   Matching is an outbound integration, off by default
   (`AppSettings.MatchLocalOnYouTubeMusic`): `Core/Local/LocalMatcher` searches
   a file's title and artist tags (never its file name; none without a title
@@ -320,13 +332,36 @@ file sink), never to files directly.
   missing file's too). The queue keeps the file's own track, so turning
   matching off takes all of it back, and deletes the kept covers; the saved
   matches stay.
+  A file whose tags carry `YOUTUBE_VIDEO_ID` has that song as its match
+  whatever the setting, and is never searched: its download's track while
+  that exists, else one made from the tags (`YouTubeMatches.Tagged`).
   Library has two sources, YouTube Music and On this computer
-  (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
+  (`LocalLibraryViewModel`), signed out too. There is no Downloads page: On
+  this computer has the source filters All, Folders, Downloads and Playlists
+  (`Core/Local/LocalListing`), and the jobs running or failed above them
+  (`DownloadsViewModel`, one for the app's lifetime). All is the folders'
+  files and the present downloads in library order, a download sorting by
+  its track, and leaves out a file whose `YOUTUBE_VIDEO_ID` (an export) names
+  a present download; Folders is the files, exports too; Downloads is every
+  download, newest first, a missing one dimmed with Download again, and only
+  that filter shows the space used and Export. A download row has Remove
+  under each filter; a folder file has none. With no watched folder,
+  All (when nothing else lists) and Folders offer Settings. Playlists lists
+  the local playlists (`Core/Playlists/LocalPlaylistLibrary`), the one changed
+  last first, with New playlist; it needs no folder. A local playlist opens as
+  its own page (`LocalPlaylistPageViewModel`), never through `ICatalog`, and
+  edits as the account's own YouTube Music playlist does. Each time it shows,
+  its rows are found again (`LocalPlaylists.ResolveAll`: by id, then path, then
+  one file with the same tags) and what was found is kept; a file not found is
+  dimmed, named missing, and left out of what plays. While it shows, it
+  follows the playlists' file and the scans. A read-only file (a newer
+  build's, or unreadable and left in place) offers no edits and says why.
   A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
-  `LocalFileIndex.OpenAsync`) keeps the id the index has for its path, else
+  `LocalFileIndex.OpenAsync`) plays a download's file as its download's
+  track, and otherwise keeps the id the index has for its path, else
   gets a new `local:<n>`; one outside the watched folders is kept as opened
   (`LocalFile.IsOpened`), never listed, and forgotten at the next start when
-  the queue no longer holds it (`ForgetOpened`). A drop on the queue pane adds
+  neither the queue nor a local playlist holds it (`ForgetOpened`). A drop on the queue pane adds
   to its end; elsewhere the files play after the current track
   (`PlaybackCoordinator.PlayAfterCurrentAsync`); the queue is never replaced.
   Its lyrics cache file is `local.<n>.json`; its own lyrics (below, under

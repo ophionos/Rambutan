@@ -1,7 +1,7 @@
 using Rambutan.Core.Downloads;
 using Rambutan.Core.Models;
 
-namespace Rambutan.Streams.Tests;
+namespace Rambutan.LocalLibrary.Tests;
 
 public sealed class KeptCollectionStoreTests : IDisposable
 {
@@ -44,6 +44,20 @@ public sealed class KeptCollectionStoreTests : IDisposable
         Assert.Equal(track with { Artists = [] }, back with { Artists = [] });
         Assert.Equal(track.Artists, back.Artists);
         Assert.Contains("\"version\":1", File.ReadAllText(FilePath));
+    }
+
+    [Fact]
+    public void TheFile_IsWrittenAsBefore()
+    {
+        var track = new TrackInfo
+        {
+            VideoId = "YQHsXMglC9A", Title = "Hello", Artists = [new ArtistRef("Adele", "UCadele")],
+            Album = "25", Duration = TimeSpan.FromSeconds(296), TrackNumber = 1, SongId = "khnokW3Mw24",
+        };
+        new KeptCollectionStore(_dir).Save([new KeptCollection(KeptCollectionKind.Album, "MPREb_25", "25", "Adele",
+            "UCadele", "Album", "https://lh3/25", [track], new DateTimeOffset(2026, 10, 3, 9, 30, 0, TimeSpan.Zero))]);
+
+        Assert.Equal("""{"version":1,"collections":[{"kind":"album","id":"MPREb_25","title":"25","artist":"Adele","artistBrowseId":"UCadele","subtitleInfo":"Album","thumbnailUrl":"https://lh3/25","keptAt":"2026-10-03T09:30:00+00:00","tracks":[{"videoId":"YQHsXMglC9A","title":"Hello","artists":[{"name":"Adele","browseId":"UCadele"}],"album":"25","durationSeconds":296,"trackNumber":1,"songId":"khnokW3Mw24"}]}]}""", File.ReadAllText(FilePath));
     }
 
     [Fact]

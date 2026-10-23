@@ -8,6 +8,23 @@ namespace Rambutan.Core.Local;
 /// </summary>
 public static class LocalTagValues
 {
+    /// <summary>
+    /// The tag an export writes with its download's YouTube id, so a scan that
+    /// finds the file knows its song without a search (maintainer's decision):
+    /// a Vorbis comment, an ID3 <c>TXXX</c> frame, an MP4 freeform atom under
+    /// <c>com.apple.iTunes</c>. These names stay in the user's files: never change them.
+    /// </summary>
+    public const string YouTubeVideoIdKey = "YOUTUBE_VIDEO_ID";
+
+    /// <summary>The same for <see cref="Models.TrackInfo.SongId"/>, when the track has one.</summary>
+    public const string YouTubeSongIdKey = "YOUTUBE_SONG_ID";
+
+    /// <summary>A YouTube id as a tag holds it, trimmed; null when it is empty or
+    /// isn't YouTube-shaped (<see cref="Models.YouTubeIds"/>), so a tag can't
+    /// make the app send YouTube something else.</summary>
+    public static string? YouTubeId(string? text) =>
+        text?.Trim() is { Length: > 0 } id && Models.YouTubeIds.IsVideoId(id) ? id : null;
+
     /// <summary>The number before any "/total": "3/12" is 3. Null for none, zero
     /// or anything that isn't a number.</summary>
     public static int? Position(string? text)

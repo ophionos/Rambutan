@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Rambutan.App.Services;
 using Rambutan.Core.Catalog;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.App.Localization;
@@ -19,7 +20,6 @@ public enum NavSection
     Home,
     Search,
     Library,
-    Downloads,
     Settings,
 }
 
@@ -67,6 +67,8 @@ public partial class NavigationService : ViewModelBase
         _stations = stations;
         _local = local;
         Collections = new CollectionActionsViewModel(catalog, coordinator, actions, stations, OpenStation);
+        if (local?.Downloads is not null)
+            GoDownloads = OpenDownloads;
     }
 
     public void GoHome()
@@ -97,13 +99,20 @@ public partial class NavigationService : ViewModelBase
     private void GoLibrary(LibrarySource source)
     {
         _library ??= new LibraryPageViewModel(_catalog, this, _actions, _coordinator, _local, source);
+        _library.Source = source;
         NavigateRoot(_library, NavSection.Library);
         _ = _library.EnsureLoadedAsync();
     }
 
-    /// <summary>Opens the Downloads page; null where downloads aren't composed.
-    /// Set by MainViewModel, which owns that page.</summary>
+    /// <summary>Opens the downloads: Library → On this computer, filtered to
+    /// them. Null where downloads aren't composed.</summary>
     public Action? GoDownloads { get; set; }
+
+    private void OpenDownloads()
+    {
+        _local!.Filter = LocalSource.Downloads;
+        GoLibrary(LibrarySource.ThisComputer);
+    }
 
     /// <summary>Opens Settings; set by MainViewModel, which makes that page.</summary>
     public Action? GoSettings { get; set; }
@@ -112,6 +121,11 @@ public partial class NavigationService : ViewModelBase
     {
         if (oldValue is LibraryPageViewModel library && !ReferenceEquals(newValue, library))
             library.OnHidden();
+        // A local playlist follows its file and the scans only while it shows.
+        if (oldValue is LocalPlaylistPageViewModel left && !ReferenceEquals(newValue, left))
+            left.Hide();
+        if (newValue is LocalPlaylistPageViewModel shown && !ReferenceEquals(oldValue, shown))
+            _ = shown.ShowAsync();
     }
 
     public void GoTo(ViewModelBase page, NavSection section = NavSection.None) =>
@@ -150,6 +164,15 @@ public partial class NavigationService : ViewModelBase
         var page = new PlaylistPageViewModel(_catalog, _coordinator, this, _actions, playlistId);
         Push(page);
         _ = page.LoadAsync();
+    }
+
+    /// <summary>A playlist on this computer. Null-safe where local playlists
+    /// aren't composed: nothing opens.</summary>
+    public void OpenLocalPlaylist(string id)
+    {
+        if (_local?.PlaylistLibrary is not { } library)
+            return;
+        Push(new LocalPlaylistPageViewModel(library, id, _local.Scans, _coordinator, this, _actions));
     }
 
     /// <summary>The Moods &amp; genres grid, from Home's header.</summary>
