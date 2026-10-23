@@ -166,18 +166,21 @@ public sealed class LocalFileOpenerTests : IDisposable
     }
 
     [Fact]
-    public async Task A_read_that_fails_goes_and_says_nothing_could_play()
+    public async Task A_read_that_fails_goes_and_says_why()
     {
         _ffmpeg = new TaskCompletionSource();
         var open = _opener.OpenAsync([Write("a.mp3", "A")], playNow: true);
         _clock.Advance(LocalFileOpener.ShowAfter);
         Assert.Equal(0, _opener.Reading);
 
-        _ffmpeg.SetException(new IOException("ffmpeg didn't download"));
+        _ffmpeg.SetException(new HttpRequestException("ffmpeg didn't download"));
         await open;
 
         Assert.Null(_opener.Reading);
-        Assert.Equal(ToastKind.Error, Assert.Single(_toasts.Toasts).Kind);
+        var toast = Assert.Single(_toasts.Toasts);
+        Assert.Equal(ToastKind.Error, toast.Kind);
+        Assert.Equal("Audio setup failed — playback unavailable.", toast.Message);
+        Assert.Empty(_played);
     }
 
     private sealed class TitleReader : IMediaFileReader

@@ -327,7 +327,9 @@ file sink), never to files directly.
   to its end; elsewhere the files play after the current track
   (`PlaybackCoordinator.PlayAfterCurrentAsync`); the queue is never replaced.
   Its lyrics cache file is `local.<n>.json`; its own lyrics (below, under
-  Lyrics) come before it. Search's All tab puts the
+  Lyrics) come before it. Reading opened files for longer than
+  `LocalFileOpener.ShowAfter` shows on the status strip, with the number of
+  files once they are listed, until the last open ends. Search's All tab puts the
   index's matches (`Core/Local/LocalSearch`) on a shelf above YouTube Music's
   results, at most `SearchPageViewModel.LocalKept` rows, since that list
   doesn't virtualize; the shelf stays when YouTube Music can't be reached.

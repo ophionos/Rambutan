@@ -82,6 +82,14 @@ public sealed class LocalFileOpener(
             AppLog.Write("local", $"couldn't open files: {ex.GetType().Name}");
             files = [];
         }
+        // The wait for ffmpeg failed (FfmpegManager's download): the files
+        // weren't the problem, and the status strip offers the retry.
+        catch (Exception ex) when (ex is System.Net.Http.HttpRequestException or TimeoutException or InvalidOperationException)
+        {
+            AppLog.Write("local", $"couldn't open files without ffmpeg: {ex.GetType().Name}");
+            toasts.Show(Strings.Get("sidecar.failed"), ToastKind.Error);
+            return;
+        }
         finally
         {
             Ended(listed);
