@@ -191,6 +191,105 @@ public sealed class YouTubeMatchesTests : IDisposable
         Assert.Single(_searches);
     }
 
+    private string CoverFolder => Path.Combine(_dir, "local-match-covers");
+
+    private async Task<YouTubeMatches> MatchedWithCover()
+    {
+        var matches = Matches();
+        matches.Request(Local("local:1", "Disco 2000"));
+        await Eventually(() => matches.CoverPathFor("local:1"));
+        return matches;
+    }
+
+    [Fact]
+    public async Task Covers_no_match_uses_and_leftover_writes_are_removed()
+    {
+        var matches = await MatchedWithCover();
+        File.WriteAllBytes(Path.Combine(CoverFolder, "expired.jpg"), [1]);
+        File.WriteAllBytes(Path.Combine(CoverFolder, "disco.jpg.tmp"), [1]);
+
+        await matches.RemoveUnusedCoversAsync();
+
+        Assert.Equal(["disco.jpg"], Directory.GetFiles(CoverFolder).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public async Task A_file_that_left_the_index_or_was_retagged_or_got_its_own_cover_lets_its_match_cover_go()
+    {
+        foreach (var change in new Action[]
+                 {
+                     () => _files.Remove("local:1"),
+                     () => _files["local:1"] = _files["local:1"] with { Tags = _files["local:1"].Tags! with { Title = "Mis-Shapes" } },
+                     () => _files["local:1"] = _files["local:1"] with { CoverPath = Path.Combine(_dir, "own.jpg") },
+                 })
+        {
+            Add("local:1", "Disco 2000", "Pulp");
+            // Else the next round reads the saved match and never fetches the cover.
+            File.Delete(Path.Combine(_dir, "local-matches.json"));
+            var matches = await MatchedWithCover();
+
+            change();
+            await matches.RemoveUnusedCoversAsync();
+
+            Assert.Empty(Directory.GetFiles(CoverFolder));
+        }
+    }
+
+    [Fact]
+    public async Task A_missing_file_keeps_its_match_cover()
+    {
+        var matches = await MatchedWithCover();
+
+        _files["local:1"] = _files["local:1"] with { IsMissing = true };
+        await matches.RemoveUnusedCoversAsync();
+
+        Assert.True(File.Exists(Path.Combine(CoverFolder, "disco.jpg")));
+    }
+
+    [Fact]
+    public async Task Turning_matching_off_deletes_the_kept_covers()
+    {
+        var matches = await MatchedWithCover();
+
+        matches.Enabled = false;
+
+        await Eventually(() => Directory.Exists(CoverFolder) ? null : "");
+        // At startup with the setting off, a folder left from before goes too.
+        Directory.CreateDirectory(CoverFolder);
+        File.WriteAllBytes(Path.Combine(CoverFolder, "disco.jpg"), [1]);
+        await Matches(enabled: false).RemoveUnusedCoversAsync();
+        Assert.False(Directory.Exists(CoverFolder));
+    }
+
+    [Fact]
+    public async Task A_cover_fetched_after_matching_was_turned_off_is_not_kept()
+    {
+        var fetching = new TaskCompletionSource();
+        var release = new TaskCompletionSource<byte[]>();
+        var matches = new YouTubeMatches(
+            new LocalMatcher((_, _) => Task.FromResult<IReadOnlyList<TrackInfo>>([Song("Disco 2000", "disco")])),
+            id => _files.GetValueOrDefault(id), _dir,
+            (_, _) =>
+            {
+                fetching.TrySetResult();
+                return release.Task;
+            })
+        {
+            Enabled = true,
+        };
+        var announced = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        matches.Changed += () => announced.TrySetResult();
+
+        matches.Request(Local("local:1", "Disco 2000"));
+        await fetching.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        matches.Enabled = false;
+        announced = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        release.SetResult([0xFF, 0xD8, 0xFF]);
+        await announced.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(File.Exists(Path.Combine(CoverFolder, "disco.jpg")));
+    }
+
     private static readonly TrackActionsViewModel NoMatches = new(null!, new QueueModel(), null!, null!, new ToastHostViewModel());
 
     private static string[][] Headers(IReadOnlyList<IReadOnlyList<MenuEntry>> groups) =>
