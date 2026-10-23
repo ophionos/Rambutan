@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Rambutan.App.Services;
 using Rambutan.Core.Catalog;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.App.Localization;
@@ -19,7 +20,6 @@ public enum NavSection
     Home,
     Search,
     Library,
-    Downloads,
     Settings,
 }
 
@@ -67,6 +67,8 @@ public partial class NavigationService : ViewModelBase
         _stations = stations;
         _local = local;
         Collections = new CollectionActionsViewModel(catalog, coordinator, actions, stations, OpenStation);
+        if (local?.Downloads is not null)
+            GoDownloads = OpenDownloads;
     }
 
     public void GoHome()
@@ -97,13 +99,20 @@ public partial class NavigationService : ViewModelBase
     private void GoLibrary(LibrarySource source)
     {
         _library ??= new LibraryPageViewModel(_catalog, this, _actions, _coordinator, _local, source);
+        _library.Source = source;
         NavigateRoot(_library, NavSection.Library);
         _ = _library.EnsureLoadedAsync();
     }
 
-    /// <summary>Opens the Downloads page; null where downloads aren't composed.
-    /// Set by MainViewModel, which owns that page.</summary>
+    /// <summary>Opens the downloads: Library → On this computer, filtered to
+    /// them. Null where downloads aren't composed.</summary>
     public Action? GoDownloads { get; set; }
+
+    private void OpenDownloads()
+    {
+        _local!.Filter = LocalSource.Downloads;
+        GoLibrary(LibrarySource.ThisComputer);
+    }
 
     /// <summary>Opens Settings; set by MainViewModel, which makes that page.</summary>
     public Action? GoSettings { get; set; }

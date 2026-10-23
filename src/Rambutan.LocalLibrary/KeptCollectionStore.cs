@@ -50,7 +50,7 @@ public sealed class KeptCollectionStore(string dataDirectory) : IKeptCollectionS
         }
         catch (Exception ex)
         {
-            // The copies are a convenience: the downloads still play from the Downloads page.
+            // The copies are a convenience: the downloads still play from On this computer.
             AppLog.Write("downloads", $"couldn't save downloads-collections.json: {ex.Message}");
         }
     }

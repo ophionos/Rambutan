@@ -1,6 +1,7 @@
 using Avalonia.Data.Converters;
 using Avalonia.Media;
 using Rambutan.App.Localization;
+using Rambutan.Core.Local;
 
 namespace Rambutan.App.ViewModels;
 
@@ -67,6 +68,14 @@ public static class Converters
         new FuncValueConverter<LibrarySource, string>(source => Strings.Get(source == LibrarySource.ThisComputer
             ? "library.source.thisComputer"
             : "library.source.youTubeMusic"));
+
+    public static readonly IValueConverter LocalSourceName =
+        new FuncValueConverter<LocalSource, string>(source => Strings.Get(source switch
+        {
+            LocalSource.Folders => "library.local.filter.folders",
+            LocalSource.Downloads => "library.local.filter.downloads",
+            _ => "library.local.filter.all",
+        }));
 
     public static readonly IValueConverter LibrarySectionName =
         new FuncValueConverter<LibrarySectionKind, string>(kind => Strings.Get(kind switch

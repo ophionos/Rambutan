@@ -16,7 +16,6 @@ public partial class MainViewModel : ViewModelBase
     private readonly SidecarBootstrapper? _bootstrapper;
     private readonly Func<SettingsPageViewModel>? _settingsFactory;
     private readonly AppSettings? _settings;
-    private readonly DownloadsPageViewModel? _downloads;
 
     /// <summary>Plays or queues opened and dropped files; null where there is
     /// no local library (the designer).</summary>
@@ -213,10 +212,8 @@ public partial class MainViewModel : ViewModelBase
         Func<SettingsPageViewModel> settingsFactory,
         AppSettings settings,
         AppearanceSettings appearance,
-        DownloadsPageViewModel? downloads = null,
         LocalFileOpener? opener = null)
     {
-        _downloads = downloads;
         Opener = opener;
         Appearance = appearance;
         Navigation = navigation;
@@ -247,8 +244,6 @@ public partial class MainViewModel : ViewModelBase
         // Property, not ctor arg: NavigationService already depends on Actions.
         actions.OpenArtist = navigation.OpenArtist;
         actions.OpenAlbum = navigation.OpenAlbum;
-        if (downloads is not null)
-            navigation.GoDownloads = GoDownloads;
         navigation.GoSettings = GoSettings;
 
         FollowNavigation();
@@ -392,14 +387,6 @@ public partial class MainViewModel : ViewModelBase
 
     [RelayCommand]
     private void GoLibrary() => Navigation.GoLibrary();
-
-    /// <summary>One page for the app's lifetime: it follows the jobs while away.</summary>
-    [RelayCommand]
-    private void GoDownloads()
-    {
-        if (_downloads is not null)
-            Navigation.GoTo(_downloads, NavSection.Downloads);
-    }
 
     // A fresh VM each visit re-seeds from the live settings objects.
     [RelayCommand]

@@ -1,7 +1,10 @@
 using System.ComponentModel;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using Rambutan.App.Controls;
+using Rambutan.App.Localization;
 using Rambutan.App.ViewModels;
 
 namespace Rambutan.App.Views;
@@ -36,6 +39,19 @@ public partial class LibraryPage : UserControl
         _vm = DataContext as LibraryPageViewModel;
         if (_vm is not null)
             _vm.PropertyChanged += OnViewModelChanged;
+        if (_vm?.Local?.Downloads is { } downloads)
+            downloads.PickFolder = async start =>
+            {
+                if (TopLevel.GetTopLevel(this)?.StorageProvider is not { CanPickFolder: true } storage)
+                    return null;
+                var picked = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = Strings.Get("downloads.export.pickTitle"),
+                    AllowMultiple = false,
+                    SuggestedStartLocation = start is null ? null : await storage.TryGetFolderFromPathAsync(start),
+                });
+                return picked.FirstOrDefault()?.TryGetLocalPath();
+            };
     }
 
     // Each tab starts at its top; the scroller is shared between them.

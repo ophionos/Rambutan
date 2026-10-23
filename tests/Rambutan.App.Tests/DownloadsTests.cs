@@ -129,7 +129,7 @@ public sealed class DownloadsTests : IDisposable
         var fetcher = new GatedFetcher();
         using var store = NewStore(fetcher);
         var queue = new DownloadQueue(store, maxParallel: 1);
-        var page = new DownloadsPageViewModel(queue, null, null, post: a => { lock (_root) a(); });
+        var page = new DownloadsViewModel(queue, null, post: a => { lock (_root) a(); });
 
         Assert.True(page.IsEmpty);
         queue.Enqueue([Track("vid00000001"), Track("vid00000002")]);
@@ -154,14 +154,14 @@ public sealed class DownloadsTests : IDisposable
         var queue = new DownloadQueue(store);
         var toasts = new ToastHostViewModel();
         var actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, toasts) { Downloads = queue };
-        var page = new DownloadsPageViewModel(queue, null, actions, post: a => { lock (_root) a(); });
+        var page = new DownloadsViewModel(queue, actions, post: a => { lock (_root) a(); });
 
         queue.Enqueue([Track("vid00000001")]);
         fetcher.Release();
         await WaitUntilAsync(() => page.HasFailed);
 
         Assert.Equal("Couldn't download", page.Jobs.Single().Status);
-        Assert.Contains(toasts.Toasts, t => t.Message == "Couldn't download Song vid00000001. Retry it from Downloads.");
+        Assert.Contains(toasts.Toasts, t => t.Message == "Couldn't download Song vid00000001. Retry it from Library, On this computer.");
 
         page.RetryAllCommand.Execute(null);
         fetcher.Release();
@@ -179,10 +179,10 @@ public sealed class DownloadsTests : IDisposable
         await WaitUntilAsync(() => queue.IsDownloaded("vid00000001"));
         File.Delete(store.TryGetMedia("vid00000001")!.Url);
 
-        var page = new DownloadsPageViewModel(queue, null, null, post: a => { lock (_root) a(); });
+        var page = new DownloadsViewModel(queue, null, post: a => { lock (_root) a(); });
         var row = page.Downloaded.Single();
         Assert.True(row.IsMissing);
-        Assert.Equal("Song vid00000001, Artist, file missing", row.AccessibleName);
+        Assert.Equal("Song vid00000001, Artist, file missing", new LocalTrackRow(null, row.Track, row).AccessibleName);
 
         fetcher.Release();
         page.DownloadAgainCommand.Execute(row);
@@ -256,7 +256,7 @@ public sealed class DownloadsTests : IDisposable
         var writer = new RecordingWriter();
         var toasts = new ToastHostViewModel();
         var actions = new TrackActionsViewModel(null!, new QueueModel(), null!, null!, toasts) { Downloads = queue };
-        var page = new DownloadsPageViewModel(queue, null, actions, post: a => a(), exportSettings: export,
+        var page = new DownloadsViewModel(queue, actions, post: a => a(), exportSettings: export,
             export: new DownloadExport(writer, _ => false), exportSource: store.ExportSourceFor);
         var folder = Path.Combine(_root, "exported");
         string? offered = "unset";
@@ -319,7 +319,7 @@ public sealed class DownloadsTests : IDisposable
     [InlineData(84L << 20, "84 MB")]
     [InlineData(1229L << 20, "1.2 GB")]
     public void Sizes_read_in_megabytes_then_gigabytes(long bytes, string expected) =>
-        Assert.Equal(expected, DownloadsPageViewModel.FormatSize(bytes), StringComparer.Ordinal);
+        Assert.Equal(expected, DownloadsViewModel.FormatSize(bytes), StringComparer.Ordinal);
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {

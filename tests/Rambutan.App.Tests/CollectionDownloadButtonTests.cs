@@ -191,10 +191,10 @@ public sealed class CollectionDownloadButtonTests
     }
 
     [Fact]
-    public async Task TheDownloadsPage_HidesThemWhileUndoIsUp()
+    public async Task TheDownloadsList_HidesThemWhileUndoIsUp()
     {
         var button = (await AlbumAsync("t1", "t2")).DownloadButton!;
-        var downloads = new DownloadsPageViewModel(_actions.Downloads!, null, _actions, post: a => a());
+        var downloads = new DownloadsViewModel(_actions.Downloads!, _actions, post: a => a());
         Assert.Equal(2, downloads.Downloaded.Count);
 
         await button.PressCommand.ExecuteAsync(null);

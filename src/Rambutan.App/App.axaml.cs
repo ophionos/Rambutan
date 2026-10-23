@@ -589,9 +589,8 @@ public partial class App : Application
         // Export writes downloads out with the ffmpeg sidecar; off until the user
         // turns it on in Settings.
         services.AddSingleton(sp => new ExportSettings(sp.GetRequiredService<AppSettings>(), () => RequestPersist(sp)));
-        services.AddSingleton(sp => new DownloadsPageViewModel(
-            sp.GetRequiredService<DownloadQueue>(), sp.GetRequiredService<PlaybackCoordinator>(),
-            sp.GetRequiredService<TrackActionsViewModel>(),
+        services.AddSingleton(sp => new DownloadsViewModel(
+            sp.GetRequiredService<DownloadQueue>(), sp.GetRequiredService<TrackActionsViewModel>(),
             exportSettings: sp.GetRequiredService<ExportSettings>(),
             export: new DownloadExport(
                 new FfmpegExportWriter(sp.GetRequiredService<FfmpegManager>().EnsureExecutableAsync), File.Exists),
@@ -599,7 +598,8 @@ public partial class App : Application
         services.AddSingleton(new SearchHistory(new SearchHistoryStore(dataDir)));
         services.AddSingleton(sp => new LocalLibraryViewModel(
             sp.GetRequiredService<LocalLibraryScans>(), sp.GetRequiredService<PlaybackCoordinator>(),
-            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []));
+            () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [],
+            downloads: sp.GetRequiredService<DownloadsViewModel>()));
         services.AddSingleton<NavigationService>();
         services.AddSingleton(sp => new QueueViewModel(
             sp.GetRequiredService<QueueModel>(), sp.GetRequiredService<PlaybackCoordinator>(),

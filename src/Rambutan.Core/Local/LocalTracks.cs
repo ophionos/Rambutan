@@ -46,21 +46,36 @@ public static class LocalTracks
     public static IReadOnlyList<LocalFile> InLibraryOrder(IEnumerable<LocalFile> files, LocalPaths? paths = null)
     {
         paths ??= LocalPaths.Platform;
+        return InLibraryOrder(files, f => OrderKey(f, ToTrack(f, paths)), paths);
+    }
+
+    /// <summary>What library order sorts a file by.</summary>
+    internal static LibraryOrderKey OrderKey(LocalFile file, TrackInfo track) => new(
+        file.Tags?.AlbumArtist ?? file.Tags?.Artist, file.Tags?.Album,
+        file.Tags?.DiscNumber, file.Tags?.TrackNumber, track.Title, file.Path);
+
+    internal static IReadOnlyList<T> InLibraryOrder<T>(IEnumerable<T> items, Func<T, LibraryOrderKey> key, LocalPaths paths)
+    {
         var text = StringComparer.CurrentCultureIgnoreCase;
-        return files
-            .Select(f => (File: f, Track: ToTrack(f, paths)))
-            .OrderBy(x => (x.File.Tags?.AlbumArtist ?? x.File.Tags?.Artist) is null)
-            .ThenBy(x => x.File.Tags?.AlbumArtist ?? x.File.Tags?.Artist, text)
-            .ThenBy(x => x.File.Tags?.Album is null)
-            .ThenBy(x => x.File.Tags?.Album, text)
-            .ThenBy(x => x.File.Tags?.DiscNumber ?? int.MaxValue)
-            .ThenBy(x => x.File.Tags?.TrackNumber ?? int.MaxValue)
-            .ThenBy(x => x.Track.Title, text)
-            .ThenBy(x => x.File.Path, paths.Comparer)
-            .Select(x => x.File)
+        return items
+            .Select(x => (Item: x, Key: key(x)))
+            .OrderBy(x => x.Key.Artist is null)
+            .ThenBy(x => x.Key.Artist, text)
+            .ThenBy(x => x.Key.Album is null)
+            .ThenBy(x => x.Key.Album, text)
+            .ThenBy(x => x.Key.Disc ?? int.MaxValue)
+            .ThenBy(x => x.Key.Track ?? int.MaxValue)
+            .ThenBy(x => x.Key.Title, text)
+            .ThenBy(x => x.Key.Path, paths.Comparer)
+            .Select(x => x.Item)
             .ToList();
     }
 }
+
+/// <summary>Where a row sorts in library order; <see cref="Path"/> breaks the
+/// last tie, so the order never depends on the input's.</summary>
+internal readonly record struct LibraryOrderKey(
+    string? Artist, string? Album, int? Disc, int? Track, string Title, string Path);
 
 /// <summary>A local track can't play: its id isn't in the index, or its file is
 /// gone or the index knows it isn't audio. Not retried by streaming.</summary>

@@ -492,28 +492,30 @@ public sealed class DownloadStoreTests : IDisposable
 
         await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
 
-        var file = Assert.Single(_index.Files());
+        Assert.Empty(_index.Files());
+        var file = Assert.Single(_index.Downloads());
         Assert.Equal(scanned.Id, file.Id);
         Assert.Equal("vid00000001", file.Download?.Track.VideoId);
     }
 
     [Fact]
-    public async Task A_download_in_a_watched_folder_is_listed_once_read_and_stays_a_download()
+    public async Task A_download_in_a_watched_folder_is_read_by_a_scan_and_stays_a_download()
     {
         _watched.Add(Folder);
         using var store = NewStore();
         await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
-        Assert.Empty(_index!.Files());
+        Assert.Null(Assert.Single(_index!.Downloads()).Tags);
 
         await _index.ScanAsync();
-        Assert.Equal("audio", Assert.Single(_index.Files()).Tags?.Title);
+        Assert.Equal("audio", Assert.Single(_index.Downloads()).Tags?.Title);
 
         var path = store.TryGetMedia("vid00000001")!.Url;
         File.WriteAllText(path, "changed");
         File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(1));
         await _index.ScanAsync();
 
-        var file = Assert.Single(_index.Files());
+        Assert.Empty(_index.Files());
+        var file = Assert.Single(_index.Downloads());
         Assert.Equal("changed", file.Tags?.Title);
         Assert.True(store.Contains("vid00000001"));
     }

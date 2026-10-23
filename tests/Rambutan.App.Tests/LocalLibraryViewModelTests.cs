@@ -69,7 +69,7 @@ public sealed class LocalLibraryViewModelTests : IDisposable
         Assert.True(_vm.HasFolders);
         Assert.False(_vm.IsEmpty);
         Assert.False(_vm.IsScanning);
-        Assert.Equal("3 music files", _vm.Status);
+        Assert.Equal("3 songs", _vm.Status);
         Assert.Equal("1 file couldn't be read as music.", _vm.Problems);
     }
 

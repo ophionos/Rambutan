@@ -279,10 +279,10 @@ file sink), never to files directly.
   watched folder that can't be listed (an unplugged drive) leaves its files as
   they were, and so does one that lists no audio file while the index has
   files present under it (a Linux mount whose drive is down lists empty);
-  files of a folder no longer watched stay in the index, unlisted. A file
-  whose tags carry `YOUTUBE_VIDEO_ID` (an export) is listed once, as its
-  download, while that download is listed and present; yt-dlp's `purl` and
-  `comment` URLs are never read as ids.
+  files of a folder no longer watched stay in the index, unlisted. The
+  index's `Files()` are the watched folders' files only, never a download's
+  entry, even one stored in a watched folder; the downloads come from the
+  store. yt-dlp's `purl` and `comment` URLs are never read as ids.
   The reader detects the format from the content after any ID3v2 tag, never the
   extension, and reads stream info only when the open gives no length. Its tests
   need the ffmpeg shared libraries (`RAMBUTAN_FFMPEG_LIBS`, else the app's tools
@@ -327,9 +327,20 @@ file sink), never to files directly.
   whatever the setting, and is never searched: its download's track while
   that exists, else one made from the tags (`YouTubeMatches.Tagged`).
   Library has two sources, YouTube Music and On this computer
-  (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
+  (`LocalLibraryViewModel`), signed out too. There is no Downloads page: On
+  this computer has the source filters All, Folders and Downloads
+  (`Core/Local/LocalListing`), and the jobs running or failed above them
+  (`DownloadsViewModel`, one for the app's lifetime). All is the folders'
+  files and the present downloads in library order, a download sorting by
+  its track, and leaves out a file whose `YOUTUBE_VIDEO_ID` (an export) names
+  a present download; Folders is the files, exports too; Downloads is every
+  download, newest first, a missing one dimmed with Download again, and only
+  that filter shows the space used and Export. A download row has Remove
+  under each filter; a folder file has none. With no watched folder,
+  All (when nothing else lists) and Folders offer Settings.
   A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,
-  `LocalFileIndex.OpenAsync`) keeps the id the index has for its path, else
+  `LocalFileIndex.OpenAsync`) plays a download's file as its download's
+  track, and otherwise keeps the id the index has for its path, else
   gets a new `local:<n>`; one outside the watched folders is kept as opened
   (`LocalFile.IsOpened`), never listed, and forgotten at the next start when
   the queue no longer holds it (`ForgetOpened`). A drop on the queue pane adds

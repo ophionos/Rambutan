@@ -120,8 +120,9 @@ public sealed class LocalFileIndex : IDisposable
 
     /// <summary>The files inside the watched folders, missing and unreadable ones
     /// included. Files of a folder no longer watched stay in the index, keeping
-    /// their ids should it be watched again, but aren't listed. A file an export
-    /// wrote is listed once, as its download, while that is listed too.</summary>
+    /// their ids should it be watched again, but aren't listed. Downloads aren't
+    /// listed here, even one kept in a watched folder: the download store lists
+    /// them, under their YouTube ids.</summary>
     public IReadOnlyList<LocalFile> Files()
     {
         var roots = Roots(_folders());
@@ -152,14 +153,8 @@ public sealed class LocalFileIndex : IDisposable
         return (readable, unreadable, missing);
     }
 
-    /// <summary>Call under the lock.</summary>
     private bool IsListed(LocalFile file, IReadOnlyList<string> roots) =>
-        IsUnderListedRoot(file, roots)
-        && !(file.Download is null && file.Tags?.YouTubeVideoId is { } videoId
-            && FindDownloadLocked(videoId) is { IsMissing: false } download && IsUnderListedRoot(download, roots));
-
-    private bool IsUnderListedRoot(LocalFile file, IReadOnlyList<string> roots) =>
-        !file.IsUnreadDownload && roots.Any(r => _paths.IsUnder(file.Path, r));
+        file.Download is null && roots.Any(r => _paths.IsUnder(file.Path, r));
 
     /// <summary>The file with this id, wherever it is; null when the index has none.</summary>
     public LocalFile? Find(string id)
@@ -775,7 +770,7 @@ public sealed class LocalFileIndex : IDisposable
             _dirty = true;
         }
         SaveIfDirty();
-        // An exported copy of the video may stop being listed.
+        // A watched folder's file may have become the download, so isn't listed.
         RaiseChanged();
     }
 
@@ -794,7 +789,7 @@ public sealed class LocalFileIndex : IDisposable
             _dirty = true;
         }
         SaveIfDirty();
-        // An exported copy of the video is listed again.
+        // Its file, if a watched folder holds it, is listed again.
         RaiseChanged();
         return true;
     }

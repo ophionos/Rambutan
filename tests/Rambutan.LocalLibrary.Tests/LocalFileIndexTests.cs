@@ -211,43 +211,24 @@ public sealed class LocalFileIndexTests : IDisposable
     }
 
     [Fact]
-    public async Task AnExportedCopy_IsListedOnce_AsItsDownload_UntilTheDownloadIsDeleted()
+    public async Task ADownloadInAWatchedFolder_IsNotAmongTheFiles_UntilItIsDeleted()
     {
         var download = Write(Path.Combine("downloads", "YQHsXMglC9A.opus"), "Downloaded");
         var copy = Write(Path.Combine("exports", "Hello.mp3"), "ids:YQHsXMglC9A,khnokW3Mw24");
-        var other = Write(Path.Combine("exports", "Other.mp3"), "ids:khnokW3Mw24,khnokW3Mw24");
         using var library = Library();
-        RecordDownload(library, download, "YQHsXMglC9A");
-        await library.ScanAsync();
-
-        Assert.Equal([download, other], library.Files().Select(f => f.Path).Order());
-        Assert.Equal((2, 0, 0), library.Counts());
-
         var raised = 0;
         library.Changed += () => raised++;
-        Assert.True(library.RemoveDownload("YQHsXMglC9A", []));
-
-        Assert.Contains(copy, library.Files().Select(f => f.Path));
-        Assert.Equal(1, raised);
-    }
-
-    [Fact]
-    public async Task AnExportedCopy_IsListed_WhenItsDownloadIsNot()
-    {
-        // The download is gone, or outside the watched folders.
-        var download = Write(Path.Combine("downloads", "YQHsXMglC9A.opus"), "Downloaded");
-        var copy = Write(Path.Combine("exports", "Hello.mp3"), "ids:YQHsXMglC9A,khnokW3Mw24");
-        using var library = Library();
         RecordDownload(library, download, "YQHsXMglC9A");
         await library.ScanAsync();
-        File.Delete(download);
-        await library.ScanAsync();
-
-        Assert.Contains(copy, library.Files().Select(f => f.Path));
-
-        _folders[0] = Path.Combine(_music, "exports");
 
         Assert.Equal([copy], library.Files().Select(f => f.Path));
+        Assert.Equal((1, 0, 0), library.Counts());
+
+        raised = 0;
+        Assert.True(library.RemoveDownload("YQHsXMglC9A", []));
+
+        Assert.Equal([download, copy], library.Files().Select(f => f.Path).Order());
+        Assert.Equal(1, raised);
     }
 
     [Fact]
