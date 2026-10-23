@@ -1,0 +1,10 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Test-only, never shipped. A test host that hangs writes a dump when run with
+       the hangdump option (CI does), so the hang shows which test and which thread.
+       Keep its version equal to the Microsoft.Testing.Platform that xunit.v3 brings. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Testing.Extensions.HangDump" Version="2.4.0" />
+  </ItemGroup>
+</Project>
