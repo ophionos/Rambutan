@@ -180,6 +180,16 @@ public class LocalPlaylistLibraryTests
     }
 
     [Fact]
+    public void HeldLocalIds_are_the_local_files_of_every_playlist_once()
+    {
+        var (library, _) = Make();
+        library.Create("One", [LocalPlaylistItem.Of(Song("local:1")), LocalPlaylistItem.Of(Song("yt"))]);
+        library.Create("Two", [LocalPlaylistItem.Of(Song("local:1")), LocalPlaylistItem.Of(Song("local:2"))]);
+
+        Assert.Equal(["local:1", "local:2"], library.HeldLocalIds.Order());
+    }
+
+    [Fact]
     public void The_store_is_read_once()
     {
         var (library, store) = Make();

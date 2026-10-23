@@ -90,6 +90,20 @@ public sealed class LocalPlaylistLibrary
         }
     }
 
+    /// <summary>True when changes are refused (<see cref="LocalPlaylistsReadOnlyException"/>):
+    /// the file is a newer build's, or unreadable and still in its place.</summary>
+    public bool IsReadOnly
+    {
+        get
+        {
+            lock (_lock)
+            {
+                EnsureLoaded();
+                return ReadOnlyNow;
+            }
+        }
+    }
+
     /// <summary>The playlists, the one changed last first.</summary>
     public IReadOnlyList<LocalPlaylist> All
     {
@@ -97,6 +111,17 @@ public sealed class LocalPlaylistLibrary
         {
             lock (_lock)
                 return [.. EnsureLoaded().OrderByDescending(p => p.ChangedAt)];
+        }
+    }
+
+    /// <summary>The local files' ids the playlists hold, so the index keeps an
+    /// opened file a playlist holds as it keeps one the queue holds.</summary>
+    public IReadOnlyList<string> HeldLocalIds
+    {
+        get
+        {
+            lock (_lock)
+                return [.. EnsureLoaded().SelectMany(p => p.Items).Where(i => i.IsLocal).Select(i => i.Track.VideoId).Distinct()];
         }
     }
 
@@ -169,7 +194,7 @@ public sealed class LocalPlaylistLibrary
             var list = EnsureLoaded();
             var index = list.FindIndex(p => p.Id == resolved.Id);
             if (index < 0 || list[index].ChangedAt != resolved.ChangedAt ||
-                list[index].Items.Count != resolved.Items.Count || IsReadOnly)
+                list[index].Items.Count != resolved.Items.Count || ReadOnlyNow)
                 return;
             var before = list[index];
             list[index] = resolved;
@@ -205,7 +230,7 @@ public sealed class LocalPlaylistLibrary
         lock (_lock)
         {
             var list = EnsureLoaded();
-            if (IsReadOnly)
+            if (ReadOnlyNow)
                 throw new LocalPlaylistsReadOnlyException();
             var before = list.ToList();
             change(list);
@@ -226,7 +251,7 @@ public sealed class LocalPlaylistLibrary
     }
 
     // Saving would replace the only copy of what the user had.
-    private bool IsReadOnly => _problem == LocalPlaylistsProblem.Newer ||
+    private bool ReadOnlyNow => _problem == LocalPlaylistsProblem.Newer ||
         _problem == LocalPlaylistsProblem.Unreadable && _setAside is null;
 
     private List<LocalPlaylist> EnsureLoaded()

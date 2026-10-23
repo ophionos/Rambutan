@@ -31,8 +31,8 @@ public partial class MainWindow : Window
                 vm.Session.SignInRequested += () => _ = ShowSignInAsync(vm.Session);
                 // Coming back to the app is when a stale session gets re-checked.
                 Activated += (_, _) => _ = vm.Session.OnActivatedAsync();
-                vm.Actions.PlaylistPicker = async playlists =>
-                    await new PlaylistPickDialog(playlists).ShowDialog<PlaylistPickResult?>(this);
+                vm.Actions.PlaylistPicker = async options =>
+                    await new PlaylistPickDialog(options).ShowDialog<PlaylistPickResult?>(this);
                 vm.Actions.TextPrompt = async (title, initial) =>
                     await new TextPromptDialog(title, initial).ShowDialog<string?>(this);
                 vm.Actions.Confirm = async message =>

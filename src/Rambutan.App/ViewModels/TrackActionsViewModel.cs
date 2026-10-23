@@ -9,16 +9,34 @@ using CommunityToolkit.Mvvm.Input;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Downloads;
 using Rambutan.Core.Links;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Playlists;
 using Rambutan.Core.Queue;
 using Rambutan.App.Localization;
 using Rambutan.App.Services;
 
 namespace Rambutan.App.ViewModels;
 
-/// <summary>Outcome of the playlist picker: an existing playlist or a name to create.</summary>
-public sealed record PlaylistPickResult(PlaylistEntry? Existing, string? NewPlaylistName);
+/// <summary>Outcome of the playlist picker: an existing playlist or a name to
+/// create, on YouTube Music or on this computer; exactly one is set.</summary>
+public sealed record PlaylistPickResult(
+    PlaylistEntry? Existing, string? NewPlaylistName,
+    LocalPlaylist? ExistingLocal = null, string? NewLocalName = null);
+
+/// <summary>
+/// What the playlist picker offers, in two groups. A group that isn't offered
+/// is hidden; one that is offered with a note shows the note (why its list is
+/// empty or can't be added to) above its list.
+/// </summary>
+/// <param name="OffersYouTube">False for a track YouTube Music doesn't have.</param>
+/// <param name="CanCreateOnYouTube">False when signed out or the library didn't load.</param>
+/// <param name="OffersLocal">False where there are no local playlists (tests).</param>
+/// <param name="LocalReadOnly">The local playlists can't be changed; <paramref name="LocalNote"/> says why.</param>
+public sealed record PlaylistPickOptions(
+    bool OffersYouTube, IReadOnlyList<PlaylistEntry> YouTube, string? YouTubeNote, bool CanCreateOnYouTube,
+    bool OffersLocal, IReadOnlyList<LocalPlaylist> Local, string? LocalNote, bool LocalReadOnly);
 
 /// <summary>
 /// Track actions shared by every page (context menu, like/dislike, add-to-playlist)
@@ -35,7 +53,19 @@ public partial class TrackActionsViewModel : ViewModelBase
     /// <summary>Mutation outcomes surface as toasts, never as modals.</summary>
     public ToastHostViewModel Toasts { get; }
 
-    public Func<IReadOnlyList<PlaylistEntry>, Task<PlaylistPickResult?>>? PlaylistPicker { get; set; }
+    public Func<PlaylistPickOptions, Task<PlaylistPickResult?>>? PlaylistPicker { get; set; }
+
+    /// <summary>The user's local playlists; null where there are none (tests,
+    /// design time), and a local file can't be saved to a playlist.</summary>
+    public LocalPlaylistLibrary? LocalPlaylists { get; init; }
+
+    /// <summary>A local file's index entry by id, so a playlist keeps the file's
+    /// own tags and path, not what a match filled in; null in tests.</summary>
+    public Func<string, LocalFile?>? FindLocalFile { get; init; }
+
+    /// <summary>Set at composition; unset counts as signed in, and YouTube
+    /// Music says otherwise when asked.</summary>
+    public Func<bool>? IsSignedIn { get; set; }
     public Func<string, string, Task<string?>>? TextPrompt { get; set; }
     public Func<string, Task<bool>>? Confirm { get; set; }
 
@@ -487,36 +517,118 @@ public partial class TrackActionsViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand(CanExecute = nameof(IsOnYouTube))]
+    /// <summary>A YouTube Music song can go to either kind of playlist; a local
+    /// file only to one on this computer.</summary>
+    public bool CanAddToPlaylist(TrackInfo? track) => IsOnYouTube(track) || LocalPlaylists is not null;
+
+    [RelayCommand(CanExecute = nameof(CanAddToPlaylist))]
     private async Task AddToPlaylistAsync(TrackInfo? track)
     {
-        if (track is null || PlaylistPicker is null)
+        if (track is null || PlaylistPicker is null || !CanAddToPlaylist(track))
             return;
 
+        PlaylistPickOptions options;
         try
         {
-            // The picker must offer the whole library, not just the first grid
-            // page (bounded in case the server ever repeats a token).
-            var library = await _catalog.GetLibraryPlaylistsAsync();
-            var items = new List<CatalogEntry>(library.Items);
-            var continuation = library.Continuation;
-            for (var page = 0; page < 20 && continuation is not null; page++)
+            options = await PickOptionsAsync(track);
+        }
+        catch (NotSignedInException)
+        {
+            ReportError(Strings.Get("toast.signInToUsePlaylists"));
+            return;
+        }
+        catch (Exception ex)
+        {
+            ReportError(Strings.Format("toast.track.addToPlaylistFailed", ("error", ex.Message)));
+            return;
+        }
+
+        if (await PlaylistPicker(options) is not { } pick)
+            return;
+        if (pick.ExistingLocal is not null || pick.NewLocalName is not null)
+            AddToLocalPlaylist(track, pick);
+        else
+            await AddToYouTubePlaylistAsync(track, pick);
+    }
+
+    /// <summary>
+    /// The picker's two groups. Without local playlists a failure to load the
+    /// library throws, as there is nothing else to offer; with them it becomes
+    /// the YouTube Music group's note. A local file never asks YouTube Music.
+    /// </summary>
+    private async Task<PlaylistPickOptions> PickOptionsAsync(TrackInfo track)
+    {
+        var offersYouTube = YouTubeIds.IsVideoId(track.VideoId);
+        IReadOnlyList<PlaylistEntry> playlists = [];
+        string? youTubeNote = null;
+        var canCreate = false;
+        if (offersYouTube)
+        {
+            if (IsSignedIn?.Invoke() == false && LocalPlaylists is not null)
             {
-                var more = await _catalog.GetLibraryPlaylistsContinuationAsync(continuation);
-                items.AddRange(more.Items);
-                continuation = more.Continuation;
+                youTubeNote = Strings.Get("dialog.pickPlaylist.signIn");
             }
+            else
+            {
+                try
+                {
+                    playlists = await OwnPlaylistsAsync();
+                    canCreate = true;
+                    if (playlists.Count == 0)
+                        youTubeNote = Strings.Get("dialog.pickPlaylist.noYouTube");
+                }
+                catch (NotSignedInException) when (LocalPlaylists is not null)
+                {
+                    youTubeNote = Strings.Get("dialog.pickPlaylist.signIn");
+                }
+                catch (Exception ex) when (LocalPlaylists is not null)
+                {
+                    youTubeNote = Strings.Format("dialog.pickPlaylist.youTubeFailed", ("error", ex.Message));
+                }
+            }
+        }
 
-            // Liked Music is rating-driven, and a playlist saved from someone else
-            // can't be added to. One whose card doesn't say whose it is stays, so
-            // a change in YouTube Music's menus can't empty the picker.
-            var playlists = items.OfType<PlaylistEntry>()
-                .Where(p => p.PlaylistId != "LM" && p.IsOwn != false)
-                .ToArray();
+        if (LocalPlaylists is not { } library)
+            return new(offersYouTube, playlists, youTubeNote, canCreate, false, [], null, false);
+        var local = library.All;
+        var readOnly = library.IsReadOnly;
+        var localNote = readOnly ? ReadOnlyNote(library)
+            : local.Count == 0 ? Strings.Get("dialog.pickPlaylist.noLocal")
+            : null;
+        return new(offersYouTube, playlists, youTubeNote, canCreate, true, local, localNote, readOnly);
+    }
 
-            if (await PlaylistPicker(playlists) is not { } pick)
-                return;
+    private static string ReadOnlyNote(LocalPlaylistLibrary library) =>
+        Strings.Get(library.Problem is LocalPlaylistsProblem.Newer
+            ? "localPlaylists.readOnly.newer"
+            : "localPlaylists.readOnly.unreadable");
 
+    private async Task<IReadOnlyList<PlaylistEntry>> OwnPlaylistsAsync()
+    {
+        // The picker must offer the whole library, not just the first grid
+        // page (bounded in case the server ever repeats a token).
+        var library = await _catalog.GetLibraryPlaylistsAsync();
+        var items = new List<CatalogEntry>(library.Items);
+        var continuation = library.Continuation;
+        for (var page = 0; page < 20 && continuation is not null; page++)
+        {
+            var more = await _catalog.GetLibraryPlaylistsContinuationAsync(continuation);
+            items.AddRange(more.Items);
+            continuation = more.Continuation;
+        }
+
+        // Liked Music is rating-driven, and a playlist saved from someone else
+        // can't be added to. One whose card doesn't say whose it is stays, so
+        // a change in YouTube Music's menus can't empty the picker.
+        return items.OfType<PlaylistEntry>()
+            .Where(p => p.PlaylistId != "LM" && p.IsOwn != false)
+            .ToArray();
+    }
+
+    private async Task AddToYouTubePlaylistAsync(TrackInfo track, PlaylistPickResult pick)
+    {
+        try
+        {
             string playlistId, name;
             if (pick.NewPlaylistName is { } newName)
             {
@@ -536,6 +648,47 @@ public partial class TrackActionsViewModel : ViewModelBase
         catch (NotSignedInException)
         {
             ReportError(Strings.Get("toast.signInToUsePlaylists"));
+        }
+        catch (Exception ex)
+        {
+            ReportError(Strings.Format("toast.track.addToPlaylistFailed", ("error", ex.Message)));
+        }
+    }
+
+    private void AddToLocalPlaylist(TrackInfo track, PlaylistPickResult pick)
+    {
+        var library = LocalPlaylists!;
+        // The shown track of a local file can carry what its match filled in;
+        // the row keeps the file's own tags, which find it again when it moves.
+        var item = !YouTubeIds.IsVideoId(track.VideoId) && FindLocalFile?.Invoke(track.VideoId) is { } file
+            ? LocalPlaylistItem.Of(file)
+            : LocalPlaylistItem.Of(track);
+        try
+        {
+            if (pick.NewLocalName is { } newName)
+            {
+                var created = library.Create(newName, [item]);
+                Report(Strings.Format("toast.track.addedToPlaylist", ("title", track.Title), ("playlist", created.Name)));
+                return;
+            }
+
+            var playlist = pick.ExistingLocal!;
+            switch (library.Add(playlist.Id, [item]))
+            {
+                case null:
+                    ReportError(Strings.Get("toast.track.localPlaylistGone"));
+                    break;
+                case 0:
+                    Report(Strings.Format("toast.track.alreadyInPlaylist", ("title", track.Title), ("playlist", playlist.Name)));
+                    break;
+                default:
+                    Report(Strings.Format("toast.track.addedToPlaylist", ("title", track.Title), ("playlist", playlist.Name)));
+                    break;
+            }
+        }
+        catch (LocalPlaylistsReadOnlyException)
+        {
+            ReportError(ReadOnlyNote(library));
         }
         catch (Exception ex)
         {

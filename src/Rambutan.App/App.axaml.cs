@@ -20,6 +20,7 @@ using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Downloads;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Playlists;
 using Rambutan.Core.Remote;
 using Rambutan.Core.Queue;
 using Rambutan.Core.Settings;
@@ -109,6 +110,7 @@ public partial class App : Application
             var collections = _services.GetRequiredService<NavigationService>().Collections;
             var session = _services.GetRequiredService<SessionViewModel>();
             collections.IsSignedIn = () => session.IsSignedIn;
+            actions.IsSignedIn = () => session.IsSignedIn;
             Controls.CollectionMenu.Actions = collections;
             // Rows show the downloaded mark through a binding; their spoken names
             // read the same set and are renamed when it changes.
@@ -365,10 +367,14 @@ public partial class App : Application
                 ct => sp.GetRequiredService<SidecarBootstrapper>().AudioReady.WaitAsync(ct),
                 () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [],
                 // Files opened from outside the watched folders are kept only
-                // while the queue holds them; it is restored before this runs.
-                queued: () => queue.Snapshot().Tracks.Select(t => t.VideoId).ToHashSet(StringComparer.Ordinal)),
+                // while the queue or a local playlist holds them; the queue is
+                // restored before this runs.
+                queued: () => queue.Snapshot().Tracks.Select(t => t.VideoId)
+                    .Concat(sp.GetRequiredService<LocalPlaylistLibrary>().HeldLocalIds)
+                    .ToHashSet(StringComparer.Ordinal)),
             new LocalFolderWatcher([dataDir, toolsDir]),
             () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []));
+        services.AddSingleton(new LocalPlaylistLibrary(new LocalPlaylistStore(dataDir)));
         services.AddSingleton(sp => new KeptCovers(
             sp.GetRequiredService<DownloadStore>(), sp.GetRequiredService<LocalLibraryScans>().Index,
             sp.GetRequiredService<YouTubeMatches>().CoverPathFor));
@@ -585,6 +591,8 @@ public partial class App : Application
             KeptCollections = sp.GetRequiredService<OfflineCollections>(),
             YouTubeMatches = sp.GetRequiredService<YouTubeMatches>(),
             SongLibrary = new SongLibrary(sp.GetRequiredService<ICatalog>()),
+            LocalPlaylists = sp.GetRequiredService<LocalPlaylistLibrary>(),
+            FindLocalFile = sp.GetRequiredService<LocalLibraryScans>().Index.Find,
         });
         // Export writes downloads out with the ffmpeg sidecar; off until the user
         // turns it on in Settings.

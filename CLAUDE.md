@@ -302,9 +302,15 @@ file sink), never to files directly.
   Discord or `queue.json`; when the index changes, the player bar, the queue
   rows and the media session read the playing file's cover again
   (`IMediaSessionService.UpdateArtwork`). The YouTube-only actions (radio, like, library,
-  playlists, download, share) are off for such a track
+  YouTube Music playlists, download, share) are off for such a track
   (`TrackActionsViewModel.IsOnYouTube`), and autoplay stops with a notice,
-  unless the track has a YouTube Music match.
+  unless the track has a YouTube Music match. Its menu has its own Save to a
+  local playlist, apart from the match group's Save to playlist, which saves
+  the song. The playlist picker has two groups, YouTube Music and On this
+  computer, each with its own New playlist; a local file sees only the
+  second, and the first says why it is empty (signed out, failed to load)
+  without hiding the second. A local file's row keeps its index entry's
+  tags and path, never what its match filled in.
   Matching is an outbound integration, off by default
   (`AppSettings.MatchLocalOnYouTubeMusic`): `Core/Local/LocalMatcher` searches
   a file's title and artist tags (never its file name; none without a title
@@ -343,7 +349,7 @@ file sink), never to files directly.
   track, and otherwise keeps the id the index has for its path, else
   gets a new `local:<n>`; one outside the watched folders is kept as opened
   (`LocalFile.IsOpened`), never listed, and forgotten at the next start when
-  the queue no longer holds it (`ForgetOpened`). A drop on the queue pane adds
+  neither the queue nor a local playlist holds it (`ForgetOpened`). A drop on the queue pane adds
   to its end; elsewhere the files play after the current track
   (`PlaybackCoordinator.PlayAfterCurrentAsync`); the queue is never replaced.
   Its lyrics cache file is `local.<n>.json`; its own lyrics (below, under
