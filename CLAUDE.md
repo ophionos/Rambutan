@@ -426,6 +426,11 @@ plus `tests/Rambutan.App.Tests` for view-model logic and custom controls (contro
 under `Avalonia.Headless`; see `HeadlessSession.cs`). xunit v3 runs on
 Microsoft.Testing.Platform; `global.json` opts `dotnet test` into that mode,
 because the .NET 10 SDK refuses the old VSTest mode for these projects.
+CI runs them with `--hangdump --hangdump-timeout 5m`: a test host that sees
+no test finish for 5 minutes writes a dump and a log naming the running tests,
+which CI uploads when the step fails (add the same options locally to catch a
+hang). The HangDump package (`tests/Directory.Build.props`) keeps the version
+of the Microsoft.Testing.Platform that xunit.v3 brings.
 InnerTube fixtures are real recorded responses under `tests/Rambutan.InnerTube.Tests/Fixtures`
 (`*.synthetic.json` are hand-authored where the surface needs auth; replace them with recorded, scrubbed captures when possible). Scrub
 personal data before committing any fixture.
