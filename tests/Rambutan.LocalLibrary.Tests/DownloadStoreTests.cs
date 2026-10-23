@@ -132,12 +132,44 @@ public sealed class DownloadStoreTests : IDisposable
         await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
         var path = store.TryGetMedia("vid00000001")!.Url;
 
-        store.Delete("vid00000001");
+        store.Delete(["vid00000001"]);
 
         Assert.False(File.Exists(path));
         Assert.Empty(store.List());
         using var reloaded = NewStore();
         Assert.Empty(reloaded.List());
+    }
+
+    [Fact]
+    public async Task Deleting_many_saves_the_index_once()
+    {
+        using var store = NewStore();
+        string[] ids = ["vid00000001", "vid00000002", "vid00000003"];
+        foreach (var id in ids)
+            await store.DownloadAsync(Track(id), Now, NoProgress, default);
+        var paths = ids.Select(id => store.TryGetMedia(id)!.Url).ToList();
+        var index = _index!;
+        var saves = index.Saves;
+
+        store.Delete([.. ids, "vid00000001", "notdownload"]);
+
+        Assert.Equal(1, index.Saves - saves);
+        Assert.Empty(store.List());
+        Assert.All(paths, path => Assert.False(File.Exists(path)));
+        using var reloaded = NewStore();
+        Assert.Empty(reloaded.List());
+    }
+
+    [Fact]
+    public void Deleting_nothing_downloaded_doesnt_save()
+    {
+        using var store = NewStore();
+        var index = _index!;
+        var saves = index.Saves;
+
+        store.Delete(["vid00000001"]);
+
+        Assert.Equal(saves, index.Saves);
     }
 
     [Fact]
@@ -148,7 +180,7 @@ public sealed class DownloadStoreTests : IDisposable
         var path = store.TryGetMedia("vid00000001")!.Url;
         store.DeleteFile = _ => false; // the decoder holds it open
 
-        store.Delete("vid00000001");
+        store.Delete(["vid00000001"]);
 
         Assert.Empty(store.List());
         Assert.False(store.Contains("vid00000001"));
@@ -173,7 +205,7 @@ public sealed class DownloadStoreTests : IDisposable
             await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
             path = store.TryGetMedia("vid00000001")!.Url;
             store.DeleteFile = _ => false;
-            store.Delete("vid00000001");
+            store.Delete(["vid00000001"]);
         }
         Assert.True(File.Exists(path));
 
@@ -190,7 +222,7 @@ public sealed class DownloadStoreTests : IDisposable
         using var store = NewStore();
         await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
         store.DeleteFile = _ => false;
-        store.Delete("vid00000001");
+        store.Delete(["vid00000001"]);
         store.DeleteFile = p => { File.Delete(p); return true; };
 
         await store.DownloadAsync(Track("vid00000001"), Now, NoProgress, default);
@@ -224,7 +256,7 @@ public sealed class DownloadStoreTests : IDisposable
         using (var reloaded = NewStore())
             Assert.Equal(cover, reloaded.ArtworkPathFor("vid00000001"));
 
-        store.Delete("vid00000001");
+        store.Delete(["vid00000001"]);
 
         Assert.False(File.Exists(cover));
         Assert.Null(store.ArtworkPathFor("vid00000001"));
@@ -430,7 +462,7 @@ public sealed class DownloadStoreTests : IDisposable
         using (var store = NewStore())
         {
             await store.DownloadAsync(Track("vid00000002"), Now, NoProgress, default);
-            store.Delete("vid00000001");
+            store.Delete(["vid00000001"]);
         }
 
         using var reloaded = NewStore();
@@ -532,7 +564,7 @@ public sealed class DownloadStoreTests : IDisposable
         Assert.True(reader.Reading.Wait(TimeSpan.FromSeconds(10)));
 
         store.DeleteFile = _ => false; // still open, so the read finishes
-        store.Delete("vid00000001");
+        store.Delete(["vid00000001"]);
         reader.Hold.Set();
         await scan;
 

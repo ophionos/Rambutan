@@ -195,8 +195,7 @@ public partial class TrackActionsViewModel : ViewModelBase
     /// at exit, so downloads the user was told are removed don't come back next launch.</summary>
     public void FlushPendingRemovals()
     {
-        foreach (var id in _pendingRemoval)
-            Downloads?.Delete(id);
+        Downloads?.Delete(_pendingRemoval.ToList());
         _pendingRemoval.Clear();
     }
 
@@ -210,11 +209,7 @@ public partial class TrackActionsViewModel : ViewModelBase
         _committing.UnionWith(go);
         try
         {
-            await RunInBackground(() =>
-            {
-                foreach (var id in go)
-                    downloads.Delete(id);
-            });
+            await RunInBackground(() => downloads.Delete(go));
         }
         catch (Exception ex)
         {

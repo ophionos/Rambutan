@@ -40,11 +40,15 @@ public sealed class CollectionDownloadButtonTests
         public bool Contains(string videoId) => Done.Contains(videoId);
         public Task DownloadAsync(TrackInfo track, DownloadOrder order, IProgress<DownloadProgress> progress, CancellationToken ct) =>
             Task.Delay(Timeout.Infinite, ct);
-        public void Delete(string videoId)
+        public void Delete(IReadOnlyCollection<string> videoIds)
         {
-            Done.Remove(videoId);
-            Deleted.Add(videoId);
+            Done.ExceptWith(videoIds);
+            Deleted.AddRange(videoIds);
+            Saves++;
         }
+
+        /// <summary>Calls to <see cref="Delete"/>: each one saves the records once.</summary>
+        public int Saves { get; private set; }
         public IReadOnlyList<PendingDownload> LoadPending() => [];
         public void SavePending(IReadOnlyList<PendingDownload> pending) { }
     }
@@ -135,6 +139,7 @@ public sealed class CollectionDownloadButtonTests
         _clock.Advance(ToastHostViewModel.LongLifetime);
 
         Assert.Equal(["t1", "t2"], _store.Deleted.Order());
+        Assert.Equal(1, _store.Saves);
     }
 
     [Fact]
@@ -173,6 +178,7 @@ public sealed class CollectionDownloadButtonTests
         _actions.FlushPendingRemovals();
 
         Assert.Equal(2, _store.Deleted.Count);
+        Assert.Equal(1, _store.Saves);
     }
 
     [Fact]

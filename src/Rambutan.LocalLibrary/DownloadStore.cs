@@ -225,19 +225,26 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
         }
     }
 
-    public void Delete(string videoId)
+    public void Delete(IReadOnlyCollection<string> videoIds)
     {
         lock (_lock)
         {
-            if (_index.FindDownload(videoId) is not { Download: { } d } f)
-                return;
-            // The record goes even when the file can't (in playback, on Windows),
+            // The records go even when a file can't (in playback, on Windows),
             // so the track stops counting as downloaded at once.
             var leftovers = _index.Leftovers().ToList();
-            DeleteOrRemember(f.Path, leftovers);
-            if (d.ArtworkPath is { } art)
-                DeleteOrRemember(art, leftovers);
-            _index.RemoveDownload(videoId, leftovers);
+            List<string> removed = [];
+            foreach (var videoId in videoIds.Distinct(StringComparer.Ordinal))
+            {
+                if (_index.FindDownload(videoId) is not { Download: { } d } f)
+                    continue;
+                DeleteOrRemember(f.Path, leftovers);
+                if (d.ArtworkPath is { } art)
+                    DeleteOrRemember(art, leftovers);
+                removed.Add(videoId);
+            }
+            if (removed.Count == 0)
+                return;
+            _index.RemoveDownloads(removed, leftovers);
         }
         RetryLeftovers();
     }

@@ -678,6 +678,11 @@ public sealed class LocalFileIndex : IDisposable
         }
     }
 
+    /// <summary>Times the index was written, for the tests that count saves.</summary>
+    internal int Saves => Volatile.Read(ref _saves);
+
+    private int _saves;
+
     private void SaveIfDirty()
     {
         lock (_saveLock)
@@ -699,6 +704,7 @@ public sealed class LocalFileIndex : IDisposable
             try
             {
                 _file.Save(files, nextId, leftovers, imported);
+                Interlocked.Increment(ref _saves);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -774,24 +780,31 @@ public sealed class LocalFileIndex : IDisposable
         RaiseChanged();
     }
 
-    /// <summary>The video's download stops being one, with the leftovers as
-    /// they are now, in one save; false when there was none.</summary>
-    internal bool RemoveDownload(string videoId, IReadOnlyList<string> leftovers)
+    /// <summary>The videos' downloads stop being ones, with the leftovers as
+    /// they are now, in one save; how many there were.</summary>
+    internal int RemoveDownloads(IEnumerable<string> videoIds, IReadOnlyList<string> leftovers)
     {
+        var count = 0;
         lock (_lock)
         {
-            if (FindDownloadLocked(videoId) is not { } removed)
-                return false;
-            _downloadIds.Remove(videoId);
-            ClearDownload(removed);
+            foreach (var videoId in videoIds)
+            {
+                if (FindDownloadLocked(videoId) is not { } removed)
+                    continue;
+                _downloadIds.Remove(videoId);
+                ClearDownload(removed);
+                count++;
+            }
+            if (count == 0)
+                return 0;
             _leftovers.Clear();
             _leftovers.AddRange(leftovers);
             _dirty = true;
         }
         SaveIfDirty();
-        // Its file, if a watched folder holds it, is listed again.
+        // Their files, if a watched folder holds them, are listed again.
         RaiseChanged();
-        return true;
+        return count;
     }
 
     /// <summary>Gives the download its cover, unless it changed since

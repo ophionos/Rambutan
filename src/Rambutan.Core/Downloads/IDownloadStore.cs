@@ -38,8 +38,9 @@ public interface IDownloadStore
     Task DownloadAsync(
         TrackInfo track, DownloadOrder order, IProgress<DownloadProgress> progress, CancellationToken ct);
 
-    /// <summary>Deletes the file and its record. A download that doesn't exist is a no-op.</summary>
-    void Delete(string videoId);
+    /// <summary>Deletes the downloads' files and records, saving the records once
+    /// for all of them. An id with no download is skipped.</summary>
+    void Delete(IReadOnlyCollection<string> videoIds);
 
     /// <summary>The jobs saved by <see cref="SavePending"/>, so downloads the
     /// app closed on resume at the next start instead of vanishing.</summary>

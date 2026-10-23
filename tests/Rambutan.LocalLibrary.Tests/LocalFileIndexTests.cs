@@ -225,7 +225,7 @@ public sealed class LocalFileIndexTests : IDisposable
         Assert.Equal((1, 0, 0), library.Counts());
 
         raised = 0;
-        Assert.True(library.RemoveDownload("YQHsXMglC9A", []));
+        Assert.Equal(1, library.RemoveDownloads(["YQHsXMglC9A"], []));
 
         Assert.Equal([download, copy], library.Files().Select(f => f.Path).Order());
         Assert.Equal(1, raised);
