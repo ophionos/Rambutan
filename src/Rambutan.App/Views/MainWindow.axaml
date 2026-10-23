@@ -549,10 +549,15 @@
                   VerticalAlignment="Center"
                   Command="{Binding RetrySidecarsCommand}" />
         </StackPanel>
-        <!-- A polite live region: always present, empty (zero width) until a
-             wait starts. Avalonia announces a live region when the Name of an
-             element already in the tree changes, so it is never hidden. -->
-        <TextBlock Text="{Binding NetworkWaitText}" FontSize="{StaticResource Token.Font.Caption}"
+        <!-- Polite live regions: always present, empty (zero width) until a
+             wait or a read starts. Avalonia announces a live region when the Name
+             of an element already in the tree changes, so they are never hidden. -->
+        <TextBlock x:Name="ReadingFiles" Text="{Binding ReadingFilesText}" FontSize="{StaticResource Token.Font.Caption}"
+                   Foreground="{StaticResource Token.Brush.Text.Muted}"
+                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                   AutomationProperties.Name="{Binding ReadingFilesText}"
+                   AutomationProperties.LiveSetting="Polite" />
+        <TextBlock x:Name="NetworkWait" Text="{Binding NetworkWaitText}" FontSize="{StaticResource Token.Font.Caption}"
                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                    AutomationProperties.Name="{Binding NetworkWaitText}"
                    AutomationProperties.LiveSetting="Polite" />
