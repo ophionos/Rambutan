@@ -245,7 +245,8 @@ file sink), never to files directly.
   from the keyboard too. A card doesn't know whether it is saved or subscribed,
   so its menu offers only to add, and to remove only in a list that says its
   cards are in the library (`CollectionMenu.InLibrary`, the Library tabs).
-  Signed out, neither shows. No Rename or Delete on a card: they stay on the
+  Signed out, neither shows; a playlist card's copy to a local playlist
+  does, since it only reads. No Rename or Delete on a card: they stay on the
   playlist's page.
 - Offline pages: `Core/Downloads/OfflineCatalog` wraps the `ICatalog` that App
   registers. When an album or playlist page, or the Library's Albums or Playlists

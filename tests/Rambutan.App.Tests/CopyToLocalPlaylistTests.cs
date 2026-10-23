@@ -26,9 +26,8 @@ public class CopyToLocalPlaylistTests
 
     private static TrackInfo Track(string id) => new() { VideoId = id, Title = id, Artists = [] };
 
-    private CollectionActionsViewModel Collections()
-    {
-        var actions = new TrackActionsViewModel(_catalog, new QueueModel(), null!, new TrackRatings(_catalog), _toasts)
+    private TrackActionsViewModel Actions() =>
+        new(_catalog, new QueueModel(), null!, new TrackRatings(_catalog), _toasts)
         {
             LocalPlaylists = _library,
             TextPrompt = (_, initial) =>
@@ -37,11 +36,12 @@ public class CopyToLocalPlaylistTests
                 return Task.FromResult(_answer);
             },
         };
-        return new CollectionActionsViewModel(_catalog, FakePlayback.Coordinator(new QueueModel()), actions)
+
+    private CollectionActionsViewModel Collections() =>
+        new(_catalog, FakePlayback.Coordinator(new QueueModel()), Actions())
         {
             OpenLocalPlaylist = _opened.Add,
         };
-    }
 
     private void HasPlaylist(params string[][] pages)
     {
@@ -92,6 +92,27 @@ public class CopyToLocalPlaylistTests
         Assert.Equal("Open", toast.ActionLabel);
         await toast.ActCommand.ExecuteAsync(null);
         Assert.Equal([copy.Id], _opened);
+    }
+
+    [Fact]
+    public async Task ThePlaylistPage_ShowsTheCopyLoading_UntilEveryPageIsIn()
+    {
+        HasPlaylist(["a"], ["b"]);
+        var more = new TaskCompletionSource<PlaylistPage>();
+        _catalog.PlaylistMore = _ => more.Task;
+        var actions = Actions();
+        var coordinator = FakePlayback.Coordinator(new QueueModel());
+        var page = new PlaylistPageViewModel(_catalog, coordinator, new NavigationService(_catalog, coordinator, actions),
+            actions, Mellow.PlaylistId) { IsLoading = false, Title = "Mellow" };
+
+        var copying = page.CopyToLocalCommand.ExecuteAsync(null);
+
+        Assert.True(page.IsCopying);
+        Assert.True(page.IsBusy);
+        more.SetResult(new PlaylistPage { PlaylistId = Mellow.PlaylistId, Title = "Mellow", Tracks = [Track("b")] });
+        await copying;
+        Assert.False(page.IsBusy);
+        Assert.Equal(2, Assert.Single(_library.All).Items.Count);
     }
 
     [Fact]

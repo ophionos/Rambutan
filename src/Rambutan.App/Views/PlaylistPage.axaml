@@ -106,7 +106,7 @@
                   ToolTip.Tip="{l:T common.delete}" AutomationProperties.Name="{l:T common.delete}">
             <PathIcon Data="{StaticResource Icon.Delete}" Width="18" Height="18" />
           </Button>
-          <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
+          <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsBusy}" />
         </StackPanel>
         <ContentControl Content="{Binding LoadError}"
                       ContentTemplate="{StaticResource ErrorState.Compact}"
