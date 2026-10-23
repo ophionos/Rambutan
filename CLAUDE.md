@@ -97,7 +97,7 @@ libraries; a type two of them share belongs in Core.
 |---|---|
 | `Rambutan.Core` | Playback coordinator + state machine, queue, ports (`ICatalog`, `IStreamSource`, `IAudioPlayer`), `AppLog`. **Pure C#, zero I/O, no package refs** without discussion. |
 | `Rambutan.InnerTube` | YTM API client implementing `ICatalog`. Parsers tested against recorded fixtures. |
-| `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, the downloads' fetcher (`GoogleVideoFetcher`, Core's `IAudioFetcher`), export through the ffmpeg executable. The **only** project that touches stream extraction. |
+| `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, the downloads' fetcher (`GoogleVideoFetcher`, Core's `IAudioFetcher`), export through the ffmpeg executable (with the track's ids in keys of our own, `YOUTUBE_VIDEO_ID` and `YOUTUBE_SONG_ID`, `Core/Local/LocalTagValues`: a Vorbis comment, an ID3 `TXXX` frame, and in an .m4a, whose muxer drops unknown tags, freeform atoms `Mp4FreeformTags` adds afterwards; never rename them, they stay in users' files). The **only** project that touches stream extraction. |
 | `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). Also reads local files' tags, length and cover (`FfmpegMediaFileReader`), so libav stays in one project. |
 | `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`, and plays them (`LocalFirstSource`). Also the downloads (`DownloadStore`, played by `DownloadsFirstSource`; kept apart from the cache: no cap, no eviction), recorded on their files' entries in that index, and the offline copies of pages (`KeptCollectionStore`). |
 | `Rambutan.Lyrics` | Lyrics model + timing rules, LRC parser/writer, Lyricsfile (YAML subset) parser for LRCLIB's word-synced records, LRCLIB provider + chain, per-track cache, custom-lyrics store, `LyricsService`. |
@@ -279,7 +279,10 @@ file sink), never to files directly.
   watched folder that can't be listed (an unplugged drive) leaves its files as
   they were, and so does one that lists no audio file while the index has
   files present under it (a Linux mount whose drive is down lists empty);
-  files of a folder no longer watched stay in the index, unlisted.
+  files of a folder no longer watched stay in the index, unlisted. A file
+  whose tags carry `YOUTUBE_VIDEO_ID` (an export) is listed once, as its
+  download, while that download is listed and present; yt-dlp's `purl` and
+  `comment` URLs are never read as ids.
   The reader detects the format from the content after any ID3v2 tag, never the
   extension, and reads stream info only when the open gives no length. Its tests
   need the ffmpeg shared libraries (`RAMBUTAN_FFMPEG_LIBS`, else the app's tools
@@ -320,6 +323,9 @@ file sink), never to files directly.
   cover of its own or its folder's, the song's cover, kept in
   `local-match-covers` and found through `KeptCovers`. The queue keeps the
   file's own track, so turning matching off takes all of it back.
+  A file whose tags carry `YOUTUBE_VIDEO_ID` has that song as its match
+  whatever the setting, and is never searched: its download's track while
+  that exists, else one made from the tags (`YouTubeMatches.Tagged`).
   Library has two sources, YouTube Music and On this computer
   (`LocalLibraryViewModel`), signed out too; with no watched folder it offers Settings.
   A file opened (Ctrl+O) or dropped on the window (`Services/LocalFileOpener`,

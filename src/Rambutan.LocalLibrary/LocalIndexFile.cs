@@ -77,7 +77,9 @@ internal sealed class LocalIndexFile(string dataDirectory, string coverDirectory
             Duration: f.DurationSeconds is { } s ? TimeSpan.FromSeconds(s) : null,
             Title: f.Title, Artist: f.Artist, Album: f.Album, AlbumArtist: f.AlbumArtist, Genre: f.Genre,
             TrackNumber: f.TrackNumber, DiscNumber: f.DiscNumber, Year: f.Year,
-            TrackGainDb: f.TrackGainDb, AlbumGainDb: f.AlbumGainDb),
+            TrackGainDb: f.TrackGainDb, AlbumGainDb: f.AlbumGainDb,
+            YouTubeVideoId: LocalTagValues.YouTubeId(f.YouTubeVideoId),
+            YouTubeSongId: LocalTagValues.YouTubeId(f.YouTubeSongId)),
         f.Cover is { Length: > 0 } cover ? Path.Combine(covers, Path.GetFileName(cover)) : null,
         f.Missing == true,
         f.FolderCover is { Length: > 0 } picture
@@ -134,6 +136,8 @@ internal sealed class LocalIndexFile(string dataDirectory, string coverDirectory
         Year = f.Tags?.Year,
         TrackGainDb = f.Tags?.TrackGainDb,
         AlbumGainDb = f.Tags?.AlbumGainDb,
+        YouTubeVideoId = f.Tags?.YouTubeVideoId,
+        YouTubeSongId = f.Tags?.YouTubeSongId,
         Cover = f.CoverPath is { } cover ? Path.GetFileName(cover) : null,
         FolderCover = f.FolderCover?.Path,
         FolderCoverSize = f.FolderCover?.Size,
@@ -205,6 +209,11 @@ public sealed class SavedLocalFile
     /// <summary>ReplayGain 2.0 gains in dB (an Opus R128 gain is moved to its reference).</summary>
     public double? TrackGainDb { get; set; }
     public double? AlbumGainDb { get; set; }
+
+    /// <summary>The ids an export wrote into the file
+    /// (<see cref="LocalTagValues.YouTubeVideoIdKey"/>). Optional within version 1.</summary>
+    public string? YouTubeVideoId { get; set; }
+    public string? YouTubeSongId { get; set; }
 
     /// <summary>The cover's file name in the cover cache, which is beside the
     /// index, so the profile's folder can move.</summary>

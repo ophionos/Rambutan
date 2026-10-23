@@ -57,6 +57,13 @@ public sealed class YouTubeMatchesTests : IDisposable
     private static TrackInfo Local(string id, string title) =>
         new() { VideoId = id, Title = title, Artists = [] };
 
+    private readonly Dictionary<string, TrackInfo> _downloads = [];
+
+    private void AddTagged(string id, string title, string videoId, string? songId = null) =>
+        _files[id] = new LocalFile(id, Path.Combine(_dir, id[6..] + ".mp3"), 1, DateTimeOffset.UnixEpoch,
+            new LocalFileTags("mp3", TimeSpan.FromSeconds(200), Title: title, Artist: "Pulp",
+                YouTubeVideoId: videoId, YouTubeSongId: songId), CoverPath: null);
+
     private YouTubeMatches Matches(bool enabled = true) => new(
         new LocalMatcher(async (query, _) =>
         {
@@ -70,7 +77,8 @@ public sealed class YouTubeMatchesTests : IDisposable
         {
             lock (_fetched) _fetched.Add(url);
             return Task.FromResult(new byte[] { 0xFF, 0xD8, 0xFF });
-        })
+        },
+        id => _downloads.GetValueOrDefault(id))
     {
         Enabled = enabled,
     };
@@ -129,6 +137,41 @@ public sealed class YouTubeMatchesTests : IDisposable
         Assert.Equal(LocalMatchState.NoTitle, matches.StatusOf(Local("local:3", "3"))!.Value.State);
         Assert.Null(await matches.RadioSeedAsync(Local("local:3", "3"), default));
         Assert.Single(_searches);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task A_file_whose_tags_name_its_song_has_it_whatever_the_setting_and_is_never_searched(bool enabled)
+    {
+        AddTagged("local:4", "Disco 2000", "YQHsXMglC9A", songId: "khnokW3Mw24");
+        var matches = Matches(enabled);
+        var track = Local("local:4", "Disco 2000");
+
+        var status = matches.StatusOf(track)!.Value;
+
+        Assert.Equal(LocalMatchState.Found, status.State);
+        Assert.Equal("YQHsXMglC9A", status.Song!.VideoId);
+        Assert.Equal("khnokW3Mw24", status.Song.SongId);
+        Assert.Equal("Disco 2000", status.Song.Title);
+        Assert.Equal("YQHsXMglC9A", await matches.RadioSeedAsync(track, default));
+        Assert.Equal("Pulp", Assert.Single(matches.Fill(track).Artists).Name);
+        Assert.Empty(_searches);
+    }
+
+    [Fact]
+    public void A_tagged_file_takes_its_downloads_track_while_that_exists()
+    {
+        AddTagged("local:4", "Disco 2000", "disco");
+        _downloads["disco"] = Song("Disco 2000", "disco");
+        var matches = Matches(enabled: false);
+
+        var filled = matches.Fill(Local("local:4", "Disco 2000"));
+
+        Assert.Equal("Different Class", filled.Album);
+        Assert.Equal("local:4", filled.VideoId);
+        _downloads.Clear();
+        Assert.Null(matches.Fill(Local("local:4", "Disco 2000")).Album);
     }
 
     [Fact]

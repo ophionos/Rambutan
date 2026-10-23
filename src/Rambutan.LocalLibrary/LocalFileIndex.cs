@@ -120,12 +120,13 @@ public sealed class LocalFileIndex : IDisposable
 
     /// <summary>The files inside the watched folders, missing and unreadable ones
     /// included. Files of a folder no longer watched stay in the index, keeping
-    /// their ids should it be watched again, but aren't listed.</summary>
+    /// their ids should it be watched again, but aren't listed. A file an export
+    /// wrote is listed once, as its download, while that is listed too.</summary>
     public IReadOnlyList<LocalFile> Files()
     {
         var roots = Roots(_folders());
         lock (_lock)
-            return _files.Values.Where(f => !f.IsUnreadDownload && roots.Any(r => _paths.IsUnder(f.Path, r))).ToList();
+            return _files.Values.Where(f => IsListed(f, roots)).ToList();
     }
 
     /// <summary>How many of <see cref="Files"/> are readable, unreadable and
@@ -138,7 +139,7 @@ public sealed class LocalFileIndex : IDisposable
         {
             foreach (var file in _files.Values)
             {
-                if (file.IsUnreadDownload || !roots.Any(r => _paths.IsUnder(file.Path, r)))
+                if (!IsListed(file, roots))
                     continue;
                 if (file.IsMissing)
                     missing++;
@@ -150,6 +151,15 @@ public sealed class LocalFileIndex : IDisposable
         }
         return (readable, unreadable, missing);
     }
+
+    /// <summary>Call under the lock.</summary>
+    private bool IsListed(LocalFile file, IReadOnlyList<string> roots) =>
+        IsUnderListedRoot(file, roots)
+        && !(file.Download is null && file.Tags?.YouTubeVideoId is { } videoId
+            && FindDownloadLocked(videoId) is { IsMissing: false } download && IsUnderListedRoot(download, roots));
+
+    private bool IsUnderListedRoot(LocalFile file, IReadOnlyList<string> roots) =>
+        !file.IsUnreadDownload && roots.Any(r => _paths.IsUnder(file.Path, r));
 
     /// <summary>The file with this id, wherever it is; null when the index has none.</summary>
     public LocalFile? Find(string id)
@@ -765,6 +775,8 @@ public sealed class LocalFileIndex : IDisposable
             _dirty = true;
         }
         SaveIfDirty();
+        // An exported copy of the video may stop being listed.
+        RaiseChanged();
     }
 
     /// <summary>The video's download stops being one, with the leftovers as
@@ -782,6 +794,8 @@ public sealed class LocalFileIndex : IDisposable
             _dirty = true;
         }
         SaveIfDirty();
+        // An exported copy of the video is listed again.
+        RaiseChanged();
         return true;
     }
 

@@ -527,7 +527,8 @@ public partial class App : Application
         services.AddSingleton(sp => new YouTubeMatches(
             new Rambutan.Core.Local.LocalMatcher(stationSearch.SearchSongsAsync),
             sp.GetRequiredService<LocalLibraryScans>().Index.Find, dataDir,
-            sp.GetRequiredService<ArtworkCache>().GetBytesAsync)
+            sp.GetRequiredService<ArtworkCache>().GetBytesAsync,
+            id => sp.GetRequiredService<DownloadStore>().ExportSourceFor(id)?.Track)
         {
             Enabled = settings.MatchLocalOnYouTubeMusic,
         });

@@ -60,7 +60,9 @@ public sealed unsafe class FfmpegMediaFileReader : IMediaFileReader
                 AlbumGainDb: LocalTagValues.GainDb(Tag("REPLAYGAIN_ALBUM_GAIN"))
                     ?? LocalTagValues.R128AsReplayGainDb(Tag("R128_ALBUM_GAIN"))
                     ?? SideDataGain(stream, album: true),
-                Cover: Cover(format));
+                Cover: Cover(format),
+                YouTubeVideoId: LocalTagValues.YouTubeId(Tag(LocalTagValues.YouTubeVideoIdKey)),
+                YouTubeSongId: LocalTagValues.YouTubeId(Tag(LocalTagValues.YouTubeSongIdKey)));
         }
         catch (IOException)
         {
