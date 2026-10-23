@@ -48,7 +48,8 @@ public sealed class DownloadJob
 /// included) after every change, and <see cref="Restore"/> puts it back.
 /// </para>
 /// Events arrive on whichever thread made the change or ran the job; subscribers
-/// marshal.
+/// marshal. They are never raised under the queue's lock, so a subscriber that
+/// waits for another thread reading the queue can't deadlock.
 /// </summary>
 public sealed class DownloadQueue(IDownloadStore store, int maxParallel = 2)
 {
@@ -268,31 +269,32 @@ public sealed class DownloadQueue(IDownloadStore store, int maxParallel = 2)
             AppLog.Write("downloads", $"download of {job.Track.VideoId} failed: {ex.Message}");
         }
 
+        bool cancelled;
         lock (_lock)
         {
-            if (!_jobs.Contains(job))
+            // Cancelled as it finished: the cancel already removed the job and told everyone.
+            cancelled = !_jobs.Contains(job);
+            if (!cancelled)
             {
-                // Cancelled as it finished: the download may have committed anyway.
                 if (error is null)
-                    DownloadsChanged?.Invoke(job.Track.VideoId);
-                return;
+                {
+                    _jobs.Remove(job);
+                }
+                else
+                {
+                    job.State = DownloadJobState.Failed;
+                    job.Error = error;
+                }
+                job.Cts?.Dispose();
+                job.Cts = null;
             }
-            if (error is null)
-            {
-                _jobs.Remove(job);
-            }
-            else
-            {
-                job.State = DownloadJobState.Failed;
-                job.Error = error;
-            }
-            job.Cts?.Dispose();
-            job.Cts = null;
         }
 
+        // Even a cancelled download may have committed.
         if (error is null)
             DownloadsChanged?.Invoke(job.Track.VideoId);
-        Changed();
+        if (!cancelled)
+            Changed();
     }
 
     /// <summary>Reports on the reporting thread; <see cref="Progress{T}"/> would
