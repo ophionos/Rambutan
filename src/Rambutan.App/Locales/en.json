@@ -540,7 +540,7 @@
     "settings.local.folders": "Watched folders",
     "settings.local.foldersHelp": "Rambutan reads the music files in these folders: their tags, length and cover. It notices changes while it runs, and looks for changes at each start and when you rescan.",
     "settings.local.match": "Find my music files on YouTube Music",
-    "settings.local.matchHelp": "When you play a song from this computer, or open its menu, its artist and title are sent to YouTube Music's search, without your account. Nothing else about the file leaves this computer. A song found there gives the file a radio for autoplay, likes and playlists, and the cover, artist or album its tags lack.",
+    "settings.local.matchHelp": "When you play a song from this computer, or open its menu, its artist and title are sent to YouTube Music's search, without your account. Nothing else about the file leaves this computer. A song found there gives the file a radio for autoplay, likes and playlists, and the cover, artist or album its tags lack. Turning this off deletes the covers it kept.",
     "settings.local.none": "No folders yet.",
     "settings.local.add": "Add folder…",
     "settings.local.pickTitle": "Choose a folder with music",

@@ -94,6 +94,9 @@ public partial class App : Application
             playback.RadioSeedFor = matches.RadioSeedAsync;
             playback.NowPlayingChanged += matches.Request;
             matches.Changed += () => Dispatcher.UIThread.Post(Controls.ContextMenuHost.RefreshOpen);
+            // Covers of matches that expired, or of files the index let go at
+            // startup; all of them while matching is off.
+            _ = Task.Run(matches.RemoveUnusedCoversAsync);
             // Downloads made before covers were kept get theirs, in the background.
             _ = Task.Run(() => downloads.FillMissingArtworkAsync(CancellationToken.None));
             // Linux has no install step, so the AppImage registers rambutan:// as it
