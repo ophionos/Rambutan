@@ -62,9 +62,22 @@ public partial class MainViewModel : ViewModelBase
 
     private bool _sidecarsSettled;
 
+    /// <summary>Opened or dropped files being read (<see cref="LocalFileOpener.Reading"/>);
+    /// empty otherwise. Announced like <see cref="NetworkWaitText"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ReadingFilesText), nameof(HasStatus))]
+    private int? _readingFiles;
+
+    public string ReadingFilesText => ReadingFiles switch
+    {
+        null => "",
+        0 => Strings.Get("status.readingFiles"),
+        var count => Strings.Format("status.readingFilesCount", ("count", count)),
+    };
+
     public bool HasStatus =>
         SidecarProgress.Length > 0 || SidecarsFailed || ShowSessionNotice ||
-        TrackWaitingForNetwork is not null || CrashNotice?.IsVisible == true;
+        TrackWaitingForNetwork is not null || ReadingFiles is not null || CrashNotice?.IsVisible == true;
 
     /// <summary>An expired session shows on the strip only while the sidebar is
     /// collapsed: an open sidebar already says "Session expired" with its own
@@ -252,9 +265,13 @@ public partial class MainViewModel : ViewModelBase
         TrackWaitingForNetwork = coordinator.TrackWaitingForNetwork;
         coordinator.NetworkWaitChanged += track =>
             Dispatcher.UIThread.Post(() => TrackWaitingForNetwork = track);
+        if (opener is not null)
+            opener.ReadingChanged += () =>
+                Dispatcher.UIThread.Post(() => ReadingFiles = opener.Reading);
         Strings.WhenChanged(this, static vm =>
         {
             vm.OnPropertyChanged(nameof(NetworkWaitText));
+            vm.OnPropertyChanged(nameof(ReadingFilesText));
             vm.OnPropertyChanged(nameof(MiniPlayerTip));
             vm.OnPropertyChanged(nameof(PinTip));
         });
