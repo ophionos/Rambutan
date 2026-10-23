@@ -532,6 +532,20 @@ public sealed class LocalFileIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task AnOpen_SaysHowManyFilesItFound_BeforeReadingThem()
+    {
+        var a = WriteElsewhere(Path.Combine("Album", "a.mp3"), "A");
+        WriteElsewhere(Path.Combine("Album", "b.mp3"), "bad");
+        using var library = Library();
+        var told = new List<(int Count, int ReadBefore)>();
+
+        await library.OpenAsync([Path.GetDirectoryName(a)!], count => told.Add((count, _reader.Reads.Count)));
+        await library.OpenAsync([Path.Combine(_root, "gone.mp3")], count => told.Add((count, -1)));
+
+        Assert.Equal([(2, 0)], told);
+    }
+
+    [Fact]
     public async Task AnOpenedFile_ThatIsNotAudio_OrNotThere_IsLeftOut_AndNotKept()
     {
         var bad = WriteElsewhere("bad.mp3", "bad");

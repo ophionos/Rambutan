@@ -762,6 +762,8 @@
     "station.page.tracks": "{count, plural, one {# track} other {# tracks}}",
     "station.row.notFound": "Not on YouTube Music",
     "station.row.video": "Plays the YouTube video Last.fm links to",
+    "status.readingFiles": "Reading files…",
+    "status.readingFilesCount": "{count, plural, one {Reading # file…} other {Reading # files…}}",
     "status.waitingForNetwork": "Waiting for the connection. “{title}” continues from the same place when you're back online.",
     "taskbar.likeLocal": "Like: not for a file on this computer",
     "taskbar.likeSignedOut": "Like: sign in to rate songs",
