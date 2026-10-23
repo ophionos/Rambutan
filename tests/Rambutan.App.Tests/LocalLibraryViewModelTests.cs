@@ -120,6 +120,15 @@ public sealed class LocalLibraryViewModelTests : IDisposable
         await newer.ShowAsync();
         Assert.False(newer.CanCreatePlaylist);
         Assert.StartsWith("Your playlists on this computer were saved by a newer version", newer.Problems);
+
+        var setAside = new LocalLibraryViewModel(_scans, coordinator: null, () => _folders, post: _ => { },
+            playlists: new LocalPlaylistLibrary(new MemoryPlaylists(new([], LocalPlaylistsProblem.Unreadable, "x.unreadable"))))
+        { Filter = LocalSource.Playlists };
+        await setAside.ShowAsync();
+        Assert.True(setAside.CanCreatePlaylist);
+        Assert.Equal(
+            "Your playlists on this computer couldn't be read, so the file was kept as x.unreadable and a new list was started.",
+            setAside.Problems);
     }
 
     [Fact]

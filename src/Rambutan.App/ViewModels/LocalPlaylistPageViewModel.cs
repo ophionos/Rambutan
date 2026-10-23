@@ -19,11 +19,17 @@ namespace Rambutan.App.ViewModels;
 
 /// <summary>A row of a playlist on this computer, as it shows now
 /// (<see cref="LocalPlaylists.Resolve"/>). A copy can hold a song twice, so a
-/// row is its place in the list, not its id.</summary>
-public sealed record LocalPlaylistTrackRow(LocalPlaylistItem Item, bool IsMissing) : IHasAccessibleName, ITrackRow
+/// row is its place in the list, not its id: a class, so two rows of one song
+/// are never equal and the list finds the one that was acted on.</summary>
+public sealed class LocalPlaylistTrackRow(LocalPlaylistItem item, bool isMissing) : IHasAccessibleName, ITrackRow
 {
     // The name never changes: a changed row is a new row.
     public event PropertyChangedEventHandler? PropertyChanged { add { } remove { } }
+
+    public LocalPlaylistItem Item { get; } = item;
+
+    /// <summary>A local file that is gone and wasn't found again.</summary>
+    public bool IsMissing { get; } = isMissing;
 
     public TrackInfo Track => Item.Track;
     public string Title => Track.Title;

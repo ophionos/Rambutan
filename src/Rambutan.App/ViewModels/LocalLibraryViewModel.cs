@@ -267,7 +267,13 @@ public partial class LocalLibraryViewModel : ViewModelBase
         if (IsPlaylistsFilter)
         {
             Status = Playlists.Count == 0 ? "" : Strings.Format("library.local.statusPlaylists", ("count", Playlists.Count));
-            Problems = PlaylistLibrary is { IsReadOnly: true } library ? TrackActionsViewModel.ReadOnlyNote(library) : "";
+            Problems = PlaylistLibrary switch
+            {
+                { IsReadOnly: true } library => TrackActionsViewModel.ReadOnlyNote(library),
+                // The list started again, empty: say where the old playlists went.
+                { SetAside: { } path } => Strings.Format("localPlaylists.setAside", ("path", path)),
+                _ => "",
+            };
             return;
         }
         if (IsDownloadsFilter)

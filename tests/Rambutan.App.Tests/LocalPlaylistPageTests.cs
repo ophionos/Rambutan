@@ -169,6 +169,27 @@ public sealed class LocalPlaylistPageTests : IDisposable
     }
 
     [Fact]
+    public async Task ASongThereTwice_PlaysAndIsRemovedAsTheRowActedOn()
+    {
+        // One instance for both copies, so the rows' items are equal.
+        var a = Song("a");
+        var copy = _library.Copy("Copy", [a, Song("b"), a], "PLx");
+        var page = new LocalPlaylistPageViewModel(
+            _library, copy.Id, _scans, FakePlayback.Coordinator(_queue), null, _actions, post: _ => { });
+        await page.ShowAsync();
+
+        await page.PlayFromCommand.ExecuteAsync(page.Rows[2]);
+        Assert.Equal(2, _queue.CurrentIndex);
+
+        page.RemoveRowCommand.Execute(page.Rows[2]);
+        Assert.Equal(["A", "B"], Titles(page));
+        await _toasts.Toasts[^1].ActCommand.ExecuteAsync(null);
+        await page.RefreshAsync();
+        Assert.Equal(["a", "b", "a"], _library.Find(copy.Id)!.Items.Select(i => i.Track.VideoId));
+        Assert.Equal(["A", "B", "A"], Titles(page));
+    }
+
+    [Fact]
     public async Task ARowThatCantBeRemoved_StaysAndSaysWhy()
     {
         var page = await OpenAsync(LocalPlaylistItem.Of(Song("a")));
