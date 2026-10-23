@@ -26,7 +26,8 @@ public sealed class YouTubeMatchesTests : IDisposable
 
     // A match saves, and keeps its cover, after the answer is announced, so a
     // write can still be running when a test ends; Windows refuses to delete
-    // a folder with a file open in it.
+    // a folder with a file open in it (an IOException, or an
+    // UnauthorizedAccessException for a file being replaced or deleted).
     public void Dispose()
     {
         for (var attempt = 0; ; attempt++)
@@ -37,7 +38,7 @@ public sealed class YouTubeMatchesTests : IDisposable
                     Directory.Delete(_dir, recursive: true);
                 return;
             }
-            catch (IOException) when (attempt < 50)
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException && attempt < 50)
             {
                 Thread.Sleep(20);
             }
