@@ -4,6 +4,7 @@ using Rambutan.App.Converters;
 using Rambutan.App.Services;
 using Rambutan.App.ViewModels;
 using Rambutan.Core.Downloads;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Queue;
 using Rambutan.Core.Settings;
@@ -36,7 +37,13 @@ public sealed class DownloadsTests : IDisposable
     };
 
     private DownloadStore NewStore(GatedFetcher fetcher) =>
-        new(_root, () => Path.Combine(_root, "downloads"), fetcher);
+        new(new LocalFileIndex(_root, new NoReader(), _ => Task.CompletedTask, () => []),
+            _root, () => Path.Combine(_root, "downloads"), fetcher);
+
+    private sealed class NoReader : IMediaFileReader
+    {
+        public LocalFileTags? Read(string path) => null;
+    }
 
     private static TrackActionsViewModel Actions(DownloadQueue? downloads) =>
         new(null!, new QueueModel(), null!, null!, new ToastHostViewModel()) { Downloads = downloads };

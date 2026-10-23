@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Downloads;
+using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Settings;
@@ -9,8 +10,8 @@ using Rambutan.Core.Settings;
 namespace Rambutan.LocalLibrary;
 
 /// <summary>
-/// The downloads: audio files in the downloads folder, and their records in
-/// <c>downloads.json</c> beside the settings. A download is kept apart from
+/// The downloads: audio files in the downloads folder, recorded in the local
+/// index (<see cref="LocalFile.Download"/>). A download is kept apart from
 /// <see cref="AudioDiskCache"/>, so the cache's size cap, its eviction and its
 /// fault-retry deletes never touch one, and a cache set to zero still downloads.
 /// <para>
@@ -22,10 +23,15 @@ namespace Rambutan.LocalLibrary;
 /// Files are written as <c>.part</c> and renamed only when complete, like the cache.
 /// <para>
 /// A file the decoder still holds (the song is playing; Windows won't delete an
-/// open file) can't go with its record. Its path is kept in the manifest as a
+/// open file) can't go with its record. Its path is kept in the index as a
 /// leftover and deleted later: at the next start, at the next change to the
 /// downloads, or when <see cref="RetryLeftovers"/> is called as playback moves on.
 /// The folder may hold the user's own files, so only remembered paths are deleted.
+/// </para>
+/// <para>
+/// Builds before the downloads were in the index kept them in
+/// <c>downloads.json</c>; the first start takes its records in and leaves the
+/// file as it was.
 /// </para>
 /// </summary>
 public sealed class DownloadStore : IDownloadStore, IDisposable
@@ -33,37 +39,38 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
     private const string PartExtension = ".part";
     private static readonly TimeSpan PendingSaveDelay = TimeSpan.FromSeconds(1);
 
+    private readonly LocalFileIndex _index;
     private readonly string _manifestPath;
     private readonly string _pendingPath;
     private readonly Func<string> _folder;
     private readonly IAudioFetcher _fetcher;
     private readonly Func<string, CancellationToken, Task<byte[]>>? _fetchArtwork;
-    private readonly object _lock = new();
-    private readonly Dictionary<string, SavedDownload> _downloads = new(StringComparer.Ordinal);
-    private readonly List<string> _leftovers = [];
+    // Taken before the index's own lock: only the store changes the downloads,
+    // so a read of the index and the change made from it stay together.
+    private readonly Lock _lock = new();
 
     private IReadOnlyList<PendingDownload>? _pendingToSave;
     private bool _pendingSaveScheduled;
 
-    /// <param name="dataDirectory">Where <c>downloads.json</c> and the pending
-    /// queue live.</param>
+    /// <param name="index">The profile's local index, which keeps the records.</param>
+    /// <param name="dataDirectory">Where the pending queue lives, and
+    /// <c>downloads.json</c> from earlier builds.</param>
     /// <param name="folder">The folder new downloads go to, read at each download.</param>
     /// <param name="fetchArtwork">Fetches an artwork URL's bytes, so a download keeps
     /// its cover next to its audio; null keeps none.</param>
     public DownloadStore(
-        string dataDirectory, Func<string> folder, IAudioFetcher fetcher,
+        LocalFileIndex index, string dataDirectory, Func<string> folder, IAudioFetcher fetcher,
         Func<string, CancellationToken, Task<byte[]>>? fetchArtwork = null)
     {
+        _index = index;
         _manifestPath = Path.Combine(dataDirectory, "downloads.json");
         _pendingPath = Path.Combine(dataDirectory, "downloads-pending.json");
         _folder = folder;
         _fetcher = fetcher;
         _fetchArtwork = fetchArtwork;
 
-        var manifest = LoadManifest();
-        foreach (var saved in manifest.Downloads)
-            _downloads[saved.VideoId!] = saved;
-        _leftovers.AddRange(manifest.LeftoverPaths ?? []);
+        if (!index.DownloadsImported)
+            Import();
         CleanStaleParts();
         RetryLeftovers();
     }
@@ -72,62 +79,36 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
     /// replace it, since no portable way holds a file open against deletion.</summary>
     internal Func<string, bool> DeleteFile { get; set; } = TryDelete;
 
-    public IReadOnlyList<DownloadedTrack> List()
-    {
-        lock (_lock)
-        {
-            return _downloads.Values
-                // Records from before the order was kept sort by when they finished.
-                .OrderByDescending(d => d.RequestedAt ?? d.DownloadedAt)
-                .ThenBy(d => d.Position ?? 0)
-                .Select(d => new DownloadedTrack(
-                    ToTrack(d), d.SizeBytes, d.DownloadedAt, IsMissing: !File.Exists(d.Path)))
-                .ToArray();
-        }
-    }
+    public IReadOnlyList<DownloadedTrack> List() =>
+        _index.Downloads()
+            // Records from before the order was kept sort by when they finished.
+            .OrderByDescending(f => f.Download!.RequestedAt ?? f.Download.DownloadedAt)
+            .ThenBy(f => f.Download!.Position ?? 0)
+            .Select(f => new DownloadedTrack(
+                f.Download!.Track, f.Download.SizeBytes, f.Download.DownloadedAt, IsMissing: !File.Exists(f.Path)))
+            .ToArray();
 
-    public bool Contains(string videoId)
-    {
-        lock (_lock)
-            return _downloads.TryGetValue(videoId, out var d) && File.Exists(d.Path);
-    }
+    public bool Contains(string videoId) => _index.FindDownload(videoId) is { } f && File.Exists(f.Path);
 
     /// <summary>The download as something to play, or null when there is none or
     /// its file is gone. Any quality preference accepts it: the user asked for this
     /// file to be kept, and a local file costs no data.</summary>
-    public ResolvedMedia? TryGetMedia(string videoId)
-    {
-        SavedDownload? d;
-        lock (_lock)
-            _downloads.TryGetValue(videoId, out d);
-
-        return d is not null && File.Exists(d.Path)
-            ? new ResolvedMedia(d.Path!, d.AudioCodec ?? "", d.LoudnessDb)
+    public ResolvedMedia? TryGetMedia(string videoId) =>
+        _index.FindDownload(videoId) is { Download: { } d } f && File.Exists(f.Path)
+            ? new ResolvedMedia(f.Path, d.AudioCodec, d.LoudnessDb)
             : null;
-    }
 
     /// <summary>The download's files, for export; null when there is no such
     /// download. A download whose file is gone has a null audio path.</summary>
-    public ExportSource? ExportSourceFor(string videoId)
-    {
-        SavedDownload? d;
-        lock (_lock)
-            _downloads.TryGetValue(videoId, out d);
-
-        return d is null
-            ? null
-            : new ExportSource(ToTrack(d), File.Exists(d.Path) ? d.Path : null, d.AudioCodec ?? "", ArtworkPathFor(videoId));
-    }
+    public ExportSource? ExportSourceFor(string videoId) =>
+        _index.FindDownload(videoId) is { Download: { } d } f
+            ? new ExportSource(d.Track, File.Exists(f.Path) ? f.Path : null, d.AudioCodec, ArtworkPathFor(videoId))
+            : null;
 
     /// <summary>The download's own copy of its artwork, or null when it has none
     /// (made before covers were kept, or the cover couldn't be fetched).</summary>
-    public string? ArtworkPathFor(string videoId)
-    {
-        string? path;
-        lock (_lock)
-            path = _downloads.TryGetValue(videoId, out var d) ? d.ArtworkPath : null;
-        return path is not null && File.Exists(path) ? path : null;
-    }
+    public string? ArtworkPathFor(string videoId) =>
+        _index.FindDownload(videoId)?.Download?.ArtworkPath is { } path && File.Exists(path) ? path : null;
 
     /// <summary>Fetches the covers that downloads made before covers were kept, or
     /// whose cover failed, still lack. One at a time; a failure waits for the next run.</summary>
@@ -135,20 +116,17 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
     {
         if (_fetchArtwork is null)
             return;
-        List<SavedDownload> missing;
-        lock (_lock)
-        {
-            missing = _downloads.Values
-                .Where(d => d.ThumbnailUrl is not null && File.Exists(d.Path) &&
-                            (d.ArtworkPath is null || !File.Exists(d.ArtworkPath)))
-                .ToList();
-        }
+        var missing = _index.Downloads()
+            .Where(f => f.Download!.Track.ThumbnailUrl is not null && File.Exists(f.Path) &&
+                        (f.Download.ArtworkPath is null || !File.Exists(f.Download.ArtworkPath)))
+            .ToList();
 
         var failures = 0;
-        foreach (var d in missing)
+        foreach (var f in missing)
         {
-            var stem = Path.Combine(Path.GetDirectoryName(d.Path)!, Path.GetFileNameWithoutExtension(d.Path!));
-            if (await SaveArtworkAsync(d.ThumbnailUrl, stem, ct) is not { } art)
+            var d = f.Download!;
+            var stem = Path.Combine(Path.GetDirectoryName(f.Path)!, Path.GetFileNameWithoutExtension(f.Path));
+            if (await SaveArtworkAsync(d.Track.ThumbnailUrl, stem, ct) is not { } art)
             {
                 // Offline, every fetch fails: stop rather than log one line per download.
                 if (++failures >= 3)
@@ -159,28 +137,17 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
             lock (_lock)
             {
                 // Removed or downloaded again meanwhile: the cover belongs to no record.
-                if (!_downloads.TryGetValue(d.VideoId!, out var now) || !ReferenceEquals(now, d))
-                {
-                    if (!_downloads.Values.Any(r => SamePath(r.ArtworkPath, art)))
-                        TryDelete(art);
-                    continue;
-                }
-                d.ArtworkPath = art;
-                SaveManifest();
+                if (!_index.SetDownloadArtwork(d.Track.VideoId, d, art) &&
+                    !_index.Downloads().Any(r => SamePath(r.Download!.ArtworkPath, art)))
+                    TryDelete(art);
             }
         }
     }
 
     /// <summary>The sum of the downloads' sizes, for Settings. Leftovers not yet
     /// deleted count too: they still take the space.</summary>
-    public long TotalBytes
-    {
-        get
-        {
-            lock (_lock)
-                return _downloads.Values.Sum(d => d.SizeBytes) + _leftovers.Sum(SizeOf);
-        }
-    }
+    public long TotalBytes =>
+        _index.Downloads().Sum(f => f.Download!.SizeBytes) + _index.Leftovers().Sum(SizeOf);
 
     /// <summary>Deletes the files that couldn't be deleted with their records.
     /// Cheap when there are none; one still in use waits for the next try.</summary>
@@ -188,14 +155,16 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
     {
         lock (_lock)
         {
-            if (_leftovers.Count == 0)
+            var leftovers = _index.Leftovers().ToList();
+            if (leftovers.Count == 0)
                 return;
+            var live = _index.Downloads();
             // A path downloaded again since is a live file now, not a leftover.
-            var done = _leftovers.RemoveAll(path =>
-                _downloads.Values.Any(d => SamePath(d.Path, path) || SamePath(d.ArtworkPath, path)) ||
+            var done = leftovers.RemoveAll(path =>
+                live.Any(f => SamePath(f.Path, path) || SamePath(f.Download!.ArtworkPath, path)) ||
                 !File.Exists(path) || DeleteFile(path));
             if (done > 0)
-                SaveManifest();
+                _index.SetLeftovers(leftovers);
         }
     }
 
@@ -219,30 +188,26 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
             }
 
             var finalPath = stem + ExtensionFor(fetched.AudioCodec);
-            var record = FromTrack(track, order);
-            record.Path = finalPath;
-            record.ArtworkPath = artwork = await SaveArtworkAsync(track.ThumbnailUrl, stem, ct);
-            record.AudioCodec = fetched.AudioCodec;
-            record.Itag = fetched.Itag;
-            record.Quality = AudioQualityNames.Format(fetched.Quality);
-            record.LoudnessDb = fetched.LoudnessDb;
-            record.SizeBytes = size;
-            record.DownloadedAt = DateTimeOffset.UtcNow;
+            artwork = await SaveArtworkAsync(track.ThumbnailUrl, stem, ct);
+            var download = new LocalDownload(
+                track, fetched.AudioCodec, fetched.Itag, AudioQualityNames.Format(fetched.Quality),
+                fetched.LoudnessDb, size, DateTimeOffset.UtcNow, artwork, order.RequestedAt, order.Position);
 
             lock (_lock)
             {
                 File.Move(partPath, finalPath, overwrite: true);
-                _leftovers.RemoveAll(path => SamePath(path, finalPath) || SamePath(path, artwork));
+                var leftovers = _index.Leftovers().ToList();
+                leftovers.RemoveAll(path => SamePath(path, finalPath) || SamePath(path, artwork));
                 // A download made again into another folder replaces the old files.
-                if (_downloads.TryGetValue(track.VideoId, out var old))
+                if (_index.FindDownload(track.VideoId) is { Download: { } old } oldFile)
                 {
-                    if (!SamePath(old.Path, finalPath))
-                        DeleteOrRemember(old.Path!);
-                    if (old.ArtworkPath is { } oldArt && !SamePath(oldArt, record.ArtworkPath))
-                        DeleteOrRemember(oldArt);
+                    if (!SamePath(oldFile.Path, finalPath))
+                        DeleteOrRemember(oldFile.Path, leftovers);
+                    if (old.ArtworkPath is { } oldArt && !SamePath(oldArt, artwork))
+                        DeleteOrRemember(oldArt, leftovers);
                 }
-                _downloads[track.VideoId] = record;
-                SaveManifest();
+                var written = new FileInfo(finalPath);
+                _index.RecordDownload(finalPath, written.Length, written.LastWriteTimeUtc, download, leftovers);
             }
             RetryLeftovers();
         }
@@ -253,7 +218,7 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
             // it then still shows correctly: same track, same cover).
             lock (_lock)
             {
-                if (artwork is not null && !_downloads.Values.Any(r => SamePath(r.ArtworkPath, artwork)))
+                if (artwork is not null && !_index.Downloads().Any(r => SamePath(r.Download!.ArtworkPath, artwork)))
                     TryDelete(artwork);
             }
             throw;
@@ -264,25 +229,25 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
     {
         lock (_lock)
         {
-            if (!_downloads.Remove(videoId, out var d))
+            if (_index.FindDownload(videoId) is not { Download: { } d } f)
                 return;
             // The record goes even when the file can't (in playback, on Windows),
             // so the track stops counting as downloaded at once.
-            DeleteOrRemember(d.Path!);
+            var leftovers = _index.Leftovers().ToList();
+            DeleteOrRemember(f.Path, leftovers);
             if (d.ArtworkPath is { } art)
-                DeleteOrRemember(art);
-            SaveManifest();
+                DeleteOrRemember(art, leftovers);
+            _index.RemoveDownload(videoId, leftovers);
         }
         RetryLeftovers();
     }
 
-    /// <summary>Call under the lock; the caller saves the manifest.</summary>
-    private void DeleteOrRemember(string path)
+    private void DeleteOrRemember(string path, List<string> leftovers)
     {
-        if (DeleteFile(path) || _leftovers.Any(p => SamePath(p, path)))
+        if (DeleteFile(path) || leftovers.Any(p => SamePath(p, path)))
             return;
         AppLog.Write("downloads", $"couldn't delete {path} (in use?); will retry");
-        _leftovers.Add(path);
+        leftovers.Add(path);
     }
 
     private static bool SamePath(string? a, string? b) =>
@@ -358,7 +323,7 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
                 File.Delete(_pendingPath);
                 return;
             }
-            var saved = new SavedPendingDownloads { Tracks = pending.Select(p => (SavedDownloadTrack)FromTrack(p.Track, p.Order)).ToList() };
+            var saved = new SavedPendingDownloads { Tracks = pending.Select(p => FromTrack(p.Track, p.Order)).ToList() };
             WriteAtomic(_pendingPath, JsonSerializer.Serialize(saved, DownloadsJsonContext.Default.SavedPendingDownloads));
         }
         catch (Exception ex)
@@ -368,6 +333,21 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
     }
 
     public void Dispose() => FlushPending();
+
+    /// <summary>Takes <c>downloads.json</c>'s records into the index. The file
+    /// stays, so a build from before the merge still has them.</summary>
+    private void Import()
+    {
+        var manifest = LoadManifest();
+        var downloads = manifest.Downloads
+            .Select(d => (d.Path!, new LocalDownload(
+                ToTrack(d), d.AudioCodec ?? "", d.Itag, d.Quality, d.LoudnessDb, d.SizeBytes, d.DownloadedAt,
+                string.IsNullOrEmpty(d.ArtworkPath) ? null : d.ArtworkPath, d.RequestedAt, d.Position)))
+            .ToList();
+        _index.ImportDownloads(downloads, manifest.LeftoverPaths ?? []);
+        if (downloads.Count > 0)
+            AppLog.Write("downloads", $"took {downloads.Count} downloads from downloads.json into the local index");
+    }
 
     private SavedDownloads LoadManifest()
     {
@@ -385,8 +365,8 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
         }
         catch (Exception ex)
         {
-            // Fails closed: start with no downloads rather than guess at the file,
-            // and set it aside so the next save can't destroy what it held.
+            // Fails closed: take in nothing rather than guess at the file, and set
+            // it aside so what it held isn't lost.
             AppLog.Write("downloads", $"couldn't read downloads.json, set aside: {ex.Message}");
             try
             {
@@ -397,17 +377,6 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
             }
             return new SavedDownloads();
         }
-    }
-
-    /// <summary>Call under the lock.</summary>
-    private void SaveManifest()
-    {
-        var saved = new SavedDownloads
-        {
-            Downloads = _downloads.Values.ToList(),
-            LeftoverPaths = _leftovers.Count > 0 ? [.. _leftovers] : null,
-        };
-        WriteAtomic(_manifestPath, JsonSerializer.Serialize(saved, DownloadsJsonContext.Default.SavedDownloads));
     }
 
     private static void WriteAtomic(string path, string json)
@@ -509,40 +478,39 @@ public sealed class DownloadStore : IDownloadStore, IDisposable
     };
 
     /// <summary>A track as it is saved; no order, which only a download has.</summary>
-    internal static SavedDownloadTrack TrackRecord(TrackInfo t) => new()
-    {
-        VideoId = t.VideoId,
-        Title = t.Title,
-        Artists = t.Artists.Select(a => new SavedDownloadArtist { Name = a.Name, BrowseId = a.BrowseId }).ToList(),
-        Album = t.Album,
-        AlbumBrowseId = t.AlbumBrowseId,
-        DurationSeconds = t.Duration?.TotalSeconds,
-        ThumbnailUrl = t.ThumbnailUrl,
-        TrackNumber = t.TrackNumber,
-        SongId = t.SongId,
-    };
+    internal static SavedDownloadTrack TrackRecord(TrackInfo t) => CopyTrack(t, new SavedDownloadTrack());
 
-    private static SavedDownload FromTrack(TrackInfo t, DownloadOrder order) => new()
+    /// <summary>Writes the track's fields into <paramref name="saved"/>, leaving
+    /// the order as it is.</summary>
+    internal static T CopyTrack<T>(TrackInfo t, T saved) where T : SavedDownloadTrack
     {
-        RequestedAt = order.RequestedAt,
-        Position = order.Position,
-        VideoId = t.VideoId,
-        Title = t.Title,
-        Artists = t.Artists.Select(a => new SavedDownloadArtist { Name = a.Name, BrowseId = a.BrowseId }).ToList(),
-        Album = t.Album,
-        AlbumBrowseId = t.AlbumBrowseId,
-        DurationSeconds = t.Duration?.TotalSeconds,
-        ThumbnailUrl = t.ThumbnailUrl,
-        TrackNumber = t.TrackNumber,
-        SongId = t.SongId,
-    };
+        saved.VideoId = t.VideoId;
+        saved.Title = t.Title;
+        saved.Artists = t.Artists.Select(a => new SavedDownloadArtist { Name = a.Name, BrowseId = a.BrowseId }).ToList();
+        saved.Album = t.Album;
+        saved.AlbumBrowseId = t.AlbumBrowseId;
+        saved.DurationSeconds = t.Duration?.TotalSeconds;
+        saved.ThumbnailUrl = t.ThumbnailUrl;
+        saved.TrackNumber = t.TrackNumber;
+        saved.SongId = t.SongId;
+        return saved;
+    }
+
+    private static SavedDownloadTrack FromTrack(TrackInfo t, DownloadOrder order)
+    {
+        var saved = TrackRecord(t);
+        saved.RequestedAt = order.RequestedAt;
+        saved.Position = order.Position;
+        return saved;
+    }
 
     private static string Sanitize(string value) =>
         string.Concat(value.Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
 }
 
-/// <summary><c>downloads.json</c>. Its own DTOs, not Core's <see cref="TrackInfo"/>,
-/// so a model change can't silently change what's on disk.</summary>
+/// <summary><c>downloads.json</c>, which builds before the downloads were in the
+/// local index kept; read once, to take its records in. Its own DTOs, not Core's
+/// <see cref="TrackInfo"/>, so a model change can't silently change what's on disk.</summary>
 public sealed class SavedDownloads
 {
     public const int CurrentVersion = 1;

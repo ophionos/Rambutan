@@ -345,6 +345,7 @@ public partial class App : Application
         // "downloads" its generated audio, so the whole flow can be looked at.
         var defaultDownloads = DownloadsFolders.Default(dataDir);
         services.AddSingleton(sp => new DownloadStore(
+            sp.GetRequiredService<LocalLibraryScans>().Index,
             dataDir,
             () => DownloadsFolders.Effective(sp.GetRequiredService<AppSettings>(), defaultDownloads),
             Demo is null

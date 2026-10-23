@@ -97,9 +97,9 @@ libraries; a type two of them share belongs in Core.
 |---|---|
 | `Rambutan.Core` | Playback coordinator + state machine, queue, ports (`ICatalog`, `IStreamSource`, `IAudioPlayer`), `AppLog`. **Pure C#, zero I/O, no package refs** without discussion. |
 | `Rambutan.InnerTube` | YTM API client implementing `ICatalog`. Parsers tested against recorded fixtures. |
-| `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, download store (kept apart from the cache: no cap, no eviction), export through the ffmpeg executable. The **only** project that touches stream extraction. |
+| `Rambutan.Streams` | yt-dlp + ffmpeg sidecars, stream resolution, audio disk cache, the downloads' fetcher (`GoogleVideoFetcher`, Core's `IAudioFetcher`), export through the ffmpeg executable. The **only** project that touches stream extraction. |
 | `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). Also reads local files' tags, length and cover (`FfmpegMediaFileReader`), so libav stays in one project. |
-| `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`, and plays them (`LocalFirstSource`). |
+| `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`, and plays them (`LocalFirstSource`). Also the downloads (`DownloadStore`, played by `DownloadsFirstSource`; kept apart from the cache: no cap, no eviction), recorded on their files' entries in that index, and the offline copies of pages (`KeptCollectionStore`). |
 | `Rambutan.Lyrics` | Lyrics model + timing rules, LRC parser/writer, Lyricsfile (YAML subset) parser for LRCLIB's word-synced records, LRCLIB provider + chain, per-track cache, custom-lyrics store, `LyricsService`. |
 | `Rambutan.Integrations` | SMTC (Windows), MPRIS and the tray-host check (Linux, over D-Bus), single-instance, Velopack updates, Discord Rich Presence (hand-rolled IPC), Last.fm scrobbling and stations. |
 | `Rambutan.LocalApi` | Kestrel host started on demand: `/remote` (the phone remote, on the LAN only while its setting is on; token pairing, state over SSE) and `/overlay` (the OBS overlay, in its own host on loopback only, port 41742 for the installed app's data folder, with its own read-only key; style file `overlay-style.json`, versioned). |
@@ -250,14 +250,17 @@ file sink), never to files directly.
 - Offline pages: `Core/Downloads/OfflineCatalog` wraps the `ICatalog` that App
   registers. When an album or playlist page, or the Library's Albums or Playlists
   tab, can't load, it serves the copy that "Download all" kept
-  (`downloads-collections.json`, `Streams/KeptCollectionStore`), marked
+  (`downloads-collections.json`, `LocalLibrary/KeptCollectionStore`), marked
   `KeptAt` / `IsOfflineCopy` so the page says so.
 - Which id plays: a row's `TrackInfo.SongId` (YTM's credits link) names the
   album audio track. Album pages play the `SongId` when a row has one and fall
   back to the `VideoId` if it doesn't resolve; every other surface plays the
   video it lists. Lyrics, downloads and the now-playing marker follow the id that
   plays. `Core/Models/AlbumAudio` swaps the ids and `PlaybackCoordinator`
-  falls back to the listed video.
+  falls back to the listed video. A download plays under its YouTube id; the
+  `local:<n>` id of its entry in the local index stays inside LocalLibrary.
+  Builds before downloads were in the index kept them in `downloads.json`: the
+  first start takes its records in once and leaves the file as it was.
 - Local library: the watched folders are a setting (`AppSettings.WatchedFolders`,
   per profile like every setting). `LocalLibrary/LocalFileIndex` scans them at
   startup, when a folder is added, and on Rescan. While the app runs,

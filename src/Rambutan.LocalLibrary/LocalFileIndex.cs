@@ -17,6 +17,12 @@ namespace Rambutan.LocalLibrary;
 /// <see cref="Changed"/> is raised as files are read, so a list can fill while the
 /// scan runs.
 /// <para>
+/// It also holds the app's downloads, for <see cref="DownloadStore"/>: a download
+/// is a file whose entry has a <see cref="LocalFile.Download"/>, in the watched
+/// folders or not. One that no scan has read isn't listed. Reading a file again
+/// keeps the download its entry has at that moment.
+/// </para>
+/// <para>
 /// Thread-safe. <see cref="Changed"/> is raised on a scan thread.
 /// </para>
 /// </summary>
@@ -35,7 +41,14 @@ public sealed class LocalFileIndex : IDisposable
     private readonly LocalPaths _paths;
     private readonly int _threads;
     private readonly Lock _lock = new();
+    // Taken before _lock, never inside it: snapshot and write as one, so an older
+    // snapshot can't land after a newer one.
+    private readonly Lock _saveLock = new();
     private readonly Dictionary<string, LocalFile> _files = new(StringComparer.Ordinal);
+    // The downloads' entries by YouTube id.
+    private readonly Dictionary<string, string> _downloadIds = new(StringComparer.Ordinal);
+    private readonly List<string> _leftovers = [];
+    private bool _downloadsImported;
     // The new files a running scan has given ids to and not read yet, by path,
     // so a file opened meanwhile gets the same id.
     private readonly Dictionary<string, string> _reading;
@@ -67,10 +80,27 @@ public sealed class LocalFileIndex : IDisposable
         _reading = new Dictionary<string, string>(_paths.Comparer);
         _threads = threads ?? LocalScan.ReadThreads(Environment.ProcessorCount);
 
-        var (files, nextId) = _file.Load();
-        foreach (var file in files)
+        var loaded = _file.Load();
+        foreach (var file in loaded.Files)
             _files[file.Id] = file;
-        _nextId = nextId;
+        _nextId = loaded.NextId;
+        _leftovers.AddRange(loaded.Leftovers);
+        _downloadsImported = loaded.DownloadsImported;
+        foreach (var file in loaded.Files.Where(f => f.Download is not null))
+        {
+            var videoId = file.Download!.Track.VideoId;
+            // Two entries can't both be one video's download: the newer one is.
+            if (_downloadIds.TryGetValue(videoId, out var otherId))
+            {
+                var other = _files[otherId];
+                var older = other.Download!.DownloadedAt >= file.Download.DownloadedAt ? file : other;
+                ClearDownload(older);
+                _dirty = true;
+                if (ReferenceEquals(older, file))
+                    continue;
+            }
+            _downloadIds[videoId] = file.Id;
+        }
         if (queued is not null && _files.Values.Any(f => f.IsOpened))
             ForgetOpened(queued());
     }
@@ -95,7 +125,7 @@ public sealed class LocalFileIndex : IDisposable
     {
         var roots = Roots(_folders());
         lock (_lock)
-            return _files.Values.Where(f => roots.Any(r => _paths.IsUnder(f.Path, r))).ToList();
+            return _files.Values.Where(f => !f.IsUnreadDownload && roots.Any(r => _paths.IsUnder(f.Path, r))).ToList();
     }
 
     /// <summary>How many of <see cref="Files"/> are readable, unreadable and
@@ -108,7 +138,7 @@ public sealed class LocalFileIndex : IDisposable
         {
             foreach (var file in _files.Values)
             {
-                if (!roots.Any(r => _paths.IsUnder(file.Path, r)))
+                if (file.IsUnreadDownload || !roots.Any(r => _paths.IsUnder(file.Path, r)))
                     continue;
                 if (file.IsMissing)
                     missing++;
@@ -190,6 +220,12 @@ public sealed class LocalFileIndex : IDisposable
         var roots = LocalWatch.Within(watched, scope, _paths);
 
         var (found, pictureFiles, listed, notListed) = await Task.Run(() => List(roots, ct), ct);
+        lock (_lock)
+        {
+            // A deleted download's file that couldn't go yet is no file of the user's.
+            var leftovers = _leftovers.ToHashSet(_paths.Comparer);
+            found.RemoveAll(f => leftovers.Contains(f.Path));
+        }
         var pictures = pictureFiles
             .GroupBy(f => Path.GetDirectoryName(f.Path) ?? "", _paths.Comparer)
             .Select(g => LocalFolderCovers.Pick(g))
@@ -198,6 +234,7 @@ public sealed class LocalFileIndex : IDisposable
         var copies = new ConcurrentDictionary<string, string?>(_paths.Comparer);
 
         LocalScanPlan plan;
+        List<FileToRead> toRead;
         IReadOnlyList<string> unavailable;
         List<string> scanned;
         lock (_lock)
@@ -212,9 +249,12 @@ public sealed class LocalFileIndex : IDisposable
                 _reading[item.File.Path] = item.Id;
             foreach (var id in plan.NowMissing)
                 _files[id] = _files[id] with { IsMissing = true };
-            _dirty |= plan.NowMissing.Count > 0 || plan.ToRead.Count > 0;
+            // Downloads in a watched folder are listed like the user's own files,
+            // as before downloads were in the index, so they are read once too.
+            toRead = [.. plan.ToRead, .. UnreadDownloads(found, plan.ToRead)];
+            _dirty |= plan.NowMissing.Count > 0 || toRead.Count > 0;
             unavailable = LocalWatch.Unavailable(_status.UnavailableFolders, roots, notListed, watched, _paths);
-            _status = new LocalScanStatus(true, 0, plan.ToRead.Count, unavailable);
+            _status = new LocalScanStatus(true, 0, toRead.Count, unavailable);
         }
         RaiseChanged();
 
@@ -223,7 +263,7 @@ public sealed class LocalFileIndex : IDisposable
         var lastSave = Stopwatch.GetTimestamp();
         var lastChanged = 0L;
         await Parallel.ForEachAsync(
-            plan.ToRead, new ParallelOptions { MaxDegreeOfParallelism = _threads, CancellationToken = ct },
+            toRead, new ParallelOptions { MaxDegreeOfParallelism = _threads, CancellationToken = ct },
             (item, token) =>
             {
                 var file = ReadFile(item, pictures, copies);
@@ -233,7 +273,7 @@ public sealed class LocalFileIndex : IDisposable
                 bool save, raise;
                 lock (_lock)
                 {
-                    _files[file.Id] = file;
+                    _files[file.Id] = file with { Download = _files.GetValueOrDefault(file.Id)?.Download };
                     _dirty = true;
                     _status = _status with { Read = ++read };
                     var now = Stopwatch.GetTimestamp();
@@ -255,8 +295,24 @@ public sealed class LocalFileIndex : IDisposable
         RemoveUnusedCovers();
         AppLog.Write("local",
             $"scan: {found.Count} files in {roots.Count} folders ({notListed.Count} unavailable), " +
-            $"{plan.ToRead.Count} read ({unreadable} unreadable), {plan.NowMissing.Count} now missing, " +
+            $"{toRead.Count} read ({unreadable} unreadable), {plan.NowMissing.Count} now missing, " +
             $"{Stopwatch.GetElapsedTime(started).TotalSeconds.ToString("F1", CultureInfo.InvariantCulture)} s");
+    }
+
+    /// <summary>Call under the lock. The downloads among <paramref name="found"/>
+    /// that no scan has read and <paramref name="planned"/> doesn't read.</summary>
+    private List<FileToRead> UnreadDownloads(List<FoundFile> found, IReadOnlyList<FileToRead> planned)
+    {
+        var unread = new Dictionary<string, LocalFile>(_paths.Comparer);
+        foreach (var file in _files.Values.Where(f => f.IsUnreadDownload))
+            unread.TryAdd(file.Path, file);
+        if (unread.Count == 0)
+            return [];
+        var reading = planned.Select(r => r.File.Path).ToHashSet(_paths.Comparer);
+        return found
+            .Where(f => unread.ContainsKey(f.Path) && reading.Add(f.Path))
+            .Select(f => new FileToRead(f, unread[f.Path].Id, IsNew: false))
+            .ToList();
     }
 
     /// <summary>The audio files under each folder, and the pictures that may be a
@@ -344,7 +400,8 @@ public sealed class LocalFileIndex : IDisposable
             {
                 if (byPath.TryGetValue(file.Path, out var known))
                 {
-                    var unchanged = known is { IsMissing: false } && known.Size == file.Size && known.ModifiedAt == file.ModifiedAt;
+                    var unchanged = known is { IsMissing: false, IsUnreadDownload: false }
+                                    && known.Size == file.Size && known.ModifiedAt == file.ModifiedAt;
                     items.Add((new FileToRead(file, known.Id, IsNew: false), !unchanged));
                 }
                 else if (_reading.TryGetValue(file.Path, out var id))
@@ -376,7 +433,7 @@ public sealed class LocalFileIndex : IDisposable
                 {
                     var outside = !roots.Any(r => _paths.IsUnder(file.Path, r));
                     if (_files.TryGetValue(item.Id, out var was))
-                        file = file with { IsOpened = was.IsOpened };
+                        file = file with { IsOpened = was.IsOpened, Download = was.Download };
                     else if (outside && file.IsUnreadable)
                         continue;
                     else
@@ -407,7 +464,7 @@ public sealed class LocalFileIndex : IDisposable
         {
             foreach (var file in _files.Values.Where(f => f.IsOpened && !kept.Contains(f.Id)).ToList())
             {
-                if (roots.Any(r => _paths.IsUnder(file.Path, r)))
+                if (file.Download is not null || roots.Any(r => _paths.IsUnder(file.Path, r)))
                     _files[file.Id] = file with { IsOpened = false };
                 else
                     _files.Remove(file.Id);
@@ -540,7 +597,7 @@ public sealed class LocalFileIndex : IDisposable
             {
                 // A file read again meanwhile has the newer answer.
                 if (_files.TryGetValue(file.Id, out var now) && now.ModifiedAt == file.ModifiedAt && now.Size == file.Size)
-                    _files[file.Id] = file;
+                    _files[file.Id] = now with { CoverPath = file.CoverPath, FolderCover = file.FolderCover };
             }
             _dirty = true;
         }
@@ -618,26 +675,203 @@ public sealed class LocalFileIndex : IDisposable
 
     private void SaveIfDirty()
     {
-        List<LocalFile> files;
-        long nextId;
-        lock (_lock)
+        lock (_saveLock)
         {
-            if (!_dirty)
-                return;
-            _dirty = false;
-            files = [.. _files.Values];
-            nextId = _nextId;
+            List<LocalFile> files;
+            long nextId;
+            List<string> leftovers;
+            bool imported;
+            lock (_lock)
+            {
+                if (!_dirty)
+                    return;
+                _dirty = false;
+                files = [.. _files.Values];
+                nextId = _nextId;
+                leftovers = [.. _leftovers];
+                imported = _downloadsImported;
+            }
+            try
+            {
+                _file.Save(files, nextId, leftovers, imported);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                lock (_lock)
+                    _dirty = true;
+                AppLog.Write("local", $"couldn't save {LocalIndexFile.FileName}: {ex.Message}");
+            }
         }
-        try
-        {
-            _file.Save(files, nextId);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    }
+
+    // The downloads, for DownloadStore. Each change is saved before it returns:
+    // a download's file whose record is lost would never be deleted.
+
+    /// <summary>True once <c>downloads.json</c>'s records are in the index.</summary>
+    internal bool DownloadsImported
+    {
+        get
         {
             lock (_lock)
-                _dirty = true;
-            AppLog.Write("local", $"couldn't save {LocalIndexFile.FileName}: {ex.Message}");
+                return _downloadsImported;
         }
+    }
+
+    /// <summary>The download's entry; null when the video has none.</summary>
+    internal LocalFile? FindDownload(string videoId)
+    {
+        lock (_lock)
+            return FindDownloadLocked(videoId);
+    }
+
+    internal IReadOnlyList<LocalFile> Downloads()
+    {
+        lock (_lock)
+            return _downloadIds.Values.Select(id => _files[id]).ToList();
+    }
+
+    internal IReadOnlyList<string> Leftovers()
+    {
+        lock (_lock)
+            return [.. _leftovers];
+    }
+
+    internal void SetLeftovers(IReadOnlyList<string> leftovers)
+    {
+        lock (_lock)
+        {
+            _leftovers.Clear();
+            _leftovers.AddRange(leftovers);
+            _dirty = true;
+        }
+        SaveIfDirty();
+    }
+
+    /// <summary>
+    /// Records a finished download at <paramref name="path"/>, with the
+    /// leftovers as they are now, in one save. An entry the index has for that
+    /// path becomes the download, keeping its id and what was read of it; else
+    /// the file gets a new id. The video's download before, when it was another
+    /// file, no longer is one.
+    /// </summary>
+    internal void RecordDownload(
+        string path, long size, DateTimeOffset modifiedAt, LocalDownload download, IReadOnlyList<string> leftovers)
+    {
+        lock (_lock)
+        {
+            Adopt(path, size, modifiedAt, download);
+            _leftovers.Clear();
+            _leftovers.AddRange(leftovers);
+            _dirty = true;
+        }
+        SaveIfDirty();
+    }
+
+    /// <summary>The video's download stops being one, with the leftovers as
+    /// they are now, in one save; false when there was none.</summary>
+    internal bool RemoveDownload(string videoId, IReadOnlyList<string> leftovers)
+    {
+        lock (_lock)
+        {
+            if (FindDownloadLocked(videoId) is not { } removed)
+                return false;
+            _downloadIds.Remove(videoId);
+            ClearDownload(removed);
+            _leftovers.Clear();
+            _leftovers.AddRange(leftovers);
+            _dirty = true;
+        }
+        SaveIfDirty();
+        return true;
+    }
+
+    /// <summary>Gives the download its cover, unless it changed since
+    /// <paramref name="expected"/> (deleted, or downloaded again).</summary>
+    internal bool SetDownloadArtwork(string videoId, LocalDownload expected, string artworkPath)
+    {
+        lock (_lock)
+        {
+            if (FindDownloadLocked(videoId) is not { } file || !ReferenceEquals(file.Download, expected))
+                return false;
+            _files[file.Id] = file with { Download = expected with { ArtworkPath = artworkPath } };
+            _dirty = true;
+        }
+        SaveIfDirty();
+        return true;
+    }
+
+    /// <summary>
+    /// Takes in the records <c>downloads.json</c> kept: a video that has a
+    /// download in the index already keeps it, and an entry for the same path
+    /// becomes the download. The leftovers are added to the index's.
+    /// </summary>
+    internal void ImportDownloads(
+        IReadOnlyList<(string Path, LocalDownload Download)> downloads, IReadOnlyList<string> leftovers)
+    {
+        var sizes = downloads.Select(d =>
+        {
+            // The records didn't keep the file's time, and the file hasn't
+            // changed since the app wrote it.
+            var info = new FileInfo(d.Path);
+            return info.Exists ? (info.Length, new DateTimeOffset(info.LastWriteTimeUtc)) : (0L, default);
+        }).ToList();
+        lock (_lock)
+        {
+            for (var i = 0; i < downloads.Count; i++)
+            {
+                var (path, download) = downloads[i];
+                if (!_downloadIds.ContainsKey(download.Track.VideoId))
+                    Adopt(path, sizes[i].Item1, sizes[i].Item2, download);
+            }
+            foreach (var path in leftovers.Where(p => !_leftovers.Contains(p, _paths.Comparer)))
+                _leftovers.Add(path);
+            _downloadsImported = true;
+            _dirty = true;
+        }
+        SaveIfDirty();
+    }
+
+    /// <summary>Call under the lock.</summary>
+    private LocalFile? FindDownloadLocked(string videoId) =>
+        _downloadIds.TryGetValue(videoId, out var id) && _files.GetValueOrDefault(id) is { } file
+            && file.Download?.Track.VideoId == videoId
+            ? file
+            : null;
+
+    /// <summary>Call under the lock; see <see cref="RecordDownload"/>.</summary>
+    private void Adopt(string path, long size, DateTimeOffset modifiedAt, LocalDownload download)
+    {
+        var videoId = download.Track.VideoId;
+        var before = FindDownloadLocked(videoId);
+        var known = _files.Values.FirstOrDefault(f => _paths.Comparer.Equals(f.Path, path));
+        LocalFile file;
+        if (known is not null)
+        {
+            // Its size and time stay, so a file the download replaced is read again.
+            if (known.Download is { } other && other.Track.VideoId != videoId)
+                _downloadIds.Remove(other.Track.VideoId);
+            file = known with { IsMissing = false, Download = download };
+        }
+        else
+        {
+            // A scan that has found the file and not read it yet gave it an id.
+            var id = _reading.TryGetValue(path, out var reserved) ? reserved : LocalIds.Format(_nextId++);
+            file = new LocalFile(id, path, size, modifiedAt, null, Download: download);
+        }
+        if (before is not null && before.Id != file.Id)
+            ClearDownload(before);
+        _files[file.Id] = file;
+        _downloadIds[videoId] = file.Id;
+    }
+
+    /// <summary>Call under the lock. An entry that was read stays as the file it
+    /// is; one that was only ever a download goes.</summary>
+    private void ClearDownload(LocalFile file)
+    {
+        if (file.Tags is not null)
+            _files[file.Id] = file with { Download = null };
+        else
+            _files.Remove(file.Id);
     }
 
     /// <summary>The watched folders as full paths, without repeats. Blank or
