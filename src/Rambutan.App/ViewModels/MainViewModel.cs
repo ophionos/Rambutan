@@ -289,6 +289,8 @@ public partial class MainViewModel : ViewModelBase
         // Home first, and unconditionally: browsing needs neither sidecar nor a
         // session, so neither is allowed to decide whether the content region has
         // anything in it: a failed sidecar download would leave a blank window.
+        // Its first request still waits for the stored session (with a cap).
+        Navigation.SessionLoaded = Session.CookiesLoaded;
         Navigation.GoHome();
 
         var sidecars = PrepareSidecarsAsync();

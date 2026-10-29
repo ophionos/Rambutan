@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Rambutan.App.Services;
 using Rambutan.Core.Catalog;
+using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
@@ -72,6 +73,35 @@ public partial class NavigationService : ViewModelBase
         };
         if (local?.Downloads is not null)
             GoDownloads = OpenDownloads;
+    }
+
+    /// <summary>Completes once the stored session is in the client
+    /// (<see cref="SessionViewModel.CookiesLoaded"/>); null where none is restored.</summary>
+    public Task? SessionLoaded { get; set; }
+
+    /// <summary>How long a page's first request waits for <see cref="SessionLoaded"/>
+    /// before it goes out signed out, as the startup link does.</summary>
+    public TimeSpan SessionWait { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Waits until the stored session is in, so a page opened at startup asks
+    /// YouTube Music signed in: an unauthenticated browse gets the anonymous
+    /// feed without an error, and the restore doesn't count as a sign-in
+    /// change, so nothing would load the page again. Pages call it after
+    /// showing their loading state. Never throws.
+    /// </summary>
+    public async Task WaitForSessionAsync()
+    {
+        if (SessionLoaded is not { IsCompleted: false } loaded)
+            return;
+        try
+        {
+            await loaded.WaitAsync(SessionWait);
+        }
+        catch (TimeoutException)
+        {
+            AppLog.Write("nav", "session not loaded in time; loading the page signed out");
+        }
     }
 
     public void GoHome()
