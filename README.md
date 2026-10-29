@@ -79,6 +79,8 @@ your own YouTube Music account to use your library.
 - Media keys and the system's media controls (Windows media overlay, MPRIS on
   Linux), and a tray icon. On Windows, the taskbar preview has media buttons
   and the taskbar button shows the track's progress.
+- A notification when the track changes while Rambutan is in the background
+  (off by default; on Windows, in the installed app only).
 - A mini player that can stay on top of other windows.
 - Keyboard shortcuts for everything (press F1 to see them), screen-reader
   names on every control, and a reduced-motion mode.
@@ -159,7 +161,7 @@ Everything is in **Settings**, in the sidebar. The sections are:
 |---|---|
 | Account | Your sign-in. |
 | Appearance | The accent colour, the album-art tint, the visualizer's style, colour and frame rate, and motion. |
-| Behavior | Whether closing the window keeps Rambutan running in the tray, and (Windows) the media controls on the taskbar. |
+| Behavior | Whether closing the window keeps Rambutan running in the tray, (Windows) the media controls on the taskbar, and the notification when the track changes. |
 | Playback | Crossfade, volume normalization, streaming quality, autoplay, the audio cache and the output device. |
 | Equalizer | The 10-band equalizer. |
 | Lyrics | Online lyrics lookups on LRCLIB (off until you turn them on). |
