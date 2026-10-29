@@ -33,7 +33,8 @@ public sealed class ToastTrackNotifier(string? appUserModelId) : ITrackNotifier
         try
         {
             var locator = VelopackLocator.Current;
-            return locator.CurrentlyInstalledVersion is null ? null : locator.AppUserModelId;
+            // A portable run has an AUMID too, but no shortcut carries it.
+            return locator.CurrentlyInstalledVersion is null || locator.IsPortable ? null : locator.AppUserModelId;
         }
         catch (Exception ex)
         {

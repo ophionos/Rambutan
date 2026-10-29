@@ -500,7 +500,7 @@
     "settings.behavior.noTray": "This desktop shows no tray icons, so closing the window minimizes it instead.",
     "settings.behavior.notify": "Notify when the track changes",
     "settings.behavior.notifyHelp": "A system notification with the track's title, artist, album and cover, while Rambutan isn't the active window. Each one replaces the last. It stays on this computer.",
-    "settings.behavior.notifyUnavailable": "Windows shows notifications only from an installed Rambutan, and this one isn't installed.",
+    "settings.behavior.notifyUnavailable": "Windows shows notifications only from an installed Rambutan, and this one isn't installed (a portable or development copy).",
     "settings.behavior.notifyWhileFocused": "Also when a track starts on its own",
     "settings.behavior.notifyWhileFocusedHelp": "A notification while Rambutan is the active window too, when the next track starts without you choosing it.",
     "settings.behavior.taskbarControls": "Media controls on the taskbar",
