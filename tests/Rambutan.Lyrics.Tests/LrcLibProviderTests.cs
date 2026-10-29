@@ -17,11 +17,26 @@ public class LrcLibProviderTests
     private static readonly LyricsQuery Greensleeves = new(
         "abcDEF12_-3", "Greensleeves", "Dublin Ramblers", "Whiskey In The Jar From Ireland", TimeSpan.FromSeconds(97));
 
-    private static (LrcLibProvider Provider, FakeLrcLibHandler Handler) Create(Action<FakeLrcLibHandler> setup)
+    private static (LrcLibProvider Provider, FakeLrcLibHandler Handler) Create(
+        Action<FakeLrcLibHandler> setup, InstantDelays? time = null)
     {
         var handler = new FakeLrcLibHandler();
         setup(handler);
-        return (new LrcLibProvider(new HttpClient(handler)), handler);
+        return (new LrcLibProvider(new HttpClient(handler), time ?? new InstantDelays()), handler);
+    }
+
+    /// <summary>Answers with each status in turn, then with the last one, as LRCLIB
+    /// does when it is busy; a 200 serves the recorded exact match.</summary>
+    private static Func<HttpRequestMessage, HttpResponseMessage> InTurn(params HttpStatusCode[] statuses)
+    {
+        var next = 0;
+        return _ =>
+        {
+            var status = statuses[Math.Min(next++, statuses.Length - 1)];
+            return status == HttpStatusCode.OK
+                ? Json(Fixtures.Read("lrclib-get.json"))
+                : new HttpResponseMessage(status) { Content = new StringContent(Fixtures.Read("lrclib-overloaded.json")) };
+        };
     }
 
     private static Dictionary<string, string> QueryOf(HttpRequestMessage request) =>
@@ -244,6 +259,123 @@ public class LrcLibProviderTests
         var (provider, _) = Create(h => h.Serve("get", "lrclib-overloaded.json", HttpStatusCode.ServiceUnavailable));
 
         await Assert.ThrowsAsync<HttpRequestException>(() => provider.TryGetAsync(Full, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_busy_answer_is_retried_and_the_lyrics_found()
+    {
+        var time = new InstantDelays();
+        var (provider, handler) = Create(h => h.Serve("get", InTurn(HttpStatusCode.ServiceUnavailable, HttpStatusCode.OK)), time);
+
+        var result = await provider.TryGetAsync(AmazingGrace, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.True(result.Document.IsSynced);
+        Assert.Equal(["/api/get", "/api/get"], handler.Endpoints);
+        Assert.Equal([LrcLibProvider.RetryDelays[0]], time.Delays);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.GatewayTimeout)]
+    public async Task Other_transient_answers_are_retried(HttpStatusCode status)
+    {
+        var (provider, handler) = Create(h => h.Serve("get", InTurn(status, HttpStatusCode.OK)));
+
+        Assert.NotNull(await provider.TryGetAsync(AmazingGrace, CancellationToken.None));
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Repeated_busy_answers_stop_after_the_retries_and_throw()
+    {
+        var time = new InstantDelays();
+        var (provider, handler) = Create(h => h.Serve("get", InTurn(HttpStatusCode.ServiceUnavailable)), time);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => provider.TryGetAsync(Full, CancellationToken.None));
+
+        Assert.Equal(["/api/get", "/api/get", "/api/get"], handler.Endpoints);
+        Assert.Equal(LrcLibProvider.RetryDelays, time.Delays);
+        Assert.True(time.Delays.Aggregate(TimeSpan.Zero, (a, b) => a + b) <= LrcLibProvider.RetryWithin);
+    }
+
+    [Fact]
+    public async Task Repeated_busy_answers_end_unavailable_within_the_chains_budget()
+    {
+        var (provider, handler) = Create(h => h.Serve("get", InTurn(HttpStatusCode.ServiceUnavailable)));
+        var chain = new LyricsProviderChain([provider]);
+
+        var lookup = await chain.LookupAsync(Full, CancellationToken.None);
+
+        Assert.Equal(LyricsStatus.Unavailable, lookup.Status);
+        Assert.Equal(3, handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task Retry_After_is_honoured()
+    {
+        var time = new InstantDelays();
+        var answer = InTurn(HttpStatusCode.ServiceUnavailable, HttpStatusCode.OK);
+        var (provider, _) = Create(h => h.Serve("get", request =>
+        {
+            var busy = answer(request);
+            busy.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(2));
+            return busy;
+        }), time);
+
+        Assert.NotNull(await provider.TryGetAsync(AmazingGrace, CancellationToken.None));
+        Assert.Equal([TimeSpan.FromSeconds(2)], time.Delays);
+    }
+
+    [Fact]
+    public async Task A_Retry_After_beyond_the_budget_fails_at_once()
+    {
+        var time = new InstantDelays();
+        var (provider, handler) = Create(h => h.Serve("get", _ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+        {
+            Headers = { RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(TimeSpan.FromSeconds(30)) },
+        }), time);
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => provider.TryGetAsync(Full, CancellationToken.None));
+
+        Assert.Single(handler.Requests);
+        Assert.Empty(time.Delays);
+    }
+
+    [Fact]
+    public async Task A_connection_error_is_retried()
+    {
+        var time = new InstantDelays();
+        var calls = 0;
+        var (provider, handler) = Create(h => h.Serve("get", _ => ++calls == 1
+            ? throw new HttpRequestException("connection reset")
+            : Json(Fixtures.Read("lrclib-get.json"))), time);
+
+        Assert.NotNull(await provider.TryGetAsync(AmazingGrace, CancellationToken.None));
+        Assert.Equal(2, handler.Requests.Count);
+        Assert.Single(time.Delays);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    [InlineData(HttpStatusCode.BadRequest)]
+    public async Task Other_answers_are_not_retried(HttpStatusCode status)
+    {
+        var time = new InstantDelays();
+        var (provider, handler) = Create(h => h.Serve("get", InTurn(status)), time);
+
+        try
+        {
+            await provider.TryGetAsync(Full, CancellationToken.None);
+        }
+        catch (HttpRequestException)
+        {
+        }
+
+        Assert.Equal(1, handler.Requests.Count(r => r.RequestUri!.AbsolutePath == "/api/get"));
+        Assert.Empty(time.Delays);
     }
 
     [Fact]
