@@ -57,6 +57,10 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
     public async Task<byte[]> GetBytesAsync(string url, CancellationToken ct = default) =>
         await File.ReadAllBytesAsync(await EnsureOnDiskAsync(url, ct), ct);
 
+    /// <summary>The image's file in the disk cache, fetched into it first when
+    /// needed. Its extension says nothing of the format.</summary>
+    public Task<string> GetFileAsync(string url, CancellationToken ct = default) => EnsureOnDiskAsync(url, ct);
+
     private async Task<string> EnsureOnDiskAsync(string url, CancellationToken ct)
     {
         var path = Path.Combine(_dir, Convert.ToHexStringLower(

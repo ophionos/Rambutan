@@ -635,6 +635,75 @@ public class PlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task TrackStarted_SaysTheUserStartedAPlayAndANext()
+    {
+        using var coordinator = CreateCoordinator();
+        var starts = new List<TrackStart>();
+        coordinator.TrackStarted += starts.Add;
+
+        await coordinator.PlayQueueAsync(Tracks("t1", "t2"));
+        await coordinator.NextAsync();
+
+        Assert.Equal([("t1", false), ("t2", false)], starts.Select(s => (s.Track.VideoId, s.OnItsOwn)));
+    }
+
+    [Fact]
+    public async Task TrackStarted_SaysAPromotionStartedOnItsOwn()
+    {
+        using var coordinator = CreateCoordinator();
+        var starts = new List<TrackStart>();
+        coordinator.TrackStarted += starts.Add;
+        await coordinator.PlayQueueAsync(Tracks("t1", "t2"));
+        await WaitForPreloadAsync();
+
+        var promotedKey = _player.Next!.Key;
+        _player.Current = _player.Next;
+        _player.Raise(new TrackPromotedEvent(promotedKey));
+
+        await TestTracks.WaitUntilAsync(() => starts.Count == 2);
+        Assert.Equal(("t2", true), (starts[1].Track.VideoId, starts[1].OnItsOwn));
+    }
+
+    [Fact]
+    public async Task TrackStarted_SaysAnEndWithoutPreloadStartedTheNextOnItsOwn()
+    {
+        _streams.FailAlways.Add("t2");
+        using var coordinator = CreateCoordinator();
+        var starts = new List<TrackStart>();
+        coordinator.TrackStarted += starts.Add;
+        await coordinator.PlayQueueAsync(Tracks("t1", "t2"));
+        await TestTracks.WaitUntilAsync(() => _streams.Calls.Contains(("t2", false)));
+        _streams.FailAlways.Remove("t2");
+
+        _player.Raise(new PlaybackEndedEvent(_player.Current!.Key));
+
+        await TestTracks.WaitUntilAsync(() => starts.Count == 2);
+        Assert.Equal(("t2", true), (starts[1].Track.VideoId, starts[1].OnItsOwn));
+
+        await coordinator.JumpToAsync(0);
+        Assert.False(starts[^1].OnItsOwn);
+    }
+
+    [Fact]
+    public async Task TrackStarted_SaysASkipFadesPromotionIsTheUsers()
+    {
+        _settings.CrossfadeEnabled = true;
+        using var coordinator = CreateCoordinator();
+        var starts = new List<TrackStart>();
+        coordinator.TrackStarted += starts.Add;
+        await coordinator.PlayQueueAsync(Tracks("t1", "t2", "t3"));
+        await WaitForPreloadAsync();
+        await coordinator.NextAsync();
+
+        var promotedKey = _player.Next!.Key;
+        _player.Current = _player.Next;
+        _player.Raise(new TrackPromotedEvent(promotedKey));
+
+        await TestTracks.WaitUntilAsync(() => starts.Count == 2);
+        Assert.Equal(("t2", false), (starts[1].Track.VideoId, starts[1].OnItsOwn));
+    }
+
+    [Fact]
     public async Task SkipFade_Promotion_DoesNotAdvanceQueueAgain()
     {
         _settings.CrossfadeEnabled = true;

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Threading;
@@ -28,6 +29,7 @@ using Rambutan.Core.Stations;
 using Rambutan.Audio;
 using Rambutan.InnerTube;
 using Rambutan.Integrations;
+using Rambutan.Integrations.Notifications;
 using Rambutan.Integrations.Discord;
 using Rambutan.Integrations.LastFm;
 using Rambutan.LocalLibrary;
@@ -187,6 +189,7 @@ public partial class App : Application
             SetupCloseToTray(window);
             SetupTray(desktop, window);
             SetupMediaSession(desktop, window);
+            _services.GetRequiredService<TrackNotifications>();
 #if WINDOWS
             _taskbar = TaskbarControls.Attach(
                 window, _services.GetRequiredService<AppSettings>().TaskbarControls,
@@ -492,6 +495,30 @@ public partial class App : Application
             : new NullMediaSessionService());
 #endif
 
+#if WINDOWS
+        services.AddSingleton<ITrackNotifier>(_ => ToastTrackNotifier.ForInstalledApp());
+#else
+        services.AddSingleton<ITrackNotifier>(_ => OperatingSystem.IsLinux()
+            ? new Rambutan.Integrations.Linux.FreedesktopTrackNotifier("Rambutan")
+            : new NullTrackNotifier());
+#endif
+        // Off by default (AppSettings.NotifyOnTrackChange); started with the window.
+        services.AddSingleton(sp =>
+        {
+            var covers = sp.GetRequiredService<KeptCovers>();
+            return new TrackNotifications(
+                sp.GetRequiredService<PlaybackCoordinator>(),
+                sp.GetRequiredService<AppSettings>(),
+                sp.GetRequiredService<ITrackNotifier>(),
+                () => ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop &&
+                      desktop.Windows.Any(w => w.IsActive),
+                sp.GetRequiredService<YouTubeMatches>().Fill,
+                async (track, ct) => covers.PathFor(track.VideoId) ??
+                    (track.ThumbnailUrl is { } url ? await artwork.GetFileAsync(url, ct) : null),
+                Path.Combine(dataDir, "cache", "notification"),
+                action => Dispatcher.UIThread.Post(action));
+        });
+
         services.AddSingleton(new UpdateService(settings.UpdateFeedUrl ?? UpdateService.ReleasesFeed));
         // Discord stays inert unless the build has an app id and the user
         // turned it on (off by default).
@@ -687,6 +714,7 @@ public partial class App : Application
 #if WINDOWS
             ApplyTaskbarControls = on => _taskbar?.SetOn(on),
 #endif
+            CanNotify = sp.GetRequiredService<ITrackNotifier>().CanShow,
             Downloads = new DownloadsSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<DownloadStore>(),
                 defaultDownloads, () => RequestPersist(sp), sp.GetRequiredService<ExportSettings>()),
@@ -1149,6 +1177,7 @@ public partial class App : Application
         _queuePersistence?.Flush();
         var log = _services.GetRequiredService<FileLog>();
         _services.GetRequiredService<IMediaSessionService>().Dispose();
+        _services.GetRequiredService<TrackNotifications>().Dispose();
 #if WINDOWS
         _taskbar?.Dispose();
 #endif
