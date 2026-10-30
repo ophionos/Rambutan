@@ -39,6 +39,10 @@ your own YouTube Music account to use your library.
   library, with likes, saves and playlist editing.
 - Your YouTube Music history, under Library, grouped as YouTube Music groups
   it. You can remove a song from it.
+- Listening stats, under Library: the time you listened in the last week,
+  month or year against the period before, when you listen, your streaks,
+  and your top songs, artists and albums. They come from a play log that
+  stays on your computer; Settings turns it off or clears it.
 - Gapless playback, crossfade, volume normalization and a 10-band equalizer.
 - A queue you can reorder, restored when you start the app again.
 - A choice of output device.

@@ -23,6 +23,9 @@ public partial class SettingsPage : UserControl
             }
             if (DataContext is SettingsPageViewModel { Overlay: { } overlay })
                 AttachOverlay(overlay);
+            if (DataContext is SettingsPageViewModel { History: { } history })
+                history.Confirm = async (message, accept) => TopLevel.GetTopLevel(this) is Window window
+                    && await new ConfirmDialog(message, accept).ShowDialog<bool>(window);
             if (DataContext is SettingsPageViewModel { Local: { } local })
                 local.PickFolder = () => PickFolderAsync("settings.local.pickTitle");
             if (DataContext is not SettingsPageViewModel { Downloads: { } downloads })

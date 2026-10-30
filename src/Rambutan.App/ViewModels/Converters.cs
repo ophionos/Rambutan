@@ -65,9 +65,12 @@ public static class Converters
 
     /// <summary>A Library tab's chip label, which also names its list.</summary>
     public static readonly IValueConverter LibrarySourceName =
-        new FuncValueConverter<LibrarySource, string>(source => Strings.Get(source == LibrarySource.ThisComputer
-            ? "library.source.thisComputer"
-            : "library.source.youTubeMusic"));
+        new FuncValueConverter<LibrarySource, string>(source => Strings.Get(source switch
+        {
+            LibrarySource.ThisComputer => "library.source.thisComputer",
+            LibrarySource.Stats => "library.source.stats",
+            _ => "library.source.youTubeMusic",
+        }));
 
     public static readonly IValueConverter LocalSourceName =
         new FuncValueConverter<LocalSource, string>(source => Strings.Get(source switch

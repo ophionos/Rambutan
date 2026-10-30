@@ -571,12 +571,15 @@ public partial class App : Application
             Enabled = settings.MatchLocalOnYouTubeMusic,
         });
 
-        services.AddSingleton(_ =>
+        // The play log Library's stats read: on by default, and never off the machine.
+        services.AddSingleton(_ => new PlayLog(new PlayLogStore(dataDir), settings.RecordPlays));
+        services.AddSingleton(sp =>
         {
             var hub = new PlaybackListenerHub();
             hub.Add(discord);
             if (_lastFm is not null)
                 hub.Add(_lastFm);
+            hub.Add(sp.GetRequiredService<PlayLog>());
             return hub;
         });
 
@@ -652,6 +655,8 @@ public partial class App : Application
             () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? [],
             downloads: sp.GetRequiredService<DownloadsViewModel>(),
             playlists: sp.GetRequiredService<LocalPlaylistLibrary>()));
+        services.AddSingleton(sp => new ListeningStatsViewModel(
+            sp.GetRequiredService<PlayLog>().ReadAsync, () => sp.GetRequiredService<AppSettings>().RecordPlays));
         services.AddSingleton<NavigationService>();
         services.AddSingleton(sp => new QueueViewModel(
             sp.GetRequiredService<QueueModel>(), sp.GetRequiredService<PlaybackCoordinator>(),
@@ -732,6 +737,8 @@ public partial class App : Application
             Local = new LocalFilesSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<LocalLibraryScans>(),
                 () => RequestPersist(sp), matches: sp.GetRequiredService<YouTubeMatches>()),
+            History = new ListeningHistorySettingsViewModel(
+                sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PlayLog>(), () => RequestPersist(sp)),
             Remote = new RemoteSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PhoneRemoteService>(),
                 () => RequestPersist(sp)),
@@ -1195,6 +1202,8 @@ public partial class App : Application
         _services.GetRequiredService<DiscordPresenceService>().Dispose();
         // Queued scrobbles are already on disk; this only stops the worker.
         _lastFm?.Dispose();
+        // Writes the play running, so it counts.
+        _services.GetRequiredService<PlayLog>().Dispose();
         // Off the UI thread, and bounded: a phone holding the event stream must
         // not hold up the exit (the host drops its streams before stopping).
         if (!Task.Run(_services.GetRequiredService<PhoneRemoteService>().StopAsync).Wait(TimeSpan.FromSeconds(3)))

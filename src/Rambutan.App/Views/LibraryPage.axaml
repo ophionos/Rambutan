@@ -14,11 +14,12 @@
   <Grid RowDefinitions="Auto,Auto,*,Auto">
     <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="4,0,16,8">
       <TextBlock Text="{l:T library.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold" VerticalAlignment="Center" />
-      <!-- Two sources, both in view; shown signed out too, so the files stay reachable. -->
+      <!-- The two sources and the stats, all in view; shown signed out too, so
+           the files and the stats stay reachable. -->
       <ListBox Classes="segmented" VerticalAlignment="Center" HorizontalAlignment="Left"
                ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}"
                SelectionMode="AlwaysSelected"
-               IsVisible="{Binding HasLocal}"
+               IsVisible="{Binding HasSources}"
                AutomationProperties.Name="{l:T library.source.name}">
         <ListBox.ItemsPanel>
           <ItemsPanelTemplate>
@@ -383,6 +384,11 @@
                       IsVisible="{Binding !Items.Count}" />
     </Panel>
 
+
+    <!-- Stats: from the play log, its own scroller. -->
+    <views:ListeningStatsView Grid.Row="1" Grid.RowSpan="3"
+                              IsVisible="{Binding #Root.((vm:LibraryPageViewModel)DataContext).IsStats}"
+                              DataContext="{Binding Stats}" />
 
     <!-- On this computer. Its own list with its own scroller, so a library of
          thousands of files is virtualized. -->

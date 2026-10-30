@@ -249,6 +249,24 @@ file sink), never to files directly.
   is the publisher's: a fixture keeps a recording's shape with invented
   lines.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.
+- Play log and stats: `App/Services/PlayLog` listens on the hub and appends
+  each play, with the audio actually heard (`Core/Playback/ListenMeter`, which
+  `ScrobbleGate` counts from too), to the profile's `plays.jsonl`: a version
+  line, then one play per line, a later line with a play's id replacing the
+  earlier one. The file is touched only on the log's own worker, never on
+  the hub's thread; a newer or unreadable file is left as it is and nothing
+  is added until the user clears it. A record keeps its own title, artists
+  and album (`Core/Stats/PlayRecord`), never a file's path, and no link or
+  artwork for a local file. On by default (`AppSettings.RecordPlays`; it
+  never leaves the machine); Settings turns it off or clears it, after a
+  confirmation. Library's third view, Stats (`ListeningStatsViewModel`),
+  reads the whole log on each visit and calculates off the UI thread
+  (`Core/Stats/ListeningStats`): the last 7, 30 or 365 days ending today
+  against as many days before; a play counts in the top lists after 30 s or
+  half the track, and a YouTube play over 20 minutes counts as time only
+  (`PlayRules`). The charts are lists (the heatmap's panel is
+  `Controls/GridNavigationPanel`), so the arrow keys move through them and
+  each bar or hour has a name.
 - Card menus: a song card has the track menu (`TrackMenuModel`); album,
   playlist and artist cards have their own (`CollectionMenuModel`, acting
   through `CollectionActionsViewModel`); `Controls/ContextMenuHost` opens both,

@@ -42,6 +42,7 @@ public partial class NavigationService : ViewModelBase
     private readonly HomeStations? _stations;
     private LibraryPageViewModel? _library;
     private readonly LocalLibraryViewModel? _local;
+    private readonly ListeningStatsViewModel? _stats;
 
     [ObservableProperty] private ViewModelBase? _current;
     [ObservableProperty] private bool _canGoBack;
@@ -59,7 +60,7 @@ public partial class NavigationService : ViewModelBase
     public NavigationService(
         ICatalog catalog, PlaybackCoordinator coordinator, TrackActionsViewModel actions,
         SearchHistory? searchHistory = null, HomeStations? stations = null,
-        LocalLibraryViewModel? local = null)
+        LocalLibraryViewModel? local = null, ListeningStatsViewModel? stats = null)
     {
         _catalog = catalog;
         _coordinator = coordinator;
@@ -67,6 +68,9 @@ public partial class NavigationService : ViewModelBase
         _searchHistory = searchHistory;
         _stations = stations;
         _local = local;
+        _stats = stats;
+        if (stats is not null)
+            stats.OpenSettings = () => GoSettings?.Invoke();
         Collections = new CollectionActionsViewModel(catalog, coordinator, actions, stations, OpenStation)
         {
             OpenLocalPlaylist = OpenLocalPlaylist,
@@ -131,7 +135,7 @@ public partial class NavigationService : ViewModelBase
 
     private void GoLibrary(LibrarySource source)
     {
-        _library ??= new LibraryPageViewModel(_catalog, this, _actions, _coordinator, _local, source);
+        _library ??= new LibraryPageViewModel(_catalog, this, _actions, _coordinator, _local, source, _stats);
         _library.Source = source;
         NavigateRoot(_library, NavSection.Library);
         _ = _library.EnsureLoadedAsync();

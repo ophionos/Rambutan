@@ -1,0 +1,306 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             x:Class="Rambutan.App.Views.ListeningStatsView"
+             x:DataType="vm:ListeningStatsViewModel">
+
+  <UserControl.Styles>
+    <!-- The charts are lists, so the arrow keys move through them and each bar
+         or hour has a name; the selection shows as a solid bar or a ring, not
+         the list's own highlight. -->
+    <Style Selector="ListBox.chart">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+      <!-- The grid fits the width it is given rather than scroll past it. -->
+      <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+      <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem:selected:focus /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <Style Selector="Border.bar">
+      <Setter Property="Background" Value="{DynamicResource Token.Brush.Accent}" />
+      <Setter Property="Opacity" Value="0.55" />
+      <Setter Property="Margin" Value="2,0" />
+      <Setter Property="CornerRadius" Value="2,2,0,0" />
+      <Setter Property="VerticalAlignment" Value="Bottom" />
+    </Style>
+    <Style Selector="ListBox.chart.dense Border.bar">
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem:pointerover Border.bar">
+      <Setter Property="Opacity" Value="0.8" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem:selected Border.bar">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <Style Selector="Border.cell">
+      <Setter Property="Height" Value="20" />
+      <Setter Property="Margin" Value="1" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Background" Value="{DynamicResource Token.Brush.Line}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem:pointerover Border.cell">
+      <Setter Property="BorderBrush" Value="{DynamicResource Token.Brush.Text.Muted}" />
+    </Style>
+    <Style Selector="ListBox.chart ListBoxItem:selected Border.cell">
+      <Setter Property="BorderBrush" Value="{DynamicResource Token.Brush.Text}" />
+    </Style>
+
+    <Style Selector="Border.statcard">
+      <Setter Property="Background" Value="{DynamicResource Token.Brush.Surface.Card}" />
+      <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Card}" />
+      <Setter Property="Padding" Value="16,12" />
+      <Setter Property="Margin" Value="0,0,12,12" />
+      <Setter Property="MinWidth" Value="180" />
+    </Style>
+    <Style Selector="TextBlock.statlabel">
+      <Setter Property="Foreground" Value="{DynamicResource Token.Brush.Text.Muted}" />
+      <Setter Property="FontSize" Value="{StaticResource Token.Font.Meta}" />
+    </Style>
+    <Style Selector="TextBlock.statvalue">
+      <Setter Property="FontSize" Value="{StaticResource Token.Font.Section}" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="TextBlock.statheader">
+      <Setter Property="FontSize" Value="{StaticResource Token.Font.Group}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Margin" Value="0,16,0,8" />
+    </Style>
+  </UserControl.Styles>
+
+  <UserControl.DataTemplates>
+    <DataTemplate DataType="vm:StatsRow">
+      <Grid ColumnDefinitions="28,Auto,*" Margin="0,4" Background="Transparent"
+            AutomationProperties.Name="{Binding Name}">
+        <TextBlock Classes="rowmeta" Text="{Binding Rank}" VerticalAlignment="Center" />
+        <Border Grid.Column="1" Width="40" Height="40" CornerRadius="4" ClipToBounds="True" Margin="0,0,10,0"
+                Background="{DynamicResource Token.Brush.Line}"
+                IsVisible="{Binding ThumbnailUrl, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+          <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="80" />
+        </Border>
+        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+          <TextBlock Classes="rowtitle" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+          <TextBlock Classes="rowmeta" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis"
+                     IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <TextBlock Classes="rowmeta" Text="{Binding Detail}" />
+        </StackPanel>
+      </Grid>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
+  <DockPanel>
+    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="4,0,16,12">
+      <ListBox Classes="segmented small" VerticalAlignment="Center"
+               ItemsSource="{Binding Periods}" SelectedItem="{Binding SelectedPeriod}"
+               SelectionMode="AlwaysSelected"
+               AutomationProperties.Name="{l:T stats.period.name}">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:StatsPeriodChoice">
+            <TextBlock Text="{Binding Label}" />
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <TextBlock Classes="headermeta" Text="{Binding RangeText}" VerticalAlignment="Center" IsVisible="{Binding IsReady}" />
+      <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center"
+                   AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
+    </StackPanel>
+
+    <!-- The log is off: what shows is what it kept before. -->
+    <Border DockPanel.Dock="Top" Classes="statcard" Margin="4,0,16,12" IsVisible="{Binding IsRecordingOff}">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <PathIcon Data="{StaticResource Icon.Warning}" Width="18" Height="18" Margin="0,0,10,0" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{l:T stats.off}" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <Button Grid.Column="2" Content="{l:T stats.openSettings}" Margin="12,0,0,0" Command="{Binding GoToSettingsCommand}" />
+      </Grid>
+    </Border>
+
+    <Panel>
+      <StackPanel Margin="0,0,12,0" Classes="empty" IsVisible="{Binding IsNothingYet}">
+        <PathIcon Data="{StaticResource Icon.History}" />
+        <TextBlock Classes="title" Text="{l:T stats.nothingYet.title}" />
+        <TextBlock Classes="hint" Text="{Binding NothingYetHint}" />
+      </StackPanel>
+
+      <StackPanel Margin="0,0,12,0" Classes="empty" IsVisible="{Binding IsUnreadable}">
+        <PathIcon Data="{StaticResource Icon.Warning}" />
+        <TextBlock Classes="title" Text="{l:T stats.unreadable.title}" />
+        <TextBlock Classes="hint" Text="{l:T stats.unreadable.hint}" />
+        <Button Content="{l:T stats.openSettings}" HorizontalAlignment="Center" Margin="0,10,0,0"
+                Command="{Binding GoToSettingsCommand}" />
+      </StackPanel>
+
+      <StackPanel Margin="0,0,12,0" Classes="empty" IsVisible="{Binding IsNewer}">
+        <PathIcon Data="{StaticResource Icon.Warning}" />
+        <TextBlock Classes="title" Text="{l:T stats.newer.title}" />
+        <TextBlock Classes="hint" Text="{l:T stats.newer.hint}" />
+      </StackPanel>
+
+      <ScrollViewer IsVisible="{Binding IsReady}" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="4,0,16,24">
+          <WrapPanel>
+            <Border Classes="statcard">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="statlabel" Text="{l:T stats.listened}" />
+                <TextBlock Classes="statvalue" Text="{Binding ListenedText}" />
+                <TextBlock Classes="rowmeta" Text="{Binding ComparisonText}" />
+              </StackPanel>
+            </Border>
+            <Border Classes="statcard">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="statlabel" Text="{l:T stats.playsLabel}" />
+                <TextBlock Classes="statvalue" Text="{Binding PlaysText}" />
+              </StackPanel>
+            </Border>
+            <Border Classes="statcard" ToolTip.Tip="{l:T stats.streak.hint}">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="statlabel" Text="{l:T stats.streak.current}" />
+                <TextBlock Classes="statvalue" Text="{Binding CurrentStreakText}" />
+              </StackPanel>
+            </Border>
+            <Border Classes="statcard" ToolTip.Tip="{l:T stats.streak.hint}">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="statlabel" Text="{l:T stats.streak.longest}" />
+                <TextBlock Classes="statvalue" Text="{Binding LongestStreakText}" />
+              </StackPanel>
+            </Border>
+          </WrapPanel>
+
+          <TextBlock Classes="rowmeta" Text="{Binding SelectedPeriod.EmptyText}" Margin="0,4,0,8"
+                     IsVisible="{Binding IsPeriodEmpty}" />
+
+          <StackPanel IsVisible="{Binding HasPlays}">
+            <TextBlock Classes="statheader" Text="{l:T stats.perDay}" />
+            <ListBox Classes="chart" Classes.dense="{Binding IsDense}"
+                     ItemsSource="{Binding Days}" SelectedItem="{Binding SelectedDay}"
+                     AutomationProperties.Name="{l:T stats.perDay.name}">
+              <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <controls:GridNavigationPanel Columns="{Binding Days.Count}" />
+                </ItemsPanelTemplate>
+              </ListBox.ItemsPanel>
+              <ListBox.ItemContainerTheme>
+                <ControlTheme TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}" x:DataType="vm:StatsBar">
+                  <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                  <Setter Property="ToolTip.Tip" Value="{Binding Name}" />
+                </ControlTheme>
+              </ListBox.ItemContainerTheme>
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:StatsBar">
+                  <Panel Height="{x:Static vm:ListeningStatsViewModel.BarAreaHeight}" Background="Transparent">
+                    <Border Height="2" VerticalAlignment="Bottom" Background="{DynamicResource Token.Brush.Line}" />
+                    <Border Classes="bar" Height="{Binding Height}" />
+                  </Panel>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock Classes="rowmeta" Margin="0,6,0,0" Text="{Binding SelectedDay.Name}"
+                       AutomationProperties.LiveSetting="Polite" />
+
+            <TextBlock Classes="statheader" Text="{l:T stats.heatmap}" />
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+              <UniformGrid Grid.Column="1" Columns="4" Margin="1,0,0,4">
+                <TextBlock Classes="rowmeta" Text="{Binding HourLabels[0]}" />
+                <TextBlock Classes="rowmeta" Text="{Binding HourLabels[1]}" />
+                <TextBlock Classes="rowmeta" Text="{Binding HourLabels[2]}" />
+                <TextBlock Classes="rowmeta" Text="{Binding HourLabels[3]}" />
+              </UniformGrid>
+              <ItemsControl Grid.Row="1" ItemsSource="{Binding HeatmapDays}" Margin="0,0,8,0">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <TextBlock Classes="rowmeta" Text="{Binding}" Height="22" VerticalAlignment="Center" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <ListBox Grid.Row="1" Grid.Column="1" Classes="chart"
+                       ItemsSource="{Binding HeatmapCells}" SelectedItem="{Binding SelectedCell}"
+                       AutomationProperties.Name="{l:T stats.heatmap.name}">
+                <ListBox.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <controls:GridNavigationPanel Columns="24" />
+                  </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerTheme>
+                  <ControlTheme TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}" x:DataType="vm:StatsCell">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
+                    <Setter Property="ToolTip.Tip" Value="{Binding Name}" />
+                  </ControlTheme>
+                </ListBox.ItemContainerTheme>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:StatsCell">
+                    <Border Classes="cell">
+                      <Border CornerRadius="2" Background="{DynamicResource Token.Brush.Accent}" Opacity="{Binding Strength}" />
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+            <TextBlock Classes="rowmeta" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"
+                       Text="{Binding SelectedCellText}" />
+
+            <UniformGrid Columns="3" Margin="0,8,0,0">
+              <StackPanel Margin="0,0,16,0">
+                <TextBlock Classes="statheader" Text="{l:T stats.topSongs}" />
+                <ItemsControl ItemsSource="{Binding TopSongs}" />
+                <TextBlock Classes="rowmeta" Text="{l:T stats.list.empty}" IsVisible="{Binding !TopSongs.Count}" />
+              </StackPanel>
+              <StackPanel Margin="0,0,16,0">
+                <TextBlock Classes="statheader" Text="{l:T stats.topArtists}" />
+                <ItemsControl ItemsSource="{Binding TopArtists}" />
+                <TextBlock Classes="rowmeta" Text="{l:T stats.list.empty}" IsVisible="{Binding !TopArtists.Count}" />
+              </StackPanel>
+              <StackPanel>
+                <TextBlock Classes="statheader" Text="{l:T stats.topAlbums}" />
+                <ItemsControl ItemsSource="{Binding TopAlbums}" />
+                <TextBlock Classes="rowmeta" Text="{l:T stats.list.empty}" IsVisible="{Binding !TopAlbums.Count}" />
+              </StackPanel>
+            </UniformGrid>
+
+            <TextBlock Classes="statheader" Text="{Binding NewSongsTitle}" />
+            <ItemsControl ItemsSource="{Binding NewSongs}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Columns="2" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+            </ItemsControl>
+            <TextBlock Classes="rowmeta" Text="{l:T stats.list.empty}" IsVisible="{Binding !NewSongs.Count}" />
+          </StackPanel>
+
+          <TextBlock Classes="rowmeta" Text="{l:T stats.note}" TextWrapping="Wrap" Margin="0,20,0,0" />
+        </StackPanel>
+      </ScrollViewer>
+    </Panel>
+  </DockPanel>
+</UserControl>
