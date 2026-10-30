@@ -186,7 +186,7 @@ internal sealed class FakeCatalog : ICatalog
     public Task<IReadOnlyList<TrackInfo>> GetMixAsync(MixSeed seed, CancellationToken ct = default) =>
         Mix is { } mix ? mix(seed) : throw new NotSupportedException();
 
-    /// <summary>A Library tab's request ("playlists", "albums", "artists" or "songs"): the
+    /// <summary>A Library tab's request ("playlists", "albums", "artists", "songs" or "history"): the
     /// first page when <see cref="Token"/> is null, else the page after it. Pending
     /// until the test answers it.</summary>
     public sealed record LibraryCall(string What, ContinuationToken? Token, TaskCompletionSource<LibraryPage> Result)
@@ -229,6 +229,7 @@ internal sealed class FakeCatalog : ICatalog
     public Task<LibraryPage> GetLibraryArtistsContinuationAsync(ContinuationToken continuation, CancellationToken ct = default) => Library("artists", continuation);
     public Task<LibraryPage> GetLibrarySongsAsync(CancellationToken ct = default) => Library("songs", null);
     public Task<LibraryPage> GetLibrarySongsContinuationAsync(ContinuationToken continuation, CancellationToken ct = default) => Library("songs", continuation);
+    public Task<LibraryPage> GetHistoryAsync(CancellationToken ct = default) => Library("history", null);
 
     // Saves and subscriptions complete at once and are recorded in LibraryEdits;
     // EditFailure makes them throw, as it does playlist edits.
@@ -252,6 +253,14 @@ internal sealed class FakeCatalog : ICatalog
 
     /// <summary>When set, song saves wait on it (so a test can look mid-request).</summary>
     public Task? SongEditGate { get; set; }
+
+    public Task RemoveFromHistoryAsync(string removeToken, CancellationToken ct = default)
+    {
+        if (EditFailure is { } failure)
+            return Task.FromException(failure);
+        LibraryEdits.Add($"forget {removeToken}");
+        return Task.CompletedTask;
+    }
 
     public async Task SetSongInLibraryAsync(LibraryToggle toggle, bool inLibrary, CancellationToken ct = default)
     {

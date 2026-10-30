@@ -142,7 +142,7 @@
           </MultiBinding>
         </Panel.IsVisible>
         <WrapPanel Orientation="Horizontal" ItemSpacing="4" LineSpacing="8" Margin="4,0"
-                   IsVisible="{Binding !IsSongs}">
+                   IsVisible="{Binding !ShowsRows}">
           <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
           <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
           <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
@@ -150,7 +150,7 @@
           <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
           <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
         </WrapPanel>
-        <StackPanel Spacing="8" Margin="4,0" IsVisible="{Binding IsSongs}">
+        <StackPanel Spacing="8" Margin="4,0" IsVisible="{Binding ShowsRows}">
           <Border Classes="skeleton" Height="48" CornerRadius="8" />
           <Border Classes="skeleton" Height="48" CornerRadius="8" />
           <Border Classes="skeleton" Height="48" CornerRadius="8" />
@@ -180,7 +180,7 @@
                     controls:ScrollMemory.IsEnabled="True">
         <Panel>
         <ItemsControl ItemsSource="{Binding Items}" Margin="4,0"
-                      IsVisible="{Binding !IsSongs}"
+                      IsVisible="{Binding !ShowsRows}"
                       controls:CollectionMenu.InLibrary="{Binding !IsOfflineCopy}"
                       AutomationProperties.Name="{Binding Kind, Converter={x:Static vm:Converters.LibrarySectionName}}"
                       controls:RovingFocus.IsEnabled="True">
@@ -279,6 +279,98 @@
             </DataTemplate>
           </ListBox.DataTemplates>
         </ListBox>
+
+        <!-- History: YouTube Music's own headings, each over a list of its rows
+             named by it. A song plays with the whole history as its queue; the
+             menu's last group removes it from the history. -->
+        <StackPanel Margin="4,0" IsVisible="{Binding IsHistory}">
+          <TextBlock Classes="rowmeta" Text="{l:T library.history.note}" TextWrapping="Wrap"
+                     Margin="0,0,0,12" IsVisible="{Binding !!Items.Count}" />
+          <ItemsControl ItemsSource="{Binding Groups}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:HistoryGroup">
+                <StackPanel Spacing="6" Margin="0,0,0,16">
+                  <TextBlock Classes="sectiontitle" Text="{Binding Played}" AutomationProperties.HeadingLevel="2" />
+                  <ListBox Classes="tracks" Background="Transparent"
+                           ItemsSource="{Binding Entries}"
+                           AutomationProperties.Name="{Binding Played}"
+                           controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlayHistoryEntryCommand}">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="core:HistoryEntry">
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+                              Background="Transparent"
+                              controls:TrackMenu.Track="{Binding Track}"
+                              controls:TrackMenu.Host="{Binding #Root.((vm:LibraryPageViewModel)DataContext)}">
+                          <Border Classes="rowart">
+                            <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="96" />
+                          </Border>
+                          <Panel Grid.Column="1" Width="14">
+                            <PathIcon Data="{StaticResource Icon.Play}" Width="12" Height="12"
+                                      VerticalAlignment="Center"
+                                      Foreground="{StaticResource Token.Brush.Accent}">
+                              <PathIcon.IsVisible>
+                                <MultiBinding Converter="{x:Static conv:IsPlayingTrackConverter.Instance}">
+                                  <Binding Path="Track.Identity" />
+                                  <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Player.NowPlaying.Identity" />
+                                </MultiBinding>
+                              </PathIcon.IsVisible>
+                            </PathIcon>
+                          </Panel>
+                          <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                            <TextBlock Classes="rowtitle" Text="{Binding Title}" />
+                            <DockPanel>
+                              <PathIcon DockPanel.Dock="Left" Classes="downloadmark">
+                                <PathIcon.IsVisible>
+                                  <MultiBinding Converter="{x:Static conv:IsDownloadedConverter.Instance}">
+                                    <Binding Path="Track.VideoId" />
+                                    <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Actions.DownloadedIds" />
+                                  </MultiBinding>
+                                </PathIcon.IsVisible>
+                              </PathIcon>
+                              <TextBlock Classes="rowmeta" Text="{Binding Subtitle}"
+                                         IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </DockPanel>
+                          </StackPanel>
+                          <TextBlock Grid.Column="4" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                                     MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                          <Panel Grid.Column="3" Width="112">
+                            <StackPanel Classes="rowactions" Orientation="Horizontal"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center">
+                              <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
+                                      Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlayHistoryEntryCommand}"
+                                      CommandParameter="{Binding}">
+                                <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" />
+                              </Button>
+                              <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToQueue}"
+                                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToQueueCommand}"
+                                      CommandParameter="{Binding Track}">
+                                <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+                              </Button>
+                              <controls:RateButton Classes="icon subtle small" IconSize="16" Kind="Like"
+                                                   Track="{Binding Track}"
+                                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.LikeCommand}"
+                                                   CommandParameter="{Binding Track}" />
+                              <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToPlaylist}"
+                                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToPlaylistCommand}"
+                                      CommandParameter="{Binding Track}">
+                                <PathIcon Data="{StaticResource Icon.AddToPlaylist}" Width="16" Height="16" />
+                              </Button>
+                            </StackPanel>
+                          </Panel>
+                        </Grid>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
         </Panel>
       </ScrollViewer>
 

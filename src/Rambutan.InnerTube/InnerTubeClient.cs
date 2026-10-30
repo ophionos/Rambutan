@@ -517,6 +517,20 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         ContinuationToken continuation, CancellationToken ct = default) =>
         LibraryContinuationAsync(continuation, LibraryParsers.ParseLibrarySongsContinuation, ct);
 
+    public Task<LibraryPage> GetHistoryAsync(CancellationToken ct = default) =>
+        LibraryBrowseAsync("FEmusic_history", LibraryParsers.ParseHistory, ct);
+
+    public async Task RemoveFromHistoryAsync(string removeToken, CancellationToken ct = default)
+    {
+        // ytmusicapi's remove_history_items: the row menu's token, sent as feedback.
+        RequireSession();
+        var request = new FeedbackRequest(Context(), [removeToken]);
+        using var doc = await PostAsync(
+            "feedback", request, InnerTubeJsonContext.Default.FeedbackRequest, ct);
+        if (LibraryParsers.IsFeedbackProcessed(doc.RootElement) is false)
+            throw new InvalidOperationException("YouTube Music didn't remove the song from the history.");
+    }
+
     public async Task SetSongInLibraryAsync(
         LibraryToggle toggle, bool inLibrary, CancellationToken ct = default)
     {

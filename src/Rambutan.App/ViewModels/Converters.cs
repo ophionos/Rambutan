@@ -84,6 +84,7 @@ public static class Converters
             LibrarySectionKind.Albums => "library.section.albums",
             LibrarySectionKind.Artists => "library.section.artists",
             LibrarySectionKind.Songs => "library.section.songs",
+            LibrarySectionKind.History => "library.section.history",
             _ => "library.section.playlists",
         }));
 
@@ -93,6 +94,7 @@ public static class Converters
             LibrarySectionKind.Albums => "library.albums.emptyTitle",
             LibrarySectionKind.Artists => "library.artists.emptyTitle",
             LibrarySectionKind.Songs => "library.songs.emptyTitle",
+            LibrarySectionKind.History => "library.history.emptyTitle",
             _ => "library.emptyTitle",
         }));
 
@@ -102,6 +104,7 @@ public static class Converters
             LibrarySectionKind.Albums => "library.albums.emptyHint",
             LibrarySectionKind.Artists => "library.artists.emptyHint",
             LibrarySectionKind.Songs => "library.songs.emptyHint",
+            LibrarySectionKind.History => "library.history.emptyHint",
             _ => "library.emptyHint",
         }));
 

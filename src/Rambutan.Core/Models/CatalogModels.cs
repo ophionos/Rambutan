@@ -16,6 +16,18 @@ public sealed record SongEntry : CatalogEntry
     public required TrackInfo Track { get; init; }
 }
 
+/// <summary>One song in the account's YouTube Music history.</summary>
+public sealed record HistoryEntry : CatalogEntry
+{
+    public required TrackInfo Track { get; init; }
+    /// <summary>YouTube Music's own heading for when it was played ("Today",
+    /// "Last week", a month), in the account's language.</summary>
+    public required string Played { get; init; }
+    /// <summary>What <see cref="ICatalog.RemoveFromHistoryAsync"/> sends;
+    /// null when the row's menu doesn't offer the removal.</summary>
+    public string? RemoveToken { get; init; }
+}
+
 public sealed record AlbumEntry : CatalogEntry
 {
     public required string BrowseId { get; init; }

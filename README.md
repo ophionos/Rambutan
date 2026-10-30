@@ -37,6 +37,8 @@ your own YouTube Music account to use your library.
 **Listen**
 - Search, Home, Moods & genres, albums, artists, playlists, radio and your
   library, with likes, saves and playlist editing.
+- Your YouTube Music history, under Library, grouped as YouTube Music groups
+  it. You can remove a song from it.
 - Gapless playback, crossfade, volume normalization and a 10-band equalizer.
 - A queue you can reorder, restored when you start the app again.
 - A choice of output device.

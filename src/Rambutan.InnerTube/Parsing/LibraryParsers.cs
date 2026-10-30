@@ -5,7 +5,8 @@ namespace Rambutan.InnerTube.Parsing;
 
 /// <summary>
 /// Parsers for authed library surfaces (FEmusic_liked_playlists,
-/// FEmusic_liked_albums, FEmusic_library_corpus_artists, FEmusic_liked_videos)
+/// FEmusic_liked_albums, FEmusic_library_corpus_artists, FEmusic_liked_videos,
+/// FEmusic_history)
 /// and the mutation responses (playlist/create, browse/edit_playlist, feedback).
 /// </summary>
 public static class LibraryParsers
@@ -34,6 +35,84 @@ public static class LibraryParsers
     /// </summary>
     public static LibraryPage ParseLibrarySongs(JsonElement root) =>
         LibraryShelf(root) is { } shelf ? ParseSongShelf(shelf) : new LibraryPage { Items = [] };
+
+    /// <summary>
+    /// FEmusic_history → one musicShelfRenderer per period ("Today", "Last week",
+    /// a month), titled in the account's language; every row a song, newest
+    /// first. A paused or empty history sends a musicNotifierShelfRenderer
+    /// instead, which reads as no entries.
+    /// </summary>
+    public static LibraryPage ParseHistory(JsonElement root)
+    {
+        var items = new List<CatalogEntry>();
+        if (!root.TryGetPath(out var sections,
+                "contents", "singleColumnBrowseResultsRenderer", "tabs", "0",
+                "tabRenderer", "content", "sectionListRenderer", "contents") ||
+            sections.ValueKind != JsonValueKind.Array)
+        {
+            return new LibraryPage { Items = items };
+        }
+
+        foreach (var section in sections.EnumerateArray())
+        {
+            if (!section.TryGetProperty("musicShelfRenderer", out var shelf) ||
+                ParseHelpers.RunsText(shelf, "title") is not { } played ||
+                !shelf.TryGetProperty("contents", out var rows) ||
+                rows.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var row in rows.EnumerateArray())
+            {
+                if (row.TryGetProperty("musicResponsiveListItemRenderer", out var renderer) &&
+                    ParseHelpers.TryParseListItemTrack(renderer, out var track))
+                {
+                    items.Add(new HistoryEntry
+                    {
+                        Title = track.Title,
+                        Subtitle = track.ArtistDisplay,
+                        ThumbnailUrl = track.ThumbnailUrl,
+                        Track = track,
+                        Played = played,
+                        RemoveToken = HistoryRemoveToken(renderer),
+                    });
+                }
+            }
+        }
+
+        return new LibraryPage { Items = items };
+    }
+
+    /// <summary>
+    /// The row menu's "Remove from history" feedback token, found by its icon:
+    /// the text is in the account's language, and the item isn't the menu's last
+    /// (ytmusicapi's get_history assumes it is; "Pin to Listen again" now follows it).
+    /// </summary>
+    private static string? HistoryRemoveToken(JsonElement renderer)
+    {
+        if (!renderer.TryGetPath(out var items, "menu", "menuRenderer", "items") ||
+            items.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.TryGetProperty("menuServiceItemRenderer", out var service) &&
+                service.TryGetPath(out var icon, "icon", "iconType") &&
+                icon.ValueKind == JsonValueKind.String &&
+                icon.GetString() == "REMOVE_FROM_HISTORY" &&
+                service.TryGetPath(out var token, "serviceEndpoint", "feedbackEndpoint", "feedbackToken") &&
+                token.ValueKind == JsonValueKind.String &&
+                token.GetString() is { Length: > 0 } value)
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>Continuation of the songs list (musicShelfContinuation or appended items).</summary>
     public static LibraryPage ParseLibrarySongsContinuation(JsonElement root)

@@ -93,6 +93,17 @@ public interface ICatalog : IRadioSource
         ContinuationToken continuation, CancellationToken ct = default);
 
     /// <summary>
+    /// The account's listening history, newest first, as <see cref="HistoryEntry"/>
+    /// items. One page: YouTube Music sends its most recent 200 songs and no more.
+    /// Empty when the history is paused or cleared.
+    /// </summary>
+    Task<LibraryPage> GetHistoryAsync(CancellationToken ct = default);
+
+    /// <summary>Takes one song out of the history, with the row's
+    /// <see cref="HistoryEntry.RemoveToken"/>. YouTube Music has no way to put it back.</summary>
+    Task RemoveFromHistoryAsync(string removeToken, CancellationToken ct = default);
+
+    /// <summary>
     /// Adds a song to the library or removes it, with the tokens its row carried,
     /// as YTM's per-song "Save to library" toggle does.
     /// </summary>

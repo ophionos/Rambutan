@@ -176,6 +176,11 @@ public sealed class OfflineCatalog(
         ContinuationToken continuation, CancellationToken ct = default) =>
         inner.GetLibrarySongsContinuationAsync(continuation, ct);
 
+    public Task<LibraryPage> GetHistoryAsync(CancellationToken ct = default) => inner.GetHistoryAsync(ct);
+
+    public Task RemoveFromHistoryAsync(string removeToken, CancellationToken ct = default) =>
+        inner.RemoveFromHistoryAsync(removeToken, ct);
+
     public Task SetSongInLibraryAsync(LibraryToggle toggle, bool inLibrary, CancellationToken ct = default) =>
         inner.SetSongInLibraryAsync(toggle, inLibrary, ct);
 
