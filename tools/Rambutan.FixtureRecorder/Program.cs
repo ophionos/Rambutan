@@ -32,6 +32,7 @@ string? filterName = null;
 string? continuationArg = null;
 string? paramsArg = null;
 string? playlistArg = null;
+var mobile = false;
 
 for (var i = 0; i < args.Length; i++)
 {
@@ -43,6 +44,7 @@ for (var i = 0; i < args.Length; i++)
         case "--continuation": continuationArg = Next(args, ref i); break;
         case "--params": paramsArg = Next(args, ref i); break;
         case "--playlist": playlistArg = Next(args, ref i); break;
+        case "--mobile": mobile = true; break;
         default: positional.Add(args[i]); break;
     }
 }
@@ -107,8 +109,8 @@ string defaultName;
 switch (positional[0])
 {
     case "browse" when positional.Count >= 2:
-        doc = await client.RecordBrowseAsync(positional[1], continuationArg, paramsArg);
-        defaultName = $"browse-{Slug(positional[1])}.json";
+        doc = await client.RecordBrowseAsync(positional[1], continuationArg, paramsArg, mobile);
+        defaultName = $"browse-{(mobile ? "mobile-" : "")}{Slug(positional[1])}.json";
         break;
 
     case "continuation" when positional.Count >= 2:
@@ -269,6 +271,22 @@ static async Task<int> LiveDiffAsync(InnerTubeClient client)
         throw new InvalidOperationException($"no lyrics for any of the first {Math.Min(5, songs.Count)} songs");
     });
 
+    await Check("timed lyrics (next → lyrics tab → Android browse)", async () =>
+    {
+        // Many tracks have only plain lines on the Android app: one of the
+        // first few must be timed.
+        var songs = await client.SearchSongsAsync(query);
+        foreach (var song in songs.Take(5))
+        {
+            if (await client.GetLyricsAsync(song.VideoId) is not { Lines: { Count: > 0 } lines })
+                continue;
+            return lines.Zip(lines.Skip(1)).All(p => p.First.Start <= p.Second.Start)
+                ? $"{lines.Count} timed lines for “{song.Title}”"
+                : throw new InvalidOperationException($"timed lines for “{song.Title}” out of order");
+        }
+        throw new InvalidOperationException($"no timed lyrics for any of the first {Math.Min(5, songs.Count)} songs");
+    });
+
     await Check("home + continuations", async () =>
     {
         var page = await client.GetHomeAsync();
@@ -397,7 +415,7 @@ static int Usage()
         Rambutan.FixtureRecorder — records InnerTube responses as parser fixtures.
 
         usage:
-          dotnet run --project tools/Rambutan.FixtureRecorder -- browse <browseId> [--continuation <token>] [--params <params>] [options]
+          dotnet run --project tools/Rambutan.FixtureRecorder -- browse <browseId> [--continuation <token>] [--params <params>] [--mobile] [options]   (--mobile: as YouTube Music's Android app, for timed lyrics)
           dotnet run --project tools/Rambutan.FixtureRecorder -- continuation <token> [options]   (playlist pages)
           dotnet run --project tools/Rambutan.FixtureRecorder -- home [options]   (Home and every continuation, in one session: <out>, <out>-continuation-N)
           dotnet run --project tools/Rambutan.FixtureRecorder -- search <query> [--filter songs|videos|albums|artists|playlists] [--continuation <token>] [options]   (no --filter: the unfiltered "All" search)

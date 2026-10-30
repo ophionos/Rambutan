@@ -598,7 +598,10 @@ public partial class App : Application
                 ? null
                 : new HttpClient(new DemoLyricsHandler(Demo, sp.GetRequiredService<QueueModel>()))),
             new YouTubeMusicLyricsProvider(async (videoId, ct) =>
-                await stationSearch.GetLyricsAsync(videoId, ct) is { } found ? (found.Text, found.Credit) : null,
+                await stationSearch.GetLyricsAsync(videoId, ct) is { } found
+                    ? new YouTubeMusicLyrics(found.Text, found.Credit,
+                        found.Lines?.Select(l => (l.Start, l.End, l.Text)).ToList())
+                    : null,
                 (id, ct) => sp.GetRequiredService<YouTubeMatches>().SongIdAsync(id, ct)),
         ],
         new LocalLyrics(
