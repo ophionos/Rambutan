@@ -139,15 +139,23 @@ public sealed class WatchHistoryReporter(YtDlpManager ytDlp, string workDirector
         return cookies;
     }
 
-    /// <summary>Those of <paramref name="after"/> whose value is new or changed;
-    /// a cookie gone from it isn't reported (yt-dlp drops expired ones).</summary>
+    // yt-dlp writes these itself, not YouTube: PREF on every run (its own
+    // language and time zone, hl=en and tz=UTC), SOCS when no sign-in cookie
+    // is passed. The account's session must not take them.
+    private static readonly HashSet<string> YtDlpOwn = new(StringComparer.Ordinal) { "PREF", "SOCS" };
+
+    /// <summary>Those of <paramref name="after"/> whose value is new or changed,
+    /// except the ones yt-dlp writes itself; a cookie gone from it isn't
+    /// reported (yt-dlp drops expired ones).</summary>
     internal static IReadOnlyList<(string Name, string Value)> Changed(
         IReadOnlyList<(string Name, string Value)> before, IReadOnlyList<(string Name, string Value)> after)
     {
         var sent = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var (name, value) in before)
             sent[name] = value;
-        return after.Where(c => !sent.TryGetValue(c.Name, out var old) || old != c.Value).ToArray();
+        return after
+            .Where(c => !YtDlpOwn.Contains(c.Name) && (!sent.TryGetValue(c.Name, out var old) || old != c.Value))
+            .ToArray();
     }
 
     private static List<(string Name, string Value)> ParsePairs(string cookieHeader)

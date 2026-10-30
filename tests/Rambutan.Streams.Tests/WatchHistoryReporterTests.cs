@@ -48,12 +48,17 @@ public class WatchHistoryReporterTests
             ".youtube.com\tTRUE\t/\tTRUE\t1800000000\tSAPISID\tabc\n" +
             "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1800000000\tSIDCC\tnew\r\n" +
             ".google.com\tTRUE\t/\tTRUE\t1800000000\tNID\tg\n" +
-            "music.youtube.com\tFALSE\t/\tTRUE\t0\tYSC\ty\n";
+            "music.youtube.com\tFALSE\t/\tTRUE\t0\tYSC\ty\n" +
+            ".youtube.com\tTRUE\t/\tFALSE\t1800000000\tPREF\tf6=40000000&hl=en&tz=UTC\n" +
+            ".youtube.com\tTRUE\t/\tTRUE\t1800000000\tSOCS\tCAI\n";
 
         var read = WatchHistoryReporter.ReadCookieFile(file);
-        var changed = WatchHistoryReporter.Changed([("SAPISID", "abc"), ("SIDCC", "old"), ("GONE", "x")], read);
+        var changed = WatchHistoryReporter.Changed(
+            [("SAPISID", "abc"), ("SIDCC", "old"), ("GONE", "x"), ("PREF", "f6=40000000&hl=de")], read);
 
-        Assert.Equal([("SAPISID", "abc"), ("SIDCC", "new"), ("YSC", "y")], read);
+        Assert.Equal(
+            [("SAPISID", "abc"), ("SIDCC", "new"), ("YSC", "y"), ("PREF", "f6=40000000&hl=en&tz=UTC"), ("SOCS", "CAI")],
+            read);
         Assert.Equal([("SIDCC", "new"), ("YSC", "y")], changed);
     }
 }
