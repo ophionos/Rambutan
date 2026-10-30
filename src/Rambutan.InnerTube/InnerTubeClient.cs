@@ -14,6 +14,10 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
     private const string BaseUrl = "https://music.youtube.com/youtubei/v1/";
     private const string ClientName = "WEB_REMIX";
     private const string ClientVersion = "1.20260708.01.00";
+    // YouTube Music's Android app: its lyrics browse carries line timings that
+    // the web client's doesn't. The version is ytmusicapi's.
+    private const string MobileClientName = "ANDROID_MUSIC";
+    private const string MobileClientVersion = "7.21.50";
     private const string UserAgent =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
@@ -623,6 +627,21 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         if (browseId is null)
             return null;
 
+        // The Android app's browse first, for its line timings. Without them
+        // (many tracks are untimed there, and its shape may change), the web
+        // browse, whose plain text keeps the stanzas apart.
+        try
+        {
+            var mobile = new BrowseRequest(MobileContext(), browseId);
+            using var timed = await PostAsync("browse", mobile, InnerTubeJsonContext.Default.BrowseRequest, ct);
+            if (LyricsParser.ParseTimed(timed.RootElement) is { } found)
+                return found;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException)
+        {
+            AppLog.Write("lyrics", $"timed lyrics unavailable for {videoId}: {ex.GetType().Name}");
+        }
+
         using var doc = await BrowseAsync(browseId, ct);
         return LyricsParser.Parse(doc.RootElement);
     }
@@ -754,11 +773,12 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
     }
 
     /// <summary>Raw browse response for fixture recording; the caller owns the document.</summary>
+    /// <param name="mobile">As YouTube Music's Android app asks (its timed lyrics).</param>
     internal Task<JsonDocument> RecordBrowseAsync(
-        string? browseId, string? continuation = null, string? browseParams = null,
+        string? browseId, string? continuation = null, string? browseParams = null, bool mobile = false,
         CancellationToken ct = default)
     {
-        var request = new BrowseRequest(Context(), browseId, continuation, browseParams);
+        var request = new BrowseRequest(mobile ? MobileContext() : Context(), browseId, continuation, browseParams);
         return PostAsync("browse", request, InnerTubeJsonContext.Default.BrowseRequest, ct);
     }
 
@@ -827,6 +847,9 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
 
     private RequestContext Context() =>
         new(new ClientInfo(ClientName, ClientVersion, Language, Region));
+
+    private RequestContext MobileContext() =>
+        new(new ClientInfo(MobileClientName, MobileClientVersion, Language, Region));
 
     private Task<JsonDocument> PostAsync<TRequest>(
         string endpoint,

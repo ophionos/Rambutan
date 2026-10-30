@@ -16,19 +16,25 @@ public sealed class LyricsProviderChain(IReadOnlyList<ILyricsProvider> providers
     /// <summary>
     /// The first provider's answer, <see cref="LyricsStatus.NotFound"/> when every
     /// provider answered without one, or <see cref="LyricsStatus.Unavailable"/>
-    /// when none answered with lyrics and at least one couldn't be asked.
+    /// when none answered with lyrics and at least one couldn't be asked, or
+    /// <see cref="LyricsLookup.NotAsked"/> when none had anything to ask.
     /// Throws only when <paramref name="ct"/> is cancelled.
     /// </summary>
     public async Task<LyricsLookup> LookupAsync(LyricsQuery query, CancellationToken ct)
     {
         var anyFailed = false;
+        var allNotAsked = providers.Count > 0;
         foreach (var provider in providers)
         {
             using var budget = CancellationTokenSource.CreateLinkedTokenSource(ct);
             budget.CancelAfter(_timeout);
             try
             {
-                if (await provider.TryGetAsync(query, budget.Token) is { } result)
+                var result = await provider.TryGetAsync(query, budget.Token);
+                if (result is { IsNotAsked: true })
+                    continue;
+                allNotAsked = false;
+                if (result is not null)
                     return LyricsLookup.From(result);
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -38,15 +44,19 @@ public sealed class LyricsProviderChain(IReadOnlyList<ILyricsProvider> providers
             catch (OperationCanceledException)
             {
                 anyFailed = true;
+                allNotAsked = false;
                 AppLog.Write("lyrics", $"{provider.Name} timed out after {_timeout.TotalSeconds:0.#} s for {query.VideoId}");
             }
             catch (Exception ex)
             {
                 anyFailed = true;
+                allNotAsked = false;
                 AppLog.Write("lyrics", $"{provider.Name} failed for {query.VideoId}: {ex.GetType().Name}: {ex.Message}");
             }
         }
 
-        return anyFailed ? LyricsLookup.Unavailable : LyricsLookup.NotFound;
+        return anyFailed ? LyricsLookup.Unavailable
+            : allNotAsked ? LyricsLookup.NotAsked
+            : LyricsLookup.NotFound;
     }
 }

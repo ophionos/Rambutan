@@ -191,6 +191,11 @@ public sealed class LyricsService : IDisposable
             return cached ?? LyricsLookup.Unavailable;
         }
 
+        // Nothing was sent, so the miss says nothing about the track; lyrics
+        // cached while it had a match aren't its lyrics while it has none.
+        if (!result.Asked)
+            return result;
+
         if (cached is not null && result.Status is not (LyricsStatus.Found or LyricsStatus.Instrumental))
         {
             // A stale entry outlives a failed or empty lookup. Unavailable leaves
