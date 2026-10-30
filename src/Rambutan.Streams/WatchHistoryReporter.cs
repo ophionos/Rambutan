@@ -12,24 +12,31 @@ namespace Rambutan.Streams;
 /// resolution stays signed out and a warm-up never reaches the history.
 /// </summary>
 /// <remarks>
-/// The cookies go to yt-dlp as a Netscape cookie file in a folder of this run's
-/// own, owner-only on Linux, deleted when the run ends. yt-dlp writes rotated
-/// cookies back into that file; they are dropped with it.
+/// The cookies go to yt-dlp as a Netscape cookie file in a folder of the run's
+/// own under <paramref name="workDirectory"/> (the profile's, so instances side
+/// by side never touch each other's), owner-only on Linux, deleted when the run
+/// ends. yt-dlp's page request can rotate some of them (the SIDCC family), and
+/// it writes what it was sent back into the file; those values come back to the
+/// caller, since a session that drops a rotated cookie can be refused later.
 /// </remarks>
-public sealed class WatchHistoryReporter(YtDlpManager ytDlp)
+/// <param name="workDirectory">Holds the runs' cookie folders; nothing else.</param>
+public sealed class WatchHistoryReporter(YtDlpManager ytDlp, string workDirectory)
 {
     /// <summary>
-    /// Reports the play. Throws <see cref="WatchHistoryException"/> when yt-dlp
-    /// fails or says it couldn't mark the play, <see cref="NotAYouTubeTrackException"/>
-    /// for an id that isn't YouTube's; cancellation stops the run.
+    /// Reports the play, and returns the cookies yt-dlp ended with whose values
+    /// differ from those sent. Throws <see cref="WatchHistoryException"/> when
+    /// yt-dlp fails or says it couldn't mark the play,
+    /// <see cref="NotAYouTubeTrackException"/> for an id that isn't YouTube's;
+    /// cancellation stops the run.
     /// </summary>
     /// <param name="cookieHeader">The account's cookies, as a Cookie header.</param>
-    public async Task ReportAsync(string videoId, string cookieHeader, CancellationToken ct = default)
+    public async Task<IReadOnlyList<(string Name, string Value)>> ReportAsync(
+        string videoId, string cookieHeader, CancellationToken ct = default)
     {
         YouTubeIds.Require(videoId);
         var binary = await ytDlp.EnsureAsync(ct);
 
-        var folder = Path.Combine(Path.GetTempPath(), "rambutan-watched", Guid.NewGuid().ToString("N"));
+        var folder = Path.Combine(workDirectory, Guid.NewGuid().ToString("N"));
         if (OperatingSystem.IsWindows())
             Directory.CreateDirectory(folder);
         else
@@ -50,6 +57,8 @@ public sealed class WatchHistoryReporter(YtDlpManager ytDlp)
             // yt-dlp only warns when a report can't be sent, and exits 0.
             if (result.StdErr.Contains("Unable to mark", StringComparison.Ordinal))
                 throw new WatchHistoryException(videoId, result.StdErr.Trim());
+
+            return Changed(ParsePairs(cookieHeader), ReadCookieFile(await File.ReadAllTextAsync(cookies, ct)));
         }
         finally
         {
@@ -59,31 +68,32 @@ public sealed class WatchHistoryReporter(YtDlpManager ytDlp)
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // Retried on the next start: the folder holds the account's cookies.
+                // RemoveLeftovers tries again at the next start.
             }
         }
     }
 
     /// <summary>Deletes cookie folders an earlier run couldn't (a crash, a locked
-    /// file). Never throws.</summary>
-    public static void RemoveLeftovers()
+    /// file). Call before any run starts. Never throws.</summary>
+    public void RemoveLeftovers()
     {
         try
         {
-            var root = Path.Combine(Path.GetTempPath(), "rambutan-watched");
-            if (Directory.Exists(root))
-                Directory.Delete(root, recursive: true);
+            if (Directory.Exists(workDirectory))
+                Directory.Delete(workDirectory, recursive: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
         }
     }
 
-    // --simulate: nothing is downloaded. Warnings stay on, since a report that
-    // couldn't be sent is only a warning.
+    // --simulate: nothing is downloaded. The reports go during extraction, before
+    // formats are chosen, so a signed-in client offering no format we can take
+    // mustn't fail a run whose reports went. Warnings stay on, since a report
+    // that couldn't be sent is only a warning.
     internal static IReadOnlyList<string> Arguments(string videoId, string cookieFile) =>
     [
-        "--mark-watched", "--simulate", "--no-playlist", "--quiet",
+        "--mark-watched", "--simulate", "--ignore-no-formats-error", "--no-playlist", "--quiet",
         "-f", "bestaudio/best",
         "--cookies", cookieFile,
         $"https://music.youtube.com/watch?v={videoId}",
@@ -98,6 +108,51 @@ public sealed class WatchHistoryReporter(YtDlpManager ytDlp)
     {
         var text = new StringBuilder("# Netscape HTTP Cookie File\n");
         var expiry = expires.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        foreach (var (name, value) in ParsePairs(cookieHeader))
+        {
+            text.Append(".youtube.com\tTRUE\t/\tTRUE\t").Append(expiry).Append('\t')
+                .Append(name).Append('\t').Append(value).Append('\n');
+        }
+        return text.ToString();
+    }
+
+    /// <summary>The youtube.com cookies in a Netscape cookie file as yt-dlp
+    /// writes it (HttpOnly ones under a <c>#HttpOnly_</c> domain prefix).</summary>
+    internal static List<(string Name, string Value)> ReadCookieFile(string text)
+    {
+        const string httpOnly = "#HttpOnly_";
+        var cookies = new List<(string, string)>();
+        foreach (var raw in text.Split('\n'))
+        {
+            var line = raw.TrimEnd('\r');
+            if (line.StartsWith(httpOnly, StringComparison.Ordinal))
+                line = line[httpOnly.Length..];
+            else if (line.StartsWith('#'))
+                continue;
+            var fields = line.Split('\t');
+            if (fields.Length < 7 || fields[5].Length == 0)
+                continue;
+            var domain = fields[0].TrimStart('.');
+            if (domain == "youtube.com" || domain.EndsWith(".youtube.com", StringComparison.Ordinal))
+                cookies.Add((fields[5], fields[6]));
+        }
+        return cookies;
+    }
+
+    /// <summary>Those of <paramref name="after"/> whose value is new or changed;
+    /// a cookie gone from it isn't reported (yt-dlp drops expired ones).</summary>
+    internal static IReadOnlyList<(string Name, string Value)> Changed(
+        IReadOnlyList<(string Name, string Value)> before, IReadOnlyList<(string Name, string Value)> after)
+    {
+        var sent = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (name, value) in before)
+            sent[name] = value;
+        return after.Where(c => !sent.TryGetValue(c.Name, out var old) || old != c.Value).ToArray();
+    }
+
+    private static List<(string Name, string Value)> ParsePairs(string cookieHeader)
+    {
+        var pairs = new List<(string, string)>();
         foreach (var part in cookieHeader.Split(';'))
         {
             var eq = part.IndexOf('=');
@@ -107,10 +162,9 @@ public sealed class WatchHistoryReporter(YtDlpManager ytDlp)
             var value = part[(eq + 1)..].Trim();
             if (name.Length == 0 || (name + value).AsSpan().IndexOfAny("\t\r\n") >= 0)
                 continue;
-            text.Append(".youtube.com\tTRUE\t/\tTRUE\t").Append(expiry).Append('\t')
-                .Append(name).Append('\t').Append(value).Append('\n');
+            pairs.Add((name, value));
         }
-        return text.ToString();
+        return pairs;
     }
 }
 

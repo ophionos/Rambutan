@@ -631,6 +631,8 @@
                 <StackPanel>
                   <TextBlock Classes="settinglabel" Text="{l:T settings.history.youtube}" />
                   <TextBlock Classes="settinghelp" Text="{l:T settings.history.youtubeHelp}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding YouTubeHistoryStatus}" Foreground="{StaticResource Token.Brush.Text}"
+                             IsVisible="{Binding YouTubeHistoryStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                 </StackPanel>
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding AddToYouTubeHistory}"
                               AutomationProperties.Name="{l:T settings.history.youtube}" />

@@ -274,7 +274,9 @@ file sink), never to files directly.
   and sends them one at a time through `Streams/WatchHistoryReporter`: a
   yt-dlp run of its own with `--mark-watched`, which sends the playback and
   the whole-track watch-time reports, with the account's cookies in a
-  temporary owner-only cookie file deleted after the run. Stream resolution
+  temporary owner-only cookie file under the profile's `history-runs`,
+  deleted after the run; cookies the run rotated go back into the session
+  (`InnerTubeClient.ApplyCookies`). Stream resolution
   stays signed out, so a warm-up never reaches the history.
 - Card menus: a song card has the track menu (`TrackMenuModel`); album,
   playlist and artist cards have their own (`CollectionMenuModel`, acting

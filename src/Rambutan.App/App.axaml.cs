@@ -335,7 +335,8 @@ public partial class App : Application
         Controls.RateButton.Default = ratings;
         services.AddSingleton(ratings);
 
-        services.AddSingleton(new YtDlpManager(toolsDir));
+        var ytDlp = new YtDlpManager(toolsDir);
+        services.AddSingleton(ytDlp);
         services.AddSingleton(new FfmpegManager(toolsDir));
         // The quality preference is read live, so a change applies from the
         // next resolution.
@@ -576,13 +577,21 @@ public partial class App : Application
         // Plays added to the YouTube Music history: off by default, signed in
         // only, a yt-dlp run of its own with the account's cookies. Never in a
         // demo, which has no yt-dlp.
-        services.AddSingleton(sp => new WatchHistory(
-            (videoId, cookies, ct) => new WatchHistoryReporter(sp.GetRequiredService<YtDlpManager>())
-                .ReportAsync(videoId, cookies, ct),
-            () => Demo is null ? innerTube.Session?.CookieHeader : null,
+        // Cookies yt-dlp's page request rotated come back into the session.
+        var historyReporter = new WatchHistoryReporter(
+            ytDlp, Path.Combine(dataDir, "history-runs"));
+        services.AddSingleton(_ => new WatchHistory(
+            async (videoId, ct) =>
+            {
+                if (innerTube.Session is not { } session)
+                    return;
+                var rotated = await historyReporter.ReportAsync(videoId, session.CookieHeader, ct);
+                innerTube.ApplyCookies(session, rotated);
+            },
+            () => Demo is null && innerTube.Session is not null,
             settings.AddPlaysToYouTubeHistory));
         // A cookie file a crash left behind holds the account's cookies.
-        _ = Task.Run(WatchHistoryReporter.RemoveLeftovers);
+        _ = Task.Run(historyReporter.RemoveLeftovers);
         services.AddSingleton(sp =>
         {
             var hub = new PlaybackListenerHub();

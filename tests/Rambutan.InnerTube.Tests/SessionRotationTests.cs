@@ -16,6 +16,23 @@ public class SessionRotationTests
         InnerTubeSession.FromCookieString(cookies)!;
 
     [Fact]
+    public void CookiesAnotherProgramEndedWith_AreMerged_ForTheSameSignInOnly()
+    {
+        var client = new InnerTubeClient();
+        var session = Session();
+        client.SetSession(session);
+        InnerTubeSession? reported = null;
+        client.SessionUpdated += s => reported = s;
+
+        Assert.False(client.ApplyCookies(session, []));
+        Assert.True(client.ApplyCookies(session, [("SIDCC", "y"), ("YSC", "1")]));
+
+        Assert.Equal("SAPISID=a; __Secure-1PSIDTS=old; SIDCC=y; YSC=1", client.Session!.CookieHeader);
+        Assert.Same(client.Session, reported);
+        Assert.False(client.ApplyCookies(Session(), [("SIDCC", "z")]));
+    }
+
+    [Fact]
     public void NewValues_ReplaceOldOnes_InPlace()
     {
         var session = Session();

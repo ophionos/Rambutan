@@ -23,6 +23,7 @@ public class WatchHistoryReporterTests
 
         Assert.Contains("--mark-watched", args);
         Assert.Contains("--simulate", args);
+        Assert.Contains("--ignore-no-formats-error", args);
         Assert.Equal("c.txt", args[args.ToList().IndexOf("--cookies") + 1]);
         Assert.Equal("https://music.youtube.com/watch?v=khnokW3Mw24", args[^1]);
         Assert.DoesNotContain("--no-warnings", args);
@@ -31,9 +32,28 @@ public class WatchHistoryReporterTests
     [Fact]
     public async Task An_id_that_isnt_YouTubes_is_refused_before_yt_dlp_runs()
     {
-        var reporter = new WatchHistoryReporter(new YtDlpManager(Path.Combine(Path.GetTempPath(), "rambutan-no-tools")));
+        var reporter = new WatchHistoryReporter(
+            new YtDlpManager(Path.Combine(Path.GetTempPath(), "rambutan-no-tools")), Path.GetTempPath());
 
         await Assert.ThrowsAsync<Rambutan.Core.Models.NotAYouTubeTrackException>(() =>
             reporter.ReportAsync("local:3", "SAPISID=a"));
+    }
+
+    [Fact]
+    public void The_cookies_yt_dlp_ends_with_come_back_when_they_changed()
+    {
+        var file =
+            "# Netscape HTTP Cookie File\n" +
+            "# a comment\n" +
+            ".youtube.com\tTRUE\t/\tTRUE\t1800000000\tSAPISID\tabc\n" +
+            "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1800000000\tSIDCC\tnew\r\n" +
+            ".google.com\tTRUE\t/\tTRUE\t1800000000\tNID\tg\n" +
+            "music.youtube.com\tFALSE\t/\tTRUE\t0\tYSC\ty\n";
+
+        var read = WatchHistoryReporter.ReadCookieFile(file);
+        var changed = WatchHistoryReporter.Changed([("SAPISID", "abc"), ("SIDCC", "old"), ("GONE", "x")], read);
+
+        Assert.Equal([("SAPISID", "abc"), ("SIDCC", "new"), ("YSC", "y")], read);
+        Assert.Equal([("SIDCC", "new"), ("YSC", "y")], changed);
     }
 }

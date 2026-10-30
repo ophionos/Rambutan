@@ -14,30 +14,39 @@ namespace Rambutan.App.Services;
 /// only while the setting is on (off by default: it tells Google what the user
 /// plays) and signed in. A play goes once it counts (<see cref="HistoryReportGate"/>);
 /// a local file never does. Reports run one at a time on their own worker, and
-/// one that fails is logged and dropped: the history is YouTube Music's, not a
-/// record Rambutan keeps.
+/// one that fails is logged and dropped (the history is YouTube Music's, not a
+/// record Rambutan keeps), with <see cref="LastFailed"/> set for Settings to say.
 /// </summary>
-/// <param name="report">Sends one play with the account's cookies (the yt-dlp run).</param>
-/// <param name="cookies">The signed-in account's cookies as a Cookie header; null signed out.</param>
+/// <param name="report">Sends one play with the account (the yt-dlp run); does
+/// nothing when signed out by then.</param>
+/// <param name="signedIn">Whether there is an account to send plays with.</param>
 public sealed class WatchHistory : IPlaybackListener
 {
     private readonly HistoryReportGate _gate;
-    private readonly Func<string, string, CancellationToken, Task> _report;
-    private readonly Func<string?> _cookies;
+    private readonly Func<string, CancellationToken, Task> _report;
+    private readonly Func<bool> _signedIn;
     private readonly Channel<string> _plays = Channel.CreateUnbounded<string>(new() { SingleReader = true });
 
     public WatchHistory(
-        Func<string, string, CancellationToken, Task> report, Func<string?> cookies, bool enabled,
+        Func<string, CancellationToken, Task> report, Func<bool> signedIn, bool enabled,
         TimeProvider? clock = null)
     {
         _gate = new HistoryReportGate(clock ?? TimeProvider.System);
         _report = report;
-        _cookies = cookies;
+        _signedIn = signedIn;
         Enabled = enabled;
         Worker = Task.Run(RunAsync);
     }
 
     public bool Enabled { get; set; }
+
+    public bool IsSignedIn => _signedIn();
+
+    /// <summary>The last report failed; cleared by the next that goes.</summary>
+    public bool LastFailed { get; private set; }
+
+    /// <summary>A report went or failed. Raised on the worker.</summary>
+    public event Action? Changed;
 
     /// <summary>The worker; it ends only after <see cref="Complete"/>. For tests.</summary>
     internal Task Worker { get; }
@@ -63,18 +72,21 @@ public sealed class WatchHistory : IPlaybackListener
         {
             // Read when it goes, so a sign-out or the setting turned off since
             // the play counted sends nothing.
-            if (!Enabled || _cookies() is not { Length: > 0 } cookies)
+            if (!Enabled || !_signedIn())
                 continue;
             try
             {
                 using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-                await _report(videoId, cookies, timeout.Token).ConfigureAwait(false);
+                await _report(videoId, timeout.Token).ConfigureAwait(false);
                 AppLog.Write("history", $"added {videoId} to the YouTube Music history");
+                LastFailed = false;
             }
             catch (Exception ex)
             {
                 AppLog.Write("history", $"couldn't add {videoId} to the YouTube Music history: {ex.GetType().Name}: {ex.Message}");
+                LastFailed = true;
             }
+            Changed?.Invoke();
         }
     }
 }
