@@ -79,6 +79,69 @@ public class HomeSignInTests
     }
 
     [Fact]
+    public async Task AtStartup_HomeShowsLoading_AndAsksOnlyOnceTheSessionIsIn()
+    {
+        var session = new TaskCompletionSource();
+        _navigation.SessionLoaded = session.Task;
+
+        _navigation.GoHome();
+
+        var home = Assert.IsType<HomePageViewModel>(_navigation.Current);
+        Assert.True(home.IsLoading);
+        Assert.Empty(_catalog.HomeCalls);
+
+        session.SetResult();
+        await Eventually(() => _catalog.HomeCalls.Count == 1);
+        _catalog.HomeCalls[0].Complete(null, "Your mixes");
+        Assert.Equal("Your mixes", Assert.Single(home.Shelves).Title);
+        Assert.False(home.IsLoading);
+    }
+
+    [Fact]
+    public async Task AtStartup_ASessionThatNeverLoads_DelaysHomeOnlyUpToTheCap()
+    {
+        _navigation.SessionLoaded = new TaskCompletionSource().Task;
+        _navigation.SessionWait = TimeSpan.FromMilliseconds(50);
+
+        _navigation.GoHome();
+
+        await Eventually(() => _catalog.HomeCalls.Count == 1);
+    }
+
+    [Fact]
+    public async Task AtStartup_TheLibraryAsksOnlyOnceTheSessionIsIn()
+    {
+        var session = new TaskCompletionSource();
+        _navigation.SessionLoaded = session.Task;
+
+        _navigation.GoLibrary();
+
+        var library = Assert.IsType<LibraryPageViewModel>(_navigation.Current);
+        Assert.True(library.SelectedSection.IsLoading);
+        Assert.Empty(_catalog.LibraryCalls);
+
+        session.SetResult();
+        await Eventually(() => _catalog.LibraryCalls.Count == 1);
+    }
+
+    [Fact]
+    public void OnceTheSessionIsIn_HomeAsksAtOnce()
+    {
+        _navigation.SessionLoaded = Task.CompletedTask;
+
+        _navigation.GoHome();
+
+        Assert.Single(_catalog.HomeCalls);
+    }
+
+    private static async Task Eventually(Func<bool> condition)
+    {
+        for (var i = 0; i < 200 && !condition(); i++)
+            await Task.Delay(10);
+        Assert.True(condition());
+    }
+
+    [Fact]
     public void BeforeHomeWasEverOpened_NothingLoads()
     {
         _navigation.OnSignInChanged();

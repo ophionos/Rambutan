@@ -62,20 +62,38 @@ public partial class LibrarySection : ViewModelBase
             Items.CollectionChanged += OnItemsChanged;
     }
 
-    public static LibrarySection For(LibrarySectionKind kind, ICatalog catalog) => kind switch
+    /// <param name="sessionLoaded">Awaited before a first page, so a tab
+    /// opened at startup asks signed in (<see cref="NavigationService.WaitForSessionAsync"/>).</param>
+    public static LibrarySection For(LibrarySectionKind kind, ICatalog catalog, Func<Task>? sessionLoaded = null)
     {
-        LibrarySectionKind.Albums => new(kind,
-            () => catalog.GetLibraryAlbumsAsync(), t => catalog.GetLibraryAlbumsContinuationAsync(t)),
-        LibrarySectionKind.Artists => new(kind,
-            () => catalog.GetLibraryArtistsAsync(), t => catalog.GetLibraryArtistsContinuationAsync(t)),
-        LibrarySectionKind.Songs => new(kind,
-            () => catalog.GetLibrarySongsAsync(), t => catalog.GetLibrarySongsContinuationAsync(t)),
-        // One page, so there is never a token to follow.
-        LibrarySectionKind.History => new(kind,
-            () => catalog.GetHistoryAsync(), _ => Task.FromResult(new LibraryPage { Items = [] })),
-        _ => new(kind,
-            () => catalog.GetLibraryPlaylistsAsync(), t => catalog.GetLibraryPlaylistsContinuationAsync(t)),
-    };
+        Func<Task<LibraryPage>> first = kind switch
+        {
+            LibrarySectionKind.Albums => () => catalog.GetLibraryAlbumsAsync(),
+            LibrarySectionKind.Artists => () => catalog.GetLibraryArtistsAsync(),
+            LibrarySectionKind.Songs => () => catalog.GetLibrarySongsAsync(),
+            LibrarySectionKind.History => () => catalog.GetHistoryAsync(),
+            _ => () => catalog.GetLibraryPlaylistsAsync(),
+        };
+        Func<ContinuationToken, Task<LibraryPage>> next = kind switch
+        {
+            LibrarySectionKind.Albums => t => catalog.GetLibraryAlbumsContinuationAsync(t),
+            LibrarySectionKind.Artists => t => catalog.GetLibraryArtistsContinuationAsync(t),
+            LibrarySectionKind.Songs => t => catalog.GetLibrarySongsContinuationAsync(t),
+            // One page, so there is never a token to follow.
+            LibrarySectionKind.History => _ => Task.FromResult(new LibraryPage { Items = [] }),
+            _ => t => catalog.GetLibraryPlaylistsContinuationAsync(t),
+        };
+        if (sessionLoaded is not null)
+        {
+            var load = first;
+            first = async () =>
+            {
+                await sessionLoaded();
+                return await load();
+            };
+        }
+        return new(kind, first, next);
+    }
 
     public async Task EnsureLoadedAsync()
     {

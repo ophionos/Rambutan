@@ -54,6 +54,44 @@ internal sealed class ManualClock(DateTimeOffset start) : TimeProvider
     public void Advance(TimeSpan by) => Now += by;
 }
 
+/// <summary>A clock whose delays end at once, moving the clock on by each and
+/// recording it, so retry waits are checked without sleeping.</summary>
+internal sealed class InstantDelays : TimeProvider
+{
+    public DateTimeOffset Now { get; private set; } = new(2026, 10, 29, 12, 0, 0, TimeSpan.Zero);
+
+    public List<TimeSpan> Delays { get; } = [];
+
+    public override DateTimeOffset GetUtcNow() => Now;
+
+    public override long GetTimestamp() => Now.UtcTicks;
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+    public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+    {
+        lock (Delays)
+        {
+            Delays.Add(dueTime);
+            Now += dueTime;
+        }
+        // Not inline: Task.Delay keeps the timer it is handed before it can fire.
+        _ = Task.Run(() => callback(state));
+        return new NoTimer();
+    }
+
+    private sealed class NoTimer : ITimer
+    {
+        public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+
+        public void Dispose()
+        {
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+}
+
 /// <summary>A provider whose answer the test scripts, counting calls.</summary>
 internal sealed class ScriptedProvider(string name, Func<LyricsQuery, CancellationToken, Task<LyricsResult?>> answer)
     : ILyricsProvider

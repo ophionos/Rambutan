@@ -40,6 +40,20 @@ public partial class SettingsPageViewModel : ViewModelBase
     public Action<bool>? ApplyTaskbarControls { get; init; }
 
     public bool ShowsTaskbarControls => ApplyTaskbarControls is not null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanNotifyOnItsOwnWhileFocused))]
+    private bool _notifyOnTrackChange;
+
+    [ObservableProperty] private bool _notifyOnItsOwnWhileFocused;
+
+    /// <summary>False where this build can never show a notification (Windows:
+    /// not installed); the switches are then disabled, and say why.</summary>
+    public bool CanNotify { get; init; } = true;
+
+    public bool CannotNotify => !CanNotify;
+
+    public bool CanNotifyOnItsOwnWhileFocused => CanNotify && NotifyOnTrackChange;
     [ObservableProperty] private bool _ambientBackground = true;
     [ObservableProperty] private bool _artworkMeter = true;
 
@@ -231,6 +245,8 @@ public partial class SettingsPageViewModel : ViewModelBase
         _autoplay = playback.Autoplay;
         _closeToTray = app.CloseToTray;
         _taskbarControls = app.TaskbarControls;
+        _notifyOnTrackChange = app.NotifyOnTrackChange;
+        _notifyOnItsOwnWhileFocused = app.NotifyOnItsOwnWhileFocused;
         _ambientBackground = appearance.AmbientBackground;
         _artworkMeter = appearance.ArtworkMeter;
         _visualizerFrameRateIndex = Math.Max(0,
@@ -572,6 +588,22 @@ public partial class SettingsPageViewModel : ViewModelBase
             return;
         _app.TaskbarControls = value;
         ApplyTaskbarControls?.Invoke(value);
+        _persist?.Invoke();
+    }
+
+    partial void OnNotifyOnTrackChangeChanged(bool value)
+    {
+        if (_app is null)
+            return;
+        _app.NotifyOnTrackChange = value;
+        _persist?.Invoke();
+    }
+
+    partial void OnNotifyOnItsOwnWhileFocusedChanged(bool value)
+    {
+        if (_app is null)
+            return;
+        _app.NotifyOnItsOwnWhileFocused = value;
         _persist?.Invoke();
     }
 

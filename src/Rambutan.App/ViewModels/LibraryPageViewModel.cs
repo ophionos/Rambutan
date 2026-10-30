@@ -119,7 +119,7 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
         Local = local;
         _source = local is null ? LibrarySource.YouTubeMusic : source;
         Sections = Enum.GetValues<LibrarySectionKind>()
-            .Select(kind => LibrarySection.For(kind, catalog))
+            .Select(kind => LibrarySection.For(kind, catalog, navigation is null ? null : navigation.WaitForSessionAsync))
             .ToList();
         _selectedSection = Sections[0];
         if (actions is not null)
