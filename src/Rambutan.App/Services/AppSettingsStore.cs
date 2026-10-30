@@ -189,6 +189,11 @@ public sealed class AppSettings
     /// On by default, the maintainer's decision: it never leaves the machine.</summary>
     public bool RecordPlays { get; set; } = true;
 
+    /// <summary>Add the songs played in Rambutan to the account's YouTube Music
+    /// history (yt-dlp's <c>--mark-watched</c>, with the account's cookies).
+    /// Default off, like every outbound integration.</summary>
+    public bool AddPlaysToYouTubeHistory { get; set; }
+
     /// <summary>Display language: a string-table code ("en", "de"), or
     /// null to follow the OS. <c>RAMBUTAN_LOCALE</c> overrides it for a session.</summary>
     public string? Language { get; set; }

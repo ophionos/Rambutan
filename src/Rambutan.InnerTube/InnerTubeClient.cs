@@ -255,7 +255,24 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         if (!response.Headers.TryGetValues("Set-Cookie", out var headers))
             return false;
 
-        var host = response.RequestMessage?.RequestUri?.Host ?? "";
+        return MergeSetCookies(sentWith, headers, response.RequestMessage?.RequestUri?.Host ?? "");
+    }
+
+    /// <summary>
+    /// The values another program ended with after using the session (yt-dlp's
+    /// run, whose page request can rotate cookies): merged as a youtube.com
+    /// response's Set-Cookie would be, raising <see cref="SessionUpdated"/> when
+    /// anything changed. Nothing changes when the session is no longer
+    /// <paramref name="sentWith"/>'s sign-in.
+    /// </summary>
+    public bool ApplyCookies(InnerTubeSession sentWith, IEnumerable<(string Name, string Value)> cookies)
+    {
+        var headers = cookies.Select(c => $"{c.Name}={c.Value}; Domain=youtube.com; Path=/; Secure").ToArray();
+        return headers.Length > 0 && MergeSetCookies(sentWith, headers, InnerTubeSession.MusicHost);
+    }
+
+    private bool MergeSetCookies(InnerTubeSession sentWith, IEnumerable<string> headers, string host)
+    {
         InnerTubeSession updated;
         lock (_sessionLock)
         {
