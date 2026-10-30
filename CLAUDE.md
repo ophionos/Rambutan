@@ -241,8 +241,11 @@ file sink), never to files directly.
   source come after them. The online sources are LRCLIB and YouTube Music
   (`Lyrics/Providers/YouTubeMusicLyricsProvider`, through the stations'
   signed-out `InnerTubeClient.GetLyricsAsync`: the watch page's Lyrics tab,
-  then the page it opens; plain text, with YouTube Music's credit line
-  shown beside its name). The user chooses one in the pane
+  then the page it opens, asked first as YouTube Music's Android app,
+  whose answer times the lines (line-synced, never words), else as the web
+  client (plain text); with YouTube Music's credit line shown beside its name; a local file asks by its match's id, its tagged
+  song's whatever the setting, and caches under its own id, and a file
+  with no song asks nothing and caches no miss). The user chooses one in the pane
   (`AppSettings.LyricsSource`, LRCLIB by default); only that one is asked,
   never the other after a miss, and each keeps its own cache (LRCLIB's in
   `lyrics/cache`, YouTube Music's under it in `youtubeMusic`). Lyrics text
@@ -267,6 +270,17 @@ file sink), never to files directly.
   (`PlayRules`). The charts are lists (the heatmap's panel is
   `Controls/GridNavigationPanel`), so the arrow keys move through them and
   each bar or hour has a name.
+- YouTube Music history: plays go to the account's history only while
+  `AppSettings.AddPlaysToYouTubeHistory` is on (off by default) and signed
+  in, once a play counts (`Core/Playback/HistoryReportGate`, the stats' 30 s
+  rule; never a local file). `App/Services/WatchHistory` listens on the hub
+  and sends them one at a time through `Streams/WatchHistoryReporter`: a
+  yt-dlp run of its own with `--mark-watched`, which sends the playback and
+  the whole-track watch-time reports, with the account's cookies in a
+  temporary owner-only cookie file under the profile's `history-runs`,
+  deleted after the run; cookies the run rotated go back into the session
+  (`InnerTubeClient.ApplyCookies`). Stream resolution
+  stays signed out, so a warm-up never reaches the history.
 - Card menus: a song card has the track menu (`TrackMenuModel`); album,
   playlist and artist cards have their own (`CollectionMenuModel`, acting
   through `CollectionActionsViewModel`); `Controls/ContextMenuHost` opens both,

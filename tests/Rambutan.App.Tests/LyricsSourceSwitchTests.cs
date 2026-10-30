@@ -144,15 +144,26 @@ public class LyricsSourceSwitchTests
     [Fact]
     public void A_local_file_on_YouTube_Music_says_why_there_are_none()
     {
-        var pane = new Pane();
+        var pane = new Pane { Answer = _ => LyricsLookup.NotAsked };
         var vm = pane.ViewModel(YouTubeMusicLyricsProvider.SourceName);
 
         vm.OnTrackChanged(Track("local:4"));
 
         Assert.Equal(LyricsState.None, vm.State);
         Assert.Equal(
-            "YouTube Music has lyrics only for its own songs, and this track is a file on this computer.",
+            "YouTube Music has lyrics only for its own songs, and this file isn't matched to one.",
             vm.NoneHint);
+    }
+
+    [Fact]
+    public void A_matched_local_file_with_no_lyrics_on_YouTube_Music_says_so()
+    {
+        var pane = new Pane();
+        var vm = pane.ViewModel(YouTubeMusicLyricsProvider.SourceName);
+
+        vm.OnTrackChanged(Track("local:4"));
+
+        Assert.Equal("YouTube Music doesn't have lyrics for this track.", vm.NoneHint);
     }
 
     [Fact]

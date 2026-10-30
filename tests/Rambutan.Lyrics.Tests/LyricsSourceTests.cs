@@ -164,7 +164,8 @@ public sealed class LyricsSourceTests : IDisposable
     }
 }
 
-/// <summary>YouTube Music's lyrics come by the track's YouTube id only.</summary>
+/// <summary>YouTube Music's lyrics come by a YouTube id only: the track's, or
+/// its match's.</summary>
 public sealed class YouTubeMusicLyricsProviderTests
 {
     [Fact]
@@ -174,7 +175,7 @@ public sealed class YouTubeMusicLyricsProviderTests
         var provider = new YouTubeMusicLyricsProvider((id, _) =>
         {
             asked.Add(id);
-            return Task.FromResult<(string, string?)?>(("One\nTwo\n\nThree\n", " Source: Musixmatch "));
+            return Task.FromResult<YouTubeMusicLyrics?>(new("One\nTwo\n\nThree\n", " Source: Musixmatch "));
         });
 
         var result = await provider.TryGetAsync(new LyricsQuery("khnokW3Mw24", "Title", "Artist"), CancellationToken.None);
@@ -187,26 +188,91 @@ public sealed class YouTubeMusicLyricsProviderTests
         Assert.Equal("Source: Musixmatch", doc.Credit);
     }
 
+    [Fact]
+    public async Task Timed_lines_are_line_synced_each_lasting_until_the_next()
+    {
+        static TimeSpan ms(int value) => TimeSpan.FromMilliseconds(value);
+        var provider = new YouTubeMusicLyricsProvider((_, _) => Task.FromResult<YouTubeMusicLyrics?>(new(
+            "♪\nOne\nTwo",
+            "Source: Musixmatch",
+            [(ms(0), ms(26520), "♪"), (ms(30920), ms(33000), "Two"), (ms(26520), ms(29000), "One")])));
+
+        var doc = (await provider.TryGetAsync(new LyricsQuery("khnokW3Mw24", "T", "A"), CancellationToken.None))!.Document;
+
+        Assert.True(doc.IsSynced);
+        Assert.Equal("Source: Musixmatch", doc.Credit);
+        Assert.Equal(["♪", "One", "Two"], doc.Lines.Select(l => l.Text));
+        Assert.Equal([ms(0), ms(26520), ms(30920)], doc.Lines.Select(l => l.Start));
+        Assert.Equal([ms(26520), ms(30920), ms(33000)], doc.Lines.Select(l => l.End));
+        Assert.All(doc.Lines, l => Assert.Null(l.Words));
+    }
+
     [Theory]
     [InlineData("local:3")]
     [InlineData("")]
-    public async Task A_track_that_isnt_on_YouTube_has_none_and_nothing_is_asked(string id)
+    public async Task A_track_that_isnt_on_YouTube_without_a_match_asks_nothing(string id)
     {
         var calls = 0;
-        var provider = new YouTubeMusicLyricsProvider((_, _) =>
+        var askedForMatch = new List<string>();
+        var provider = new YouTubeMusicLyricsProvider(
+            (_, _) =>
+            {
+                calls++;
+                return Task.FromResult<YouTubeMusicLyrics?>(new("words", null));
+            },
+            (local, _) =>
+            {
+                askedForMatch.Add(local);
+                return Task.FromResult<string?>(null);
+            });
+        var withoutMatches = new YouTubeMusicLyricsProvider((_, _) =>
         {
             calls++;
-            return Task.FromResult<(string, string?)?>(("words", null));
+            return Task.FromResult<YouTubeMusicLyrics?>(new("words", null));
         });
 
-        Assert.Null(await provider.TryGetAsync(new LyricsQuery(id, "Title", "Artist"), CancellationToken.None));
+        var result = await provider.TryGetAsync(new LyricsQuery(id, "Title", "Artist"), CancellationToken.None);
+        var without = await withoutMatches.TryGetAsync(new LyricsQuery(id, "Title", "Artist"), CancellationToken.None);
+
+        Assert.True(result!.IsNotAsked);
+        Assert.True(without!.IsNotAsked);
         Assert.Equal(0, calls);
+        Assert.Equal(id == "" ? [] : [id], askedForMatch);
+    }
+
+    [Fact]
+    public async Task A_matched_file_asks_by_its_songs_id()
+    {
+        var asked = new List<string>();
+        var provider = new YouTubeMusicLyricsProvider(
+            (id, _) =>
+            {
+                asked.Add(id);
+                return Task.FromResult<YouTubeMusicLyrics?>(new("words", null));
+            },
+            (_, _) => Task.FromResult<string?>("khnokW3Mw24"));
+
+        var result = await provider.TryGetAsync(new LyricsQuery("local:3", "Title", "Artist"), CancellationToken.None);
+
+        Assert.Equal(["khnokW3Mw24"], asked);
+        Assert.Equal("words", Assert.Single(result!.Document.Lines).Text);
+    }
+
+    [Fact]
+    public async Task A_match_that_cant_be_told_is_a_failure()
+    {
+        var provider = new YouTubeMusicLyricsProvider(
+            (_, _) => Task.FromResult<YouTubeMusicLyrics?>(new("words", null)),
+            (_, _) => throw new HttpRequestException("offline"));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            provider.TryGetAsync(new LyricsQuery("local:3", "Title", "Artist"), CancellationToken.None));
     }
 
     [Fact]
     public async Task No_lyrics_on_YouTube_Music_is_a_miss()
     {
-        var provider = new YouTubeMusicLyricsProvider((_, _) => Task.FromResult<(string, string?)?>(null));
+        var provider = new YouTubeMusicLyricsProvider((_, _) => Task.FromResult<YouTubeMusicLyrics?>(null));
 
         Assert.Null(await provider.TryGetAsync(new LyricsQuery("khnokW3Mw24", "T", "A"), CancellationToken.None));
     }

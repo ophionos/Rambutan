@@ -18,7 +18,21 @@ public sealed record LyricsResult
     /// </summary>
     public bool IsInstrumental { get; init; }
 
+    /// <summary>
+    /// The source had nothing to ask for this track (a file matched to no song
+    /// of its own), so nothing was sent. Not an answer: the next provider is
+    /// asked, and a miss made only of these isn't cached, since a later match
+    /// can give the source something to ask.
+    /// </summary>
+    public bool IsNotAsked { get; init; }
+
     public static LyricsResult Found(LyricsDocument document) => new() { Document = document };
+
+    public static LyricsResult NotAsked(string source) => new()
+    {
+        Document = LyricsDocument.Empty(source),
+        IsNotAsked = true,
+    };
 
     public static LyricsResult Instrumental(string source) => new()
     {
