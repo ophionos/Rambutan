@@ -573,6 +573,16 @@ public partial class App : Application
 
         // The play log Library's stats read: on by default, and never off the machine.
         services.AddSingleton(_ => new PlayLog(new PlayLogStore(dataDir), settings.RecordPlays));
+        // Plays added to the YouTube Music history: off by default, signed in
+        // only, a yt-dlp run of its own with the account's cookies. Never in a
+        // demo, which has no yt-dlp.
+        services.AddSingleton(sp => new WatchHistory(
+            (videoId, cookies, ct) => new WatchHistoryReporter(sp.GetRequiredService<YtDlpManager>())
+                .ReportAsync(videoId, cookies, ct),
+            () => Demo is null ? innerTube.Session?.CookieHeader : null,
+            settings.AddPlaysToYouTubeHistory));
+        // A cookie file a crash left behind holds the account's cookies.
+        _ = Task.Run(WatchHistoryReporter.RemoveLeftovers);
         services.AddSingleton(sp =>
         {
             var hub = new PlaybackListenerHub();
@@ -580,6 +590,7 @@ public partial class App : Application
             if (_lastFm is not null)
                 hub.Add(_lastFm);
             hub.Add(sp.GetRequiredService<PlayLog>());
+            hub.Add(sp.GetRequiredService<WatchHistory>());
             return hub;
         });
 
@@ -738,7 +749,8 @@ public partial class App : Application
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<LocalLibraryScans>(),
                 () => RequestPersist(sp), matches: sp.GetRequiredService<YouTubeMatches>()),
             History = new ListeningHistorySettingsViewModel(
-                sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PlayLog>(), () => RequestPersist(sp)),
+                sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PlayLog>(), () => RequestPersist(sp),
+                sp.GetRequiredService<WatchHistory>()),
             Remote = new RemoteSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PhoneRemoteService>(),
                 () => RequestPersist(sp)),

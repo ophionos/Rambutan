@@ -72,6 +72,7 @@ public static class PlayRules
     public static bool IsTimeOnly(PlayRecord play) =>
         YouTubeIds.IsVideoId(play.VideoId) && (play.Duration ?? play.Listened) > LongVideo;
 
-    private static TimeSpan Threshold(TimeSpan? duration) =>
+    /// <summary>How much listening makes a play count: 30 s, or half a shorter track.</summary>
+    public static TimeSpan Threshold(TimeSpan? duration) =>
         duration is { } d && d / 2 < CountsAfter ? d / 2 : CountsAfter;
 }

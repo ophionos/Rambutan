@@ -267,6 +267,15 @@ file sink), never to files directly.
   (`PlayRules`). The charts are lists (the heatmap's panel is
   `Controls/GridNavigationPanel`), so the arrow keys move through them and
   each bar or hour has a name.
+- YouTube Music history: plays go to the account's history only while
+  `AppSettings.AddPlaysToYouTubeHistory` is on (off by default) and signed
+  in, once a play counts (`Core/Playback/HistoryReportGate`, the stats' 30 s
+  rule; never a local file). `App/Services/WatchHistory` listens on the hub
+  and sends them one at a time through `Streams/WatchHistoryReporter`: a
+  yt-dlp run of its own with `--mark-watched`, which sends the playback and
+  the whole-track watch-time reports, with the account's cookies in a
+  temporary owner-only cookie file deleted after the run. Stream resolution
+  stays signed out, so a warm-up never reaches the history.
 - Card menus: a song card has the track menu (`TrackMenuModel`); album,
   playlist and artist cards have their own (`CollectionMenuModel`, acting
   through `CollectionActionsViewModel`); `Controls/ContextMenuHost` opens both,

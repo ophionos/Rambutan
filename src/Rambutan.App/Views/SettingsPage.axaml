@@ -629,6 +629,16 @@
             <Border Classes="settingrow">
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.history.youtube}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.history.youtubeHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding AddToYouTubeHistory}"
+                              AutomationProperties.Name="{l:T settings.history.youtube}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
                   <TextBlock Classes="settinglabel" Text="{l:T settings.history.clear}" />
                   <TextBlock Classes="settinghelp" Text="{l:T settings.history.clearHelp}" />
                   <TextBlock Classes="settinghelp" Text="{Binding ClearResult}" Foreground="{StaticResource Token.Brush.Text}"

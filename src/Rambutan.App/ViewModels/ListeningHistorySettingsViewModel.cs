@@ -11,15 +11,19 @@ namespace Rambutan.App.ViewModels;
 /// <summary>
 /// Settings → Listening history: whether the play log is kept (on by default; it
 /// never leaves the machine), and clearing it, after a confirmation, for this
-/// profile.
+/// profile; and whether plays go to the account's YouTube Music history (off
+/// by default: that tells Google what the user plays).
 /// </summary>
 public partial class ListeningHistorySettingsViewModel : ViewModelBase
 {
     private readonly AppSettings _app;
     private readonly PlayLog _log;
     private readonly Action _persist;
+    private readonly WatchHistory? _youTube;
 
     [ObservableProperty] private bool _recordPlays;
+
+    [ObservableProperty] private bool _addToYouTubeHistory;
 
     /// <summary>What the last Clear did; null before one.</summary>
     [ObservableProperty] private string? _clearResult;
@@ -27,12 +31,22 @@ public partial class ListeningHistorySettingsViewModel : ViewModelBase
     /// <summary>Set by the view: asks to confirm (message, accept label).</summary>
     public Func<string, string, Task<bool>>? Confirm { get; set; }
 
-    public ListeningHistorySettingsViewModel(AppSettings app, PlayLog log, Action persist)
+    public ListeningHistorySettingsViewModel(AppSettings app, PlayLog log, Action persist, WatchHistory? youTube = null)
     {
         _app = app;
         _log = log;
         _persist = persist;
+        _youTube = youTube;
         _recordPlays = app.RecordPlays;
+        _addToYouTubeHistory = app.AddPlaysToYouTubeHistory;
+    }
+
+    partial void OnAddToYouTubeHistoryChanged(bool value)
+    {
+        _app.AddPlaysToYouTubeHistory = value;
+        if (_youTube is not null)
+            _youTube.Enabled = value;
+        _persist();
     }
 
     partial void OnRecordPlaysChanged(bool value)
