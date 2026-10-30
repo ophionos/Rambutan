@@ -255,12 +255,18 @@ static async Task<int> LiveDiffAsync(InnerTubeClient client)
 
     await Check("lyrics (next → lyrics tab → browse)", async () =>
     {
+        // The first results change from run to run, and a remix or an
+        // instrumental has no lyrics: one of the first few must have them.
         var songs = await client.SearchSongsAsync(query);
-        var lyrics = await client.GetLyricsAsync(songs[0].VideoId)
-            ?? throw new InvalidOperationException($"no lyrics for “{songs[0].Title}”");
-        return lyrics.Credit is null
-            ? throw new InvalidOperationException("lyrics without a credit line")
-            : $"{lyrics.Text.Split('\n').Length} lines for “{songs[0].Title}”, {lyrics.Credit}";
+        foreach (var song in songs.Take(5))
+        {
+            if (await client.GetLyricsAsync(song.VideoId) is not { } lyrics)
+                continue;
+            return lyrics.Credit is null
+                ? throw new InvalidOperationException($"lyrics for “{song.Title}” without a credit line")
+                : $"{lyrics.Text.Split('\n').Length} lines for “{song.Title}”, {lyrics.Credit}";
+        }
+        throw new InvalidOperationException($"no lyrics for any of the first {Math.Min(5, songs.Count)} songs");
     });
 
     await Check("home + continuations", async () =>
