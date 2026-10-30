@@ -33,13 +33,24 @@ public sealed class LrcLibProvider : ILyricsProvider, IDisposable
         new("(+https://github.com/ophionos/Rambutan)"),
     ];
 
+    /// <summary>The waits before the retries of a request that failed transiently,
+    /// when LRCLIB sends no <c>Retry-After</c>. LRCLIB is a free service, so few.</summary>
+    public static readonly TimeSpan[] RetryDelays = [TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(1)];
+
+    /// <summary>A retry starts at most this long after the lookup began, so the
+    /// request it makes still has time within the chain's
+    /// <see cref="LyricsProviderChain.DefaultTimeout"/>.</summary>
+    public static readonly TimeSpan RetryWithin = TimeSpan.FromSeconds(2.5);
+
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
+    private readonly TimeProvider _time;
 
-    public LrcLibProvider(HttpClient? http = null)
+    public LrcLibProvider(HttpClient? http = null, TimeProvider? time = null)
     {
         _ownsHttp = http is null;
         _http = http ?? new HttpClient();
+        _time = time ?? TimeProvider.System;
     }
 
     public string Name => SourceName;
@@ -48,6 +59,8 @@ public sealed class LrcLibProvider : ILyricsProvider, IDisposable
     {
         if (string.IsNullOrWhiteSpace(query.Title) || string.IsNullOrWhiteSpace(query.Artist))
             return null;
+
+        var started = _time.GetTimestamp();
 
         // /api/get needs all four fields; without them it can only 400.
         if (query.Album is not null && query.Duration is { } duration)
@@ -59,6 +72,7 @@ public sealed class LrcLibProvider : ILyricsProvider, IDisposable
                     ("album_name", query.Album),
                     ("duration", ((int)Math.Round(duration.TotalSeconds)).ToString(CultureInfo.InvariantCulture))),
                 LrcLibJsonContext.Default.LrcLibTrack,
+                started,
                 ct);
             if (exact is not null && ToResult(exact) is { } result)
                 return result;
@@ -67,6 +81,7 @@ public sealed class LrcLibProvider : ILyricsProvider, IDisposable
         var candidates = await GetAsync(
             "search?" + Query(("track_name", query.Title), ("artist_name", query.Artist)),
             LrcLibJsonContext.Default.LrcLibTrackArray,
+            started,
             ct);
         return candidates is null ? null : PickFromSearch(candidates, query);
     }
@@ -142,20 +157,68 @@ public sealed class LrcLibProvider : ILyricsProvider, IDisposable
         return track.Instrumental ? LyricsResult.Instrumental(SourceName) : null;
     }
 
-    /// <summary>GETs and deserializes; null on 404 (LRCLIB's "not found"), throws on other failures.</summary>
-    private async Task<T?> GetAsync<T>(string relative, JsonTypeInfo<T> type, CancellationToken ct)
+    /// <summary>
+    /// GETs and deserializes; null on 404 (LRCLIB's "not found"), throws on other
+    /// failures. A transient one (LRCLIB answers 503 often, at random through the
+    /// day) is retried after <see cref="RetryDelays"/>, or LRCLIB's
+    /// <c>Retry-After</c>, while the retry would start within
+    /// <see cref="RetryWithin"/> of <paramref name="started"/>; otherwise it throws at once.
+    /// </summary>
+    private async Task<T?> GetAsync<T>(string relative, JsonTypeInfo<T> type, long started, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUri, relative));
-        foreach (var product in UserAgent)
-            request.Headers.UserAgent.Add(product);
+        for (var attempt = 0; ; attempt++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(BaseUri, relative));
+            foreach (var product in UserAgent)
+                request.Headers.UserAgent.Add(product);
 
-        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            return default;
-        response.EnsureSuccessStatusCode();
+            HttpResponseMessage response;
+            try
+            {
+                response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            }
+            catch (HttpRequestException) when (RetryDelay(attempt, null, started) is { } wait)
+            {
+                await Task.Delay(wait, _time, ct);
+                continue;
+            }
 
-        await using var body = await response.Content.ReadAsStreamAsync(ct);
-        return await JsonSerializer.DeserializeAsync(body, type, ct);
+            using (response)
+            {
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                    return default;
+                if (IsTransient(response.StatusCode) && RetryDelay(attempt, response.Headers.RetryAfter, started) is { } wait)
+                {
+                    await Task.Delay(wait, _time, ct);
+                    continue;
+                }
+                response.EnsureSuccessStatusCode();
+
+                await using var body = await response.Content.ReadAsStreamAsync(ct);
+                return await JsonSerializer.DeserializeAsync(body, type, ct);
+            }
+        }
+    }
+
+    private static bool IsTransient(HttpStatusCode status) => status is
+        HttpStatusCode.TooManyRequests or HttpStatusCode.BadGateway or
+        HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+
+    /// <summary>How long to wait before retrying after failed attempt
+    /// <paramref name="attempt"/>; null when no retry is left or it would start too late.</summary>
+    private TimeSpan? RetryDelay(int attempt, RetryConditionHeaderValue? retryAfter, long started)
+    {
+        if (attempt >= RetryDelays.Length)
+            return null;
+        var wait = retryAfter switch
+        {
+            { Delta: { } delta } => delta,
+            { Date: { } date } => date - _time.GetUtcNow(),
+            _ => RetryDelays[attempt],
+        };
+        if (wait < TimeSpan.Zero)
+            wait = TimeSpan.Zero;
+        return _time.GetElapsedTime(started) + wait <= RetryWithin ? wait : null;
     }
 
     private static string Query(params (string Key, string Value)[] pairs) =>
