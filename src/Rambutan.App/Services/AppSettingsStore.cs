@@ -185,6 +185,10 @@ public sealed class AppSettings
     /// that source is asked; a name this build doesn't know asks LRCLIB.</summary>
     public string LyricsSource { get; set; } = Rambutan.Lyrics.Providers.LrcLibProvider.SourceName;
 
+    /// <summary>Keep the play log (<c>plays.jsonl</c>) that Library's stats read.
+    /// On by default, the maintainer's decision: it never leaves the machine.</summary>
+    public bool RecordPlays { get; set; } = true;
+
     /// <summary>Display language: a string-table code ("en", "de"), or
     /// null to follow the OS. <c>RAMBUTAN_LOCALE</c> overrides it for a session.</summary>
     public string? Language { get; set; }

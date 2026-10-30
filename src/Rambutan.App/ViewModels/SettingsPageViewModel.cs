@@ -214,6 +214,9 @@ public partial class SettingsPageViewModel : ViewModelBase
 
     public EqualizerSettingsViewModel? Equalizer { get; init; }
 
+    /// <summary>Settings → Listening history; null where the play log isn't composed (tests).</summary>
+    public ListeningHistorySettingsViewModel? History { get; init; }
+
     /// <summary>Settings → Phone remote; null where it isn't composed (tests).</summary>
     public RemoteSettingsViewModel? Remote { get; init; }
 

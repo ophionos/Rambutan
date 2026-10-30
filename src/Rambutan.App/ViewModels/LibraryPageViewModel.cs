@@ -14,7 +14,7 @@ using Rambutan.App.Localization;
 namespace Rambutan.App.ViewModels;
 
 /// <summary>Where Library's music comes from.</summary>
-public enum LibrarySource { YouTubeMusic, ThisComputer }
+public enum LibrarySource { YouTubeMusic, ThisComputer, Stats }
 
 /// <summary>
 /// The Library, from two sources. YouTube Music's: saved playlists, saved songs,
@@ -70,7 +70,13 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
 
     public bool HasLocal => Local is not null;
 
-    public IReadOnlyList<LibrarySource> Sources { get; } = Enum.GetValues<LibrarySource>();
+    /// <summary>Listening stats from the play log; null where it isn't composed.</summary>
+    public ListeningStatsViewModel? Stats { get; }
+
+    /// <summary>The switch shows while there is more than YouTube Music to switch to.</summary>
+    public bool HasSources => Sources.Count > 1;
+
+    public IReadOnlyList<LibrarySource> Sources { get; }
 
     private LibrarySource _source;
 
@@ -85,22 +91,25 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
                 return;
             OnPropertyChanged(nameof(IsYouTubeMusic));
             OnPropertyChanged(nameof(IsThisComputer));
+            OnPropertyChanged(nameof(IsStats));
             if (!_shown)
                 return;
             if (IsThisComputer)
                 _ = Local?.ShowAsync();
             else
-            {
                 Local?.Hide();
-                if (_catalog is not null)
-                    _ = SelectedSection.EnsureLoadedAsync();
-            }
+            if (IsStats)
+                _ = Stats!.LoadAsync();
+            else if (IsYouTubeMusic && _catalog is not null)
+                _ = SelectedSection.EnsureLoadedAsync();
         }
     }
 
     public bool IsYouTubeMusic => Source == LibrarySource.YouTubeMusic;
 
     public bool IsThisComputer => Source == LibrarySource.ThisComputer && Local is not null;
+
+    public bool IsStats => Source == LibrarySource.Stats && Stats is not null;
 
     // Design-time
     public LibraryPageViewModel() : this(null!, null!, null!, null!) { }
@@ -110,14 +119,21 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
     public LibraryPageViewModel(
         ICatalog catalog, NavigationService navigation, TrackActionsViewModel actions,
         PlaybackCoordinator coordinator, LocalLibraryViewModel? local = null,
-        LibrarySource source = LibrarySource.YouTubeMusic)
+        LibrarySource source = LibrarySource.YouTubeMusic, ListeningStatsViewModel? stats = null)
     {
         _catalog = catalog;
         _navigation = navigation;
         _actions = actions;
         _coordinator = coordinator;
         Local = local;
-        _source = local is null ? LibrarySource.YouTubeMusic : source;
+        Stats = stats;
+        Sources = [.. Enum.GetValues<LibrarySource>().Where(s => s switch
+        {
+            LibrarySource.ThisComputer => local is not null,
+            LibrarySource.Stats => stats is not null,
+            _ => true,
+        })];
+        _source = Sources.Contains(source) ? source : LibrarySource.YouTubeMusic;
         Sections = Enum.GetValues<LibrarySectionKind>()
             .Select(kind => LibrarySection.For(kind, catalog, navigation is null ? null : navigation.WaitForSessionAsync))
             .ToList();
@@ -162,6 +178,8 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
         _shown = true;
         if (IsThisComputer)
             await Local!.ShowAsync();
+        else if (IsStats)
+            await Stats!.LoadAsync();
         else
             await SelectedSection.EnsureLoadedAsync();
     }

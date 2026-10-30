@@ -609,6 +609,39 @@
         </Border>
       </StackPanel>
 
+      <!-- Listening history: the play log Library's stats read. On by default;
+           it stays on this computer, which the help says. -->
+      <StackPanel Spacing="8" DataContext="{Binding History}" x:DataType="vm:ListeningHistorySettingsViewModel"
+                  IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.history.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.history.record}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.history.recordHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding RecordPlays}"
+                              AutomationProperties.Name="{l:T settings.history.record}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.history.clear}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.history.clearHelp}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding ClearResult}" Foreground="{StaticResource Token.Brush.Text}"
+                             IsVisible="{Binding ClearResult, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <Button Grid.Column="1" VerticalAlignment="Center" Content="{l:T settings.history.clearButton}"
+                        Command="{Binding ClearCommand}" />
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
       <StackPanel Spacing="8">
         <TextBlock Classes="settingsheader" Text="{l:T settings.discord.header}" />
         <Border Classes="settingsgroup">
