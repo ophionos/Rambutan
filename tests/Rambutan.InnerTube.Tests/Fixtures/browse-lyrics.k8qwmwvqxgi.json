@@ -1,0 +1,100 @@
+{
+  "responseContext": {
+    "visitorData": "Cgt4Z1N2S05MUm94YyiB0Y_XBjIoCgJQVBIiEh4SHAsMDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicgJg%3D%3D",
+    "serviceTrackingParams": [
+      {
+        "service": "GFEEDBACK",
+        "params": [
+          {
+            "key": "browse_id",
+            "value": "MPLYt_K8qWMWVqXGi-5"
+          },
+          {
+            "key": "browse_id_prefix",
+            "value": ""
+          },
+          {
+            "key": "has_unlimited_entitlement",
+            "value": "False"
+          },
+          {
+            "key": "logged_in",
+            "value": "0"
+          }
+        ]
+      },
+      {
+        "service": "CSI",
+        "params": [
+          {
+            "key": "c",
+            "value": "WEB_REMIX"
+          },
+          {
+            "key": "cver",
+            "value": "1.20260708.01.00"
+          },
+          {
+            "key": "yt_li",
+            "value": "0"
+          },
+          {
+            "key": "GetBrowseTrackLyricsPage_rid",
+            "value": "0x45269ce55c3ba74c"
+          }
+        ]
+      },
+      {
+        "service": "ECATCHER",
+        "params": [
+          {
+            "key": "client.version",
+            "value": "1.20000101"
+          },
+          {
+            "key": "client.name",
+            "value": "WEB_REMIX"
+          }
+        ]
+      }
+    ],
+    "responseId": "IhMIwsGk1MHglwMVmkXoAh1UeRgw"
+  },
+  "contents": {
+    "sectionListRenderer": {
+      "contents": [
+        {
+          "musicDescriptionShelfRenderer": {
+            "description": {
+              "runs": [
+                {
+                  "text": "Paper lanterns over the harbour wall\nCounting boats that never come at all\nSalt on the window, rain on the line\nEvery little signal reads like a sign\n\nHold on, the tide is turning\nHold on, the lights are burning\n\nPaper lanterns over the harbour wall\nCounting boats that never come at all"
+                }
+              ]
+            },
+            "trackingParams": "CAIQ2fQEGAAiEwjCwaTUweCXAxWaRegCHVR5GDA=",
+            "maxCollapsedLines": 0,
+            "maxExpandedLines": 0,
+            "onShowCommands": [
+              {
+                "clickTrackingParams": "CAIQ2fQEGAAiEwjCwaTUweCXAxWaRegCHVR5GDDKAQSrJ4Xp",
+                "logLyricEventCommand": {
+                  "serializedLyricInfo": "Eg90X0s4cVdNV1ZxWEdpLTUYAiIIMTIxMDk1NTI="
+                }
+              }
+            ],
+            "footer": {
+              "runs": [
+                {
+                  "text": "Source: Musixmatch"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "trackingParams": "CAEQui8iEwjCwaTUweCXAxWaRegCHVR5GDA="
+    }
+  },
+  "trackingParams": "CAAQhGciEwjCwaTUweCXAxWaRegCHVR5GDDKAQSrJ4Xp"
+}

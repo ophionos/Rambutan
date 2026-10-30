@@ -175,10 +175,15 @@ public sealed class AppSettings
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ShowVisualizerStage { get; set; }
 
-    /// <summary>The lyrics pane may look tracks up on LRCLIB, which sends each
-    /// track's title and artist off the machine. Default off, like every
-    /// outbound integration.</summary>
+    /// <summary>The lyrics pane may look tracks up online, which sends each
+    /// track's details off the machine (<see cref="LyricsSource"/> says to
+    /// which source). Default off, like every outbound integration.</summary>
     public bool LookUpLyricsOnline { get; set; }
+
+    /// <summary>The online source the lyrics pane asks, chosen in the pane:
+    /// a provider name of the lyrics library ("lrclib", "youtubeMusic"). Only
+    /// that source is asked; a name this build doesn't know asks LRCLIB.</summary>
+    public string LyricsSource { get; set; } = Rambutan.Lyrics.Providers.LrcLibProvider.SourceName;
 
     /// <summary>Display language: a string-table code ("en", "de"), or
     /// null to follow the OS. <c>RAMBUTAN_LOCALE</c> overrides it for a session.</summary>

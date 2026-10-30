@@ -3,14 +3,24 @@ using Rambutan.Lyrics.Providers;
 namespace Rambutan.Lyrics.Store;
 
 /// <summary>
+/// An online source of lyrics the user can choose: its providers and its own
+/// cache, so one source's answer (or miss) is never served for another.
+/// </summary>
+public sealed record LyricsSource(string Name, LyricsProviderChain Chain, LyricsCache? Cache = null);
+
+/// <summary>
 /// Finds lyrics for a track: the user's custom lyrics first, then a local
-/// track's own (<see cref="LocalLyrics"/>, never cached), then the cache, then
-/// the provider chain, caching what the chain answers. One fetch per track
-/// at a time: a second request for a track already being fetched joins it.
+/// track's own (<see cref="LocalLyrics"/>, never cached), then the chosen
+/// source's cache, then that source's chain, caching what the chain answers.
+/// One fetch per track and source at a time: a second request for a track
+/// already being fetched joins it.
 /// </summary>
 /// <remarks>
-/// The chain is asked only while <see cref="LookUpOnline"/> is on (a lookup sends the track's title and artist off the machine). Custom,
-/// local and cached lyrics need no lookup, so they are served either way.
+/// Only the chosen <see cref="Source"/> is asked, never the others after it:
+/// which source shows is the user's choice. A chain is asked only while
+/// <see cref="LookUpOnline"/> is on (a lookup sends the track's details off
+/// the machine). Custom, local and cached lyrics need no lookup, so they are
+/// served either way.
 /// </remarks>
 /// <remarks>
 /// A caller's cancellation (skipping to the next track) abandons only that
@@ -20,9 +30,9 @@ namespace Rambutan.Lyrics.Store;
 public sealed class LyricsService : IDisposable
 {
     private readonly CustomLyricsStore? _custom;
-    private readonly LyricsCache? _cache;
     private readonly LocalLyrics? _local;
-    private readonly LyricsProviderChain _chain;
+    private readonly IReadOnlyList<LyricsSource> _sources;
+    private volatile LyricsSource _source;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Dictionary<string, Task<LyricsLookup>> _inFlight = new(StringComparer.Ordinal);
     private readonly Lock _gate = new();
@@ -36,21 +46,54 @@ public sealed class LyricsService : IDisposable
         set => _lookUpOnline = value;
     }
 
+    /// <summary>The sources' names, the first being the one chosen until
+    /// <see cref="Source"/> says otherwise.</summary>
+    public IReadOnlyList<string> Sources { get; }
+
+    /// <summary>The source asked for lyrics. A name that isn't one of
+    /// <see cref="Sources"/> (a newer build's choice) chooses the first.</summary>
+    public string Source
+    {
+        get => _source.Name;
+        set => _source = _sources.FirstOrDefault(s => s.Name == value) ?? _sources[0];
+    }
+
     public LyricsService(
         LyricsProviderChain chain, LyricsCache? cache = null, CustomLyricsStore? custom = null, LocalLyrics? local = null)
+        : this([new LyricsSource("default", chain, cache)], custom, local)
     {
-        _chain = chain;
-        _cache = cache;
+    }
+
+    /// <param name="sources">At least one; the first is chosen to begin with.</param>
+    public LyricsService(IReadOnlyList<LyricsSource> sources, CustomLyricsStore? custom = null, LocalLyrics? local = null)
+    {
+        if (sources.Count == 0)
+            throw new ArgumentException("A lyrics service needs a source.", nameof(sources));
+        _sources = sources;
+        _source = sources[0];
+        Sources = sources.Select(s => s.Name).ToArray();
         _custom = custom;
         _local = local;
     }
 
+    /// <summary>
+    /// One source per provider, in order. The first keeps its cache in
+    /// <c>lyrics/cache</c>, where the cache was before there was a choice of
+    /// source, so what it found then is still found; each other source's is a
+    /// folder of its name under it.
+    /// </summary>
     public static LyricsService Create(
-        string dataDirectory, IReadOnlyList<ILyricsProvider> providers, LocalLyrics? local = null) => new(
-        new LyricsProviderChain(providers),
-        new LyricsCache(Path.Combine(dataDirectory, "lyrics", "cache")),
-        new CustomLyricsStore(Path.Combine(dataDirectory, "lyrics", "custom")),
-        local);
+        string dataDirectory, IReadOnlyList<ILyricsProvider> providers, LocalLyrics? local = null)
+    {
+        var cache = Path.Combine(dataDirectory, "lyrics", "cache");
+        LyricsSource[] sources = providers.Count == 0
+            ? [new LyricsSource("none", new LyricsProviderChain([]), new LyricsCache(cache))]
+            : providers.Select((p, i) => new LyricsSource(
+                p.Name,
+                new LyricsProviderChain([p]),
+                new LyricsCache(i == 0 ? cache : Path.Combine(cache, p.Name)))).ToArray();
+        return new LyricsService(sources, new CustomLyricsStore(Path.Combine(dataDirectory, "lyrics", "custom")), local);
+    }
 
     /// <summary>
     /// Never throws except <see cref="OperationCanceledException"/> for
@@ -61,16 +104,17 @@ public sealed class LyricsService : IDisposable
     {
         ObjectDisposedException.ThrowIf(_shutdown.IsCancellationRequested, this);
 
-        // A request made after lookups were switched on must not join a fetch
-        // that started with them off, so the switch is part of the key.
+        // A request made after lookups were switched on, or for another source,
+        // must not join a fetch that started before, so both are in the key.
         var online = LookUpOnline;
-        var key = online ? query.VideoId : query.VideoId + "|local";
+        var source = _source;
+        var key = source.Name + "|" + query.VideoId + (online ? "" : "|local");
         Task<LyricsLookup> fetch;
         lock (_gate)
         {
             if (!_inFlight.TryGetValue(key, out fetch!))
             {
-                fetch = Task.Run(() => FetchAsync(query, online), CancellationToken.None);
+                fetch = Task.Run(() => FetchAsync(query, online, source), CancellationToken.None);
                 _inFlight[key] = fetch;
                 _ = fetch.ContinueWith(
                     _ => { lock (_gate) _inFlight.Remove(key); },
@@ -92,7 +136,8 @@ public sealed class LyricsService : IDisposable
     {
         ObjectDisposedException.ThrowIf(_shutdown.IsCancellationRequested, this);
         var online = LookUpOnline;
-        return Task.Run(() => FetchAsync(query, online), CancellationToken.None).WaitAsync(ct);
+        var source = _source;
+        return Task.Run(() => FetchAsync(query, online, source), CancellationToken.None).WaitAsync(ct);
     }
 
     public CustomLyrics? GetCustom(string videoId) => _custom?.TryGetRaw(videoId);
@@ -106,7 +151,7 @@ public sealed class LyricsService : IDisposable
     /// failure; follow with <see cref="ReloadAsync"/>.</summary>
     public void RemoveCustom(string videoId) => _custom?.Delete(videoId);
 
-    private async Task<LyricsLookup> FetchAsync(LyricsQuery query, bool online)
+    private async Task<LyricsLookup> FetchAsync(LyricsQuery query, bool online, LyricsSource source)
     {
         if (_custom?.TryGet(query.VideoId) is { } custom)
             return new LyricsLookup(LyricsStatus.Found, custom);
@@ -127,7 +172,8 @@ public sealed class LyricsService : IDisposable
         }
 
         var stale = false;
-        var cached = _cache?.TryGet(query.VideoId, out stale);
+        var cache = source.Cache;
+        var cached = cache?.TryGet(query.VideoId, out stale);
         if (cached is not null && (!stale || !online))
             return cached;
 
@@ -137,7 +183,7 @@ public sealed class LyricsService : IDisposable
         LyricsLookup result;
         try
         {
-            result = await _chain.LookupAsync(query, _shutdown.Token);
+            result = await source.Chain.LookupAsync(query, _shutdown.Token);
         }
         catch (OperationCanceledException)
         {
@@ -150,11 +196,11 @@ public sealed class LyricsService : IDisposable
             // A stale entry outlives a failed or empty lookup. Unavailable leaves
             // it stale, to try again; a definite miss keeps the old lyrics for good.
             if (result.Status == LyricsStatus.NotFound)
-                _cache?.Put(query.VideoId, cached);
+                cache?.Put(query.VideoId, cached);
             return cached;
         }
 
-        _cache?.Put(query.VideoId, result);
+        cache?.Put(query.VideoId, result);
         return result;
     }
 

@@ -253,6 +253,16 @@ static async Task<int> LiveDiffAsync(InnerTubeClient client)
             : throw new InvalidOperationException($"{radio.Count} track(s) — automix missing");
     });
 
+    await Check("lyrics (next → lyrics tab → browse)", async () =>
+    {
+        var songs = await client.SearchSongsAsync(query);
+        var lyrics = await client.GetLyricsAsync(songs[0].VideoId)
+            ?? throw new InvalidOperationException($"no lyrics for “{songs[0].Title}”");
+        return lyrics.Credit is null
+            ? throw new InvalidOperationException("lyrics without a credit line")
+            : $"{lyrics.Text.Split('\n').Length} lines for “{songs[0].Title}”, {lyrics.Credit}";
+    });
+
     await Check("home + continuations", async () =>
     {
         var page = await client.GetHomeAsync();
