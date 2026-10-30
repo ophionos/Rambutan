@@ -123,6 +123,8 @@ public partial class HomePageViewModel : ViewModelBase
         var generation = ++_generation;
         try
         {
+            if (_navigation is not null)
+                await _navigation.WaitForSessionAsync();
             var page = _filter is { } chip
                 ? await _catalog.GetHomeAsync(chip)
                 : await _catalog.GetHomeAsync();
