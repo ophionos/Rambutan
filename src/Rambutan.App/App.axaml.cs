@@ -337,7 +337,8 @@ public partial class App : Application
         Controls.RateButton.Default = ratings;
         services.AddSingleton(ratings);
 
-        services.AddSingleton(new YtDlpManager(toolsDir));
+        var ytDlp = new YtDlpManager(toolsDir);
+        services.AddSingleton(ytDlp);
         services.AddSingleton(new FfmpegManager(toolsDir));
         // The quality preference is read live, so a change applies from the
         // next resolution.
@@ -578,6 +579,24 @@ public partial class App : Application
 
         // The play log Library's stats read: on by default, and never off the machine.
         services.AddSingleton(_ => new PlayLog(new PlayLogStore(dataDir), settings.RecordPlays));
+        // Plays added to the YouTube Music history: off by default, signed in
+        // only, a yt-dlp run of its own with the account's cookies. Never in a
+        // demo, which has no yt-dlp.
+        // Cookies yt-dlp's page request rotated come back into the session.
+        var historyReporter = new WatchHistoryReporter(
+            ytDlp, Path.Combine(dataDir, "history-runs"));
+        services.AddSingleton(_ => new WatchHistory(
+            async (videoId, ct) =>
+            {
+                if (innerTube.Session is not { } session)
+                    return;
+                var rotated = await historyReporter.ReportAsync(videoId, session.CookieHeader, ct);
+                innerTube.ApplyCookies(session, rotated);
+            },
+            () => Demo is null && innerTube.Session is not null,
+            settings.AddPlaysToYouTubeHistory));
+        // A cookie file a crash left behind holds the account's cookies.
+        _ = Task.Run(historyReporter.RemoveLeftovers);
         services.AddSingleton(sp =>
         {
             var hub = new PlaybackListenerHub();
@@ -585,6 +604,7 @@ public partial class App : Application
             if (_lastFm is not null)
                 hub.Add(_lastFm);
             hub.Add(sp.GetRequiredService<PlayLog>());
+            hub.Add(sp.GetRequiredService<WatchHistory>());
             return hub;
         });
 
@@ -592,6 +612,8 @@ public partial class App : Application
         // source, stored under the data directory like the other stores. The
         // sources are LRCLIB and YouTube Music, asked through the stations'
         // signed-out client: it sends only the video id, and works signed out.
+        // A local file asks YouTube Music by its match's id (its tagged song,
+        // or a match while matching is on), cached under the file's id.
         // A demo answers LRCLIB from invented lyrics, and YouTube Music from its
         // recording. The tags are read through libav, so that waits for ffmpeg,
         // as playback does: a restored local track asks at startup.
@@ -601,7 +623,11 @@ public partial class App : Application
                 ? null
                 : new HttpClient(new DemoLyricsHandler(Demo, sp.GetRequiredService<QueueModel>()))),
             new YouTubeMusicLyricsProvider(async (videoId, ct) =>
-                await stationSearch.GetLyricsAsync(videoId, ct) is { } found ? (found.Text, found.Credit) : null),
+                await stationSearch.GetLyricsAsync(videoId, ct) is { } found
+                    ? new YouTubeMusicLyrics(found.Text, found.Credit,
+                        found.Lines?.Select(l => (l.Start, l.End, l.Text)).ToList())
+                    : null,
+                (id, ct) => sp.GetRequiredService<YouTubeMatches>().SongIdAsync(id, ct)),
         ],
         new LocalLyrics(
             id => sp.GetRequiredService<LocalLibraryScans>().Index.Find(id) is { IsMissing: false } file ? file.Path : null,
@@ -743,7 +769,8 @@ public partial class App : Application
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<LocalLibraryScans>(),
                 () => RequestPersist(sp), matches: sp.GetRequiredService<YouTubeMatches>()),
             History = new ListeningHistorySettingsViewModel(
-                sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PlayLog>(), () => RequestPersist(sp)),
+                sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PlayLog>(), () => RequestPersist(sp),
+                sp.GetRequiredService<WatchHistory>()),
             Remote = new RemoteSettingsViewModel(
                 sp.GetRequiredService<AppSettings>(), sp.GetRequiredService<PhoneRemoteService>(),
                 () => RequestPersist(sp)),

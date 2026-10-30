@@ -40,6 +40,15 @@ Re-record the same way and replace the text again; keep the blank line between
 stanzas and the footer as recorded. `browse-lyrics.not-available.json` is a
 recording as it came, YouTube Music's answer for a track without lyrics.
 
+The `browse-lyrics-mobile.*` recordings are the same browse asked as YouTube
+Music's Android app (`browse <browseId> --mobile`), which times the lines:
+`khnokw3mw24` (`MPLYt_K8qWMWVqXGi-5`) is timed, `yqhsxmglc9a`
+(`MPLYt_2SSDRLbCIui`, the Lyrics tab of `next-radio.yqhsxmglc9a.json`) has
+lines without timings, and `not-available` (`MPLYt_8Avd3kneZO9`, video
+`kxopViU98Xo`) has none. Their lyric text is replaced with invented lines
+too, everywhere it occurs; keep the timings, the `♪` lines and the
+`sourceMessage` as recorded.
+
 `live-diff` runs every anonymous parser against live YTM without writing anything;
 CI runs it weekly.
 

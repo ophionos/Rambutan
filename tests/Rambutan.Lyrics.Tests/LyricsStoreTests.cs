@@ -271,6 +271,23 @@ public sealed class LyricsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_miss_with_nothing_asked_is_not_cached_nor_hides_what_was_cached()
+    {
+        var answer = LyricsResult.NotAsked("p");
+        var provider = new ScriptedProvider("p", (_, _) => Task.FromResult<LyricsResult?>(answer));
+        using var service = Service(provider);
+
+        var first = await service.GetAsync(Query);
+        answer = Lyrics("matched");
+        var second = await service.GetAsync(Query);
+
+        Assert.False(first.Asked);
+        Assert.Equal(LyricsStatus.NotFound, first.Status);
+        Assert.Equal("matched", Assert.Single(second.Document!.Lines).Text);
+        Assert.Equal(2, provider.Calls);
+    }
+
+    [Fact]
     public async Task Not_found_is_cached_but_unavailable_is_asked_again()
     {
         var missing = ScriptedProvider.Returning("p", null);
