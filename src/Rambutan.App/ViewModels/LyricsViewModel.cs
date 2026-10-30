@@ -50,6 +50,14 @@ public sealed record CustomLyricsAccess(
         new(service.GetCustom, service.SaveCustom, service.RemoveCustom, service.ReloadAsync);
 }
 
+/// <summary>An online source of lyrics, as the pane's switch offers it.</summary>
+public sealed record LyricsSourceChoice(string Name)
+{
+    public string Label => Strings.Get(Name == YouTubeMusicLyricsProvider.SourceName
+        ? "lyrics.sourceSwitch.youtubeMusic"
+        : "lyrics.sourceSwitch.lrclib");
+}
+
 /// <summary>
 /// The Now Playing lyrics pane. Follows the
 /// coordinator: a track change cancels the lookup in flight and starts one for
@@ -62,6 +70,7 @@ public sealed partial class LyricsViewModel : ViewModelBase
     private readonly Func<LyricsQuery, CancellationToken, Task<LyricsLookup>>? _fetch;
     private readonly Func<TimeSpan, Task>? _seek;
     private readonly Action<bool>? _applyLookUpOnline;
+    private readonly Action<string>? _applySource;
     private readonly CustomLyricsAccess? _custom;
 
     private CancellationTokenSource? _loading;
@@ -71,7 +80,8 @@ public sealed partial class LyricsViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLoading), nameof(IsSynced), nameof(IsUnsynced), nameof(HasLyrics),
-        nameof(IsInstrumental), nameof(IsNone), nameof(IsUnavailable), nameof(IsNotLookedUp), nameof(IsShown))]
+        nameof(IsInstrumental), nameof(IsNone), nameof(IsUnavailable), nameof(IsNotLookedUp), nameof(IsShown),
+        nameof(ShowsSourceSwitch), nameof(NoneHint), nameof(NotLookedUpHint))]
     private LyricsState _state;
 
     [ObservableProperty] private IReadOnlyList<LyricLineViewModel> _lines = [];
@@ -102,6 +112,63 @@ public sealed partial class LyricsViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsOffsetShown))]
     private bool _isCustom;
+
+    /// <summary>The lyrics on screen are the user's own or the track's (a custom
+    /// text, an .lrc file, its tags): no online source is asked for this track,
+    /// so the source switch would change nothing.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSourceSwitch))]
+    private bool _isOwnLyrics;
+
+    /// <summary>The online sources the user chooses between, in the order shown.</summary>
+    public IReadOnlyList<LyricsSourceChoice> SourceChoices { get; } =
+    [
+        new(LrcLibProvider.SourceName),
+        new(YouTubeMusicLyricsProvider.SourceName),
+    ];
+
+    /// <summary>
+    /// The source the pane asks, remembered as a setting. Choosing another looks
+    /// the track up there at once, unless the lyrics on screen are the user's
+    /// own or the track's, which win whatever the source.
+    /// </summary>
+    public LyricsSourceChoice SelectedSource
+    {
+        get => _selectedSource;
+        set
+        {
+            if (value is null || value == _selectedSource)
+                return;
+
+            _selectedSource = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(NoneHint));
+            OnPropertyChanged(nameof(NotLookedUpHint));
+            _applySource?.Invoke(value.Name);
+            if (_track is { } track && IsEnabled && !IsOwnLyrics)
+                _ = LoadAsync(track);
+        }
+    }
+
+    private LyricsSourceChoice _selectedSource;
+
+    private bool IsYouTubeMusicChosen => _selectedSource.Name == YouTubeMusicLyricsProvider.SourceName;
+
+    /// <summary>The switch shows wherever the online source decides what the
+    /// pane shows, a miss included, so the other source is a click away.</summary>
+    public bool ShowsSourceSwitch => _applySource is not null && State is not LyricsState.Hidden && !IsOwnLyrics;
+
+    /// <summary>Why nothing was found, by the source asked.</summary>
+    public string NoneHint => !IsYouTubeMusicChosen
+        ? Strings.Get("lyrics.noneHint")
+        : _track is { } track && !YouTubeIds.IsVideoId(track.VideoId)
+            ? Strings.Get("lyrics.noneHint.notOnYouTube")
+            : Strings.Get("lyrics.noneHint.youtubeMusic");
+
+    /// <summary>What switching lookups on would send, for the source chosen.</summary>
+    public string NotLookedUpHint => Strings.Get(IsYouTubeMusicChosen
+        ? "lyrics.notLookedUp.hint.youtubeMusic"
+        : "lyrics.notLookedUp.hint");
 
     /// <summary>The timing correction on the user's own lyrics; positive shows them sooner.</summary>
     [ObservableProperty]
@@ -154,6 +221,7 @@ public sealed partial class LyricsViewModel : ViewModelBase
     // Design-time: a synced verse, second line playing.
     public LyricsViewModel()
     {
+        _selectedSource = SourceChoices[0];
         var doc = new LyricsDocument
         {
             Source = LrcLibProvider.SourceName,
@@ -173,16 +241,24 @@ public sealed partial class LyricsViewModel : ViewModelBase
     /// <summary>For tests and composition: how to look lyrics up and how to seek.</summary>
     /// <param name="applyLookUpOnline">Applies and remembers a change of
     /// <see cref="LookUpOnline"/>.</param>
+    /// <param name="source">The source chosen to begin with; LRCLIB when it isn't one of
+    /// <see cref="SourceChoices"/>.</param>
+    /// <param name="applySource">Applies and remembers a change of
+    /// <see cref="SelectedSource"/>; without it, the pane offers no choice.</param>
     public LyricsViewModel(
         Func<LyricsQuery, CancellationToken, Task<LyricsLookup>> fetch,
         Func<TimeSpan, Task> seek,
         Action<bool>? applyLookUpOnline = null,
-        CustomLyricsAccess? custom = null)
+        CustomLyricsAccess? custom = null,
+        string? source = null,
+        Action<string>? applySource = null)
     {
         _fetch = fetch;
         _seek = seek;
         _applyLookUpOnline = applyLookUpOnline;
+        _applySource = applySource;
         _custom = custom;
+        _selectedSource = SourceChoices.FirstOrDefault(c => c.Name == source) ?? SourceChoices[0];
         // Re-applying the last answer re-reads the source label, the error and
         // the gap lines' names in the new language.
         Strings.WhenChanged(this, static vm =>
@@ -193,7 +269,8 @@ public sealed partial class LyricsViewModel : ViewModelBase
     }
 
     public LyricsViewModel(
-        LyricsService service, PlaybackCoordinator coordinator, QueueModel queue, bool lookUpOnline, Action<bool> remember)
+        LyricsService service, PlaybackCoordinator coordinator, QueueModel queue,
+        bool lookUpOnline, Action<bool> remember, string source, Action<string> rememberSource)
         // A line picked before anything is loaded (a restored queue) starts the
         // queue's track from that line; a seek would do nothing.
         : this(service.GetAsync, position => coordinator.NowPlaying is null && queue.CurrentIndex >= 0
@@ -202,9 +279,14 @@ public sealed partial class LyricsViewModel : ViewModelBase
         {
             service.LookUpOnline = online;
             remember(online);
-        }, CustomLyricsAccess.For(service))
+        }, CustomLyricsAccess.For(service), source, chosen =>
+        {
+            service.Source = chosen;
+            rememberSource(chosen);
+        })
     {
         service.LookUpOnline = lookUpOnline;
+        service.Source = SelectedSource.Name;
         _lookUpOnline = lookUpOnline;
         // Coordinator events fire under its lock and on engine threads; marshal
         // like every other subscriber.
@@ -267,7 +349,7 @@ public sealed partial class LyricsViewModel : ViewModelBase
     private bool _isEnabled = true;
 
     /// <summary>
-    /// Whether tracks may be looked up on LRCLIB, shared with
+    /// Whether tracks may be looked up online, shared with
     /// Settings. Switching it on looks the playing track up again if the pane is
     /// waiting on it; switching it off keeps what is on screen, since nothing more
     /// is sent for it.
@@ -513,7 +595,10 @@ public sealed partial class LyricsViewModel : ViewModelBase
         switch (result.Status)
         {
             case LyricsStatus.Found when doc is { Lines.Count: > 0 }:
-                SourceLabel = Describe(doc.Source);
+                SourceLabel = doc.Credit is { } credit
+                    ? Strings.Format("lyrics.source.withCredit", ("source", Describe(doc.Source)), ("credit", credit))
+                    : Describe(doc.Source);
+                IsOwnLyrics = doc.Source is not (LrcLibProvider.SourceName or YouTubeMusicLyricsProvider.SourceName);
                 if (doc.Source == CustomLyricsStore.SourceName && _track is { } track)
                 {
                     IsCustom = true;
@@ -566,6 +651,7 @@ public sealed partial class LyricsViewModel : ViewModelBase
         SourceLabel = "";
         LoadError = null;
         IsCustom = false;
+        IsOwnLyrics = false;
         CustomOffsetMs = 0;
         CustomError = null;
         ActiveLineIndex = -1;
@@ -584,6 +670,7 @@ public sealed partial class LyricsViewModel : ViewModelBase
     private static string Describe(string source) => source switch
     {
         LrcLibProvider.SourceName => Strings.Get("lyrics.source.lrclib"),
+        YouTubeMusicLyricsProvider.SourceName => Strings.Get("lyrics.source.youtubeMusic"),
         CustomLyricsStore.SourceName => Strings.Get("lyrics.source.custom"),
         LocalLyrics.SidecarSourceName => Strings.Get("lyrics.source.lrcFile"),
         LocalLyrics.TagsSourceName => Strings.Get("lyrics.source.tags"),

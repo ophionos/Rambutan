@@ -1,0 +1,87 @@
+{
+  "responseContext": {
+    "visitorData": "CgtwUW9VNzJRNmxBcyjg0Y_XBjIoCgJQVBIiEh4SHAsMDg8QERITFBUWFxgZGhscHR4fICEiIyQlJicgOw%3D%3D",
+    "serviceTrackingParams": [
+      {
+        "service": "GFEEDBACK",
+        "params": [
+          {
+            "key": "browse_id",
+            "value": "MPLYt_JL3tq9xT4hB-12"
+          },
+          {
+            "key": "browse_id_prefix",
+            "value": ""
+          },
+          {
+            "key": "has_unlimited_entitlement",
+            "value": "False"
+          },
+          {
+            "key": "logged_in",
+            "value": "0"
+          }
+        ]
+      },
+      {
+        "service": "CSI",
+        "params": [
+          {
+            "key": "c",
+            "value": "WEB_REMIX"
+          },
+          {
+            "key": "cver",
+            "value": "1.20260708.01.00"
+          },
+          {
+            "key": "yt_li",
+            "value": "0"
+          },
+          {
+            "key": "GetBrowseTrackLyricsPage_rid",
+            "value": "0xf275e76658061c24"
+          }
+        ]
+      },
+      {
+        "service": "ECATCHER",
+        "params": [
+          {
+            "key": "client.version",
+            "value": "1.20000101"
+          },
+          {
+            "key": "client.name",
+            "value": "WEB_REMIX"
+          }
+        ]
+      }
+    ],
+    "responseId": "IhMI05GzgcLglwMVT4Z8Bh1XCDHJ"
+  },
+  "contents": {
+    "messageRenderer": {
+      "text": {
+        "runs": [
+          {
+            "text": "Lyrics not available"
+          }
+        ]
+      },
+      "trackingParams": "CAEQljsiEwjTkbOBwuCXAxVPhnwGHVcIMck=",
+      "subtext": {
+        "messageSubtextRenderer": {
+          "text": {
+            "runs": [
+              {
+                "text": "If the song has lyrics, they'll show up here when they become available"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "trackingParams": "CAAQhGciEwjTkbOBwuCXAxVPhnwGHVcIMcnKAQSJzK15"
+}

@@ -588,6 +588,28 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         return parse(doc.RootElement);
     }
 
+    /// <summary>
+    /// YouTube Music's lyrics for the track: the watch page's Lyrics tab, then
+    /// the page it opens. Null when it has none, or when <paramref name="videoId"/>
+    /// isn't YouTube's (asked nothing, then). Throws when YouTube Music couldn't
+    /// be asked.
+    /// </summary>
+    public async Task<TrackLyrics?> GetLyricsAsync(string videoId, CancellationToken ct = default)
+    {
+        if (!YouTubeIds.IsVideoId(videoId))
+            return null;
+
+        string? browseId;
+        var request = new TrackNextRequest(Context(), videoId, IsAudioOnly: true);
+        using (var next = await PostAsync("next", request, InnerTubeJsonContext.Default.TrackNextRequest, ct))
+            browseId = LyricsParser.ParseBrowseId(next.RootElement);
+        if (browseId is null)
+            return null;
+
+        using var doc = await BrowseAsync(browseId, ct);
+        return LyricsParser.Parse(doc.RootElement);
+    }
+
     private async Task<LibraryPage> LibraryContinuationAsync(
         ContinuationToken continuation, Func<JsonElement, LibraryPage> parse, CancellationToken ct)
     {

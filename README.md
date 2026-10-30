@@ -58,6 +58,8 @@ your own YouTube Music account to use your library.
   visualizer that fills the pane. Fullscreen, for a second screen or a party.
 - Synced lyrics, with a word-by-word karaoke sweep where word timing exists.
   Import your own lyrics, or adjust their timing in the app.
+- Lyrics found online from LRCLIB or from YouTube Music's own, whichever you
+  choose in the lyrics pane.
 - Eight visualizer styles in your accent colour or the artwork's, and an
   optional set of animated presets.
 - An accent colour of your choice: Rambutan red, the playing cover's colour,
@@ -166,7 +168,7 @@ Everything is in **Settings**, in the sidebar. The sections are:
 | Behavior | Whether closing the window keeps Rambutan running in the tray, (Windows) the media controls on the taskbar, and the notification when the track changes. |
 | Playback | Crossfade, volume normalization, streaming quality, autoplay, the audio cache and the output device. |
 | Equalizer | The 10-band equalizer. |
-| Lyrics | Online lyrics lookups on LRCLIB (off until you turn them on). |
+| Lyrics | Online lyrics lookups on LRCLIB or YouTube Music, as chosen in the lyrics pane (off until you turn them on). |
 | Downloads | The download folder, and exporting downloads as audio files. |
 | Music on this computer | The folders that hold your music files, Rescan, and finding them on YouTube Music (off until you turn it on). |
 | Phone remote | Turn the remote on and pair a phone. |

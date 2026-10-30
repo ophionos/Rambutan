@@ -237,7 +237,17 @@ file sink), never to files directly.
   tag's `SYLT` (`Lyrics/Parsing/SyltParser`; libav doesn't expose it), then
   its other tags (read through `FfmpegMediaFileReader.ReadLyrics`, which
   waits for ffmpeg); a text that parses as synced LRC shows synced. They are read on each lookup, never cached, and
-  whatever the online-lookup setting; the cache and LRCLIB come after them.
+  whatever the online-lookup setting; the chosen source's cache and the
+  source come after them. The online sources are LRCLIB and YouTube Music
+  (`Lyrics/Providers/YouTubeMusicLyricsProvider`, through the stations'
+  signed-out `InnerTubeClient.GetLyricsAsync`: the watch page's Lyrics tab,
+  then the page it opens; plain text, with YouTube Music's credit line
+  shown beside its name). The user chooses one in the pane
+  (`AppSettings.LyricsSource`, LRCLIB by default); only that one is asked,
+  never the other after a miss, and each keeps its own cache (LRCLIB's in
+  `lyrics/cache`, YouTube Music's under it in `youtubeMusic`). Lyrics text
+  is the publisher's: a fixture keeps a recording's shape with invented
+  lines.
 - Artwork: hand-rolled `Controls/RemoteImage` + `Services/ArtworkCache`.
 - Card menus: a song card has the track menu (`TrackMenuModel`); album,
   playlist and artist cards have their own (`CollectionMenuModel`, acting

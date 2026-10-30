@@ -73,6 +73,13 @@ internal sealed record NextRequest(
     [property: JsonPropertyName("tunerSettingValue")] string TunerSettingValue,
     [property: JsonPropertyName("params")] string? Params = null);
 
+// The bare request the web player sends to open a track: no queue, so the
+// response is a twentieth of the radio's and carries the Lyrics tab all the same.
+internal sealed record TrackNextRequest(
+    [property: JsonPropertyName("context")] RequestContext Context,
+    [property: JsonPropertyName("videoId")] string VideoId,
+    [property: JsonPropertyName("isAudioOnly")] bool IsAudioOnly);
+
 internal sealed record RequestContext(
     [property: JsonPropertyName("client")] ClientInfo Client);
 
@@ -94,4 +101,5 @@ internal sealed record ClientInfo(
 [JsonSerializable(typeof(DeletePlaylistRequest))]
 [JsonSerializable(typeof(EditPlaylistRequest))]
 [JsonSerializable(typeof(NextRequest))]
+[JsonSerializable(typeof(TrackNextRequest))]
 internal sealed partial class InnerTubeJsonContext : JsonSerializerContext;

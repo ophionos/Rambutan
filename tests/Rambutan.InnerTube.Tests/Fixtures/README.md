@@ -33,6 +33,13 @@ and the account name. Review the diff before committing anyway.
 | `browse-playlist.owned.synthetic.json` | `browse VL<id of a playlist you made> --cookies cookies.txt --out tests/Rambutan.InnerTube.Tests/Fixtures/browse-playlist.owned.json`. The synthetic is the 80s-pop recording cut to 12 rows, with its header wrapped the way ytmusicapi's get_playlist reads an owned one (`musicEditablePlaylistDetailHeaderRenderer.header`, privacy before the year in the subtitle). Demo mode opens the demo account's own playlists with it. |
 | `browse-playlist.rated.synthetic.json`, `next-rated.synthetic.json` | a playlist and a track you've rated: `browse VL<playlistId> --cookies cookies.txt`, `next <videoId> --cookies cookies.txt` |
 
+`browse-lyrics.k8qwmwvqxgi.json` is a recording (`browse MPLYt_K8qWMWVqXGi-5`,
+the Lyrics tab of `next-radio.khnokw3mw24.json`) whose lyrics are replaced with
+invented lines: the real text is the publisher's, and this repository is public.
+Re-record the same way and replace the text again; keep the blank line between
+stanzas and the footer as recorded. `browse-lyrics.not-available.json` is a
+recording as it came, YouTube Music's answer for a track without lyrics.
+
 `live-diff` runs every anonymous parser against live YTM without writing anything;
 CI runs it weekly.
 

@@ -61,6 +61,13 @@ public sealed record LyricsDocument
     public required IReadOnlyList<LyricLine> Lines { get; init; }
 
     /// <summary>
+    /// The source's own line saying where the text came from, as it wrote it
+    /// (YouTube Music's "Source: Musixmatch"), shown beside the source's name;
+    /// null when it gave none.
+    /// </summary>
+    public string? Credit { get; init; }
+
+    /// <summary>
     /// The <c>[offset:]</c> tag as written, in milliseconds, or 0 when absent.
     /// Already applied to <see cref="Lines"/>; retained only so a custom-lyrics
     /// edit can round-trip the tag back out.

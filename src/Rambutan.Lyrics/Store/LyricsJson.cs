@@ -25,6 +25,7 @@ internal sealed class CachedDocument
     public string? Source { get; set; }
     public bool IsSynced { get; set; }
     public int OffsetMs { get; set; }
+    public string? Credit { get; set; }
     public List<CachedLine>? Lines { get; set; }
 
     public static CachedDocument From(LyricsDocument doc) => new()
@@ -32,6 +33,7 @@ internal sealed class CachedDocument
         Source = doc.Source,
         IsSynced = doc.IsSynced,
         OffsetMs = doc.OffsetMs,
+        Credit = doc.Credit,
         Lines = doc.Lines.Select(l => new CachedLine
         {
             Text = l.Text,
@@ -57,6 +59,7 @@ internal sealed class CachedDocument
             Source = Source,
             IsSynced = IsSynced,
             OffsetMs = OffsetMs,
+            Credit = Credit,
             Lines = Lines.OfType<CachedLine>().Select(l => new LyricLine(
                 l.Text ?? "",
                 Time(l.StartMs),

@@ -580,15 +580,20 @@ public partial class App : Application
             return hub;
         });
 
-        // Lyrics: custom → a local file's own → cache → LRCLIB, stored under the
-        // data directory like the other stores. A demo answers LRCLIB from
-        // invented lyrics. The tags are read through libav, so that waits for
-        // ffmpeg, as playback does: a restored local track asks at startup.
+        // Lyrics: custom → a local file's own → the chosen source's cache → that
+        // source, stored under the data directory like the other stores. The
+        // sources are LRCLIB and YouTube Music, asked through the stations'
+        // signed-out client: it sends only the video id, and works signed out.
+        // A demo answers LRCLIB from invented lyrics, and YouTube Music from its
+        // recording. The tags are read through libav, so that waits for ffmpeg,
+        // as playback does: a restored local track asks at startup.
         services.AddSingleton(sp => LyricsService.Create(dataDir,
         [
             new LrcLibProvider(Demo is null
                 ? null
                 : new HttpClient(new DemoLyricsHandler(Demo, sp.GetRequiredService<QueueModel>()))),
+            new YouTubeMusicLyricsProvider(async (videoId, ct) =>
+                await stationSearch.GetLyricsAsync(videoId, ct) is { } found ? (found.Text, found.Credit) : null),
         ],
         new LocalLyrics(
             id => sp.GetRequiredService<LocalLibraryScans>().Index.Find(id) is { IsMissing: false } file ? file.Path : null,
@@ -605,6 +610,12 @@ public partial class App : Application
             online =>
             {
                 sp.GetRequiredService<AppSettings>().LookUpLyricsOnline = online;
+                RequestPersist(sp);
+            },
+            sp.GetRequiredService<AppSettings>().LyricsSource,
+            source =>
+            {
+                sp.GetRequiredService<AppSettings>().LyricsSource = source;
                 RequestPersist(sp);
             }));
 

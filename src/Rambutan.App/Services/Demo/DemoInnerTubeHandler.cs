@@ -192,6 +192,10 @@ public sealed class DemoInnerTubeHandler(DemoOptions options) : HttpMessageHandl
                     "FEmusic_library_corpus_artists" => ("library", Fixture("browse-library-artists.synthetic.json")),
                     "FEmusic_liked_videos" => ("library", Fixture("browse-library-songs.synthetic.json")),
                     "FEmusic_history" => ("library", Fixture("browse-history.synthetic.json")),
+                    // Every track's Lyrics tab opens the one recording, whose
+                    // text is invented.
+                    var id when id.StartsWith("MPLY", StringComparison.Ordinal) =>
+                        ("lyrics", Fixture("browse-lyrics.k8qwmwvqxgi.json")),
                     var id when id.StartsWith("MPRE", StringComparison.Ordinal) =>
                         ("album", Rated("browse-album.ram.json", "LIKE")),
                     var id when id.StartsWith("UC", StringComparison.Ordinal) =>
