@@ -210,8 +210,9 @@ public sealed class OfflineCatalog(
     public Task RenamePlaylistAsync(string playlistId, string title, CancellationToken ct = default) =>
         inner.RenamePlaylistAsync(playlistId, title, ct);
 
-    public Task AddToPlaylistAsync(string playlistId, IReadOnlyList<string> videoIds, CancellationToken ct = default) =>
-        inner.AddToPlaylistAsync(playlistId, videoIds, ct);
+    public Task AddToPlaylistAsync(
+        string playlistId, IReadOnlyList<string> videoIds, bool keepDuplicates = false, CancellationToken ct = default) =>
+        inner.AddToPlaylistAsync(playlistId, videoIds, keepDuplicates, ct);
 
     public Task RemoveFromPlaylistAsync(
         string playlistId, string videoId, string setVideoId, CancellationToken ct = default) =>

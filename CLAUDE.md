@@ -430,6 +430,21 @@ file sink), never to files directly.
   of their own, never the account's, so they stay out of its search history.
   Bump `TrackMatcher.RulesVersion` when a rule change could change a pick; it
   invalidates the saved matches (`App/Services/StationStores`).
+- Spotify import: Library's Import from Spotify (`SpotifyImportViewModel`,
+  one for the app's lifetime) reads Spotify's data export (the zip or its
+  JSON files, `Core/Import/SpotifyExport`) or a CSV of songs (`TrackCsv`).
+  It searches each distinct song's title and first artist through the
+  stations' signed-out `InnerTubeClient`, one at a time
+  (`Core/Import/ImportMatcher`: `TrackMatcher` without the last resort; the
+  answers in `import-matches.json`, the stations' format), and nothing is
+  sent to Spotify. The user reviews the picks (`ImportReview`: another song,
+  left out), and only the Import button creates anything: private YouTube
+  Music playlists when signed in, else local ones. Duplicates are kept
+  (`AddToPlaylistAsync`'s `keepDuplicates`, `LocalPlaylistLibrary.Append`),
+  and a list longer than `ImportPlan.YouTubeMusicCap` becomes "Name (2)", ….
+  `spotify-imports.json` (versioned) keeps what each import made and every
+  row it read, so importing the same list to the same place again adds only
+  the rows new since (`ImportPlan.NewSince`) to the last playlist it made.
 - `rambutan://` links: the grammar is `Core/Links/DeepLinkParser`, acting on a
   link is `ViewModels/DeepLinkHandler`, and the Windows registration (HKCU,
   from Velopack's install, update and uninstall hooks only) is

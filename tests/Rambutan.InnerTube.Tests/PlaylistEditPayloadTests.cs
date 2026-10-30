@@ -11,6 +11,26 @@ namespace Rambutan.InnerTube.Tests;
 /// </summary>
 public class PlaylistEditPayloadTests
 {
+    // ytmusicapi's add_playlist_items(duplicates=True) marks each add.
+    [Theory]
+    [InlineData(false, null)]
+    [InlineData(true, "DEDUPE_OPTION_SKIP")]
+    public async Task Add_SkipsTheDuplicateCheckOnlyWhenAsked(bool keepDuplicates, string? dedupe)
+    {
+        var (client, handler) = RecordingHandler.Client();
+
+        await client.AddToPlaylistAsync("PLabc", ["khnokW3Mw24", "khnokW3Mw24"], keepDuplicates);
+
+        var actions = Assert.Single(handler.Requests).Body.GetProperty("actions").EnumerateArray().ToArray();
+        Assert.Equal(2, actions.Length);
+        Assert.All(actions, a =>
+        {
+            Assert.Equal("ACTION_ADD_VIDEO", a.GetProperty("action").GetString());
+            Assert.Equal("khnokW3Mw24", a.GetProperty("addedVideoId").GetString());
+            Assert.Equal(dedupe, a.TryGetProperty("dedupeOption", out var d) ? d.GetString() : null);
+        });
+    }
+
     [Fact]
     public async Task Move_SendsMoveBeforeWithTheSuccessor()
     {

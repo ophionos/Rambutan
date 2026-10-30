@@ -663,11 +663,15 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         EditPlaylistAsync(
             playlistId, [new PlaylistEditAction("ACTION_SET_PLAYLIST_NAME", PlaylistName: title)], ct);
 
+    /// <param name="keepDuplicates">As ytmusicapi's <c>duplicates=True</c>: each
+    /// add says <c>DEDUPE_OPTION_SKIP</c>, which skips YouTube Music's check
+    /// for a song already there. Without it, one duplicate refuses the edit.</param>
     public Task AddToPlaylistAsync(
-        string playlistId, IReadOnlyList<string> videoIds, CancellationToken ct = default) =>
+        string playlistId, IReadOnlyList<string> videoIds, bool keepDuplicates = false, CancellationToken ct = default) =>
         EditPlaylistAsync(
             playlistId,
-            videoIds.Select(v => new PlaylistEditAction("ACTION_ADD_VIDEO", AddedVideoId: v)).ToArray(),
+            videoIds.Select(v => new PlaylistEditAction(
+                "ACTION_ADD_VIDEO", AddedVideoId: v, DedupeOption: keepDuplicates ? "DEDUPE_OPTION_SKIP" : null)).ToArray(),
             ct);
 
     public Task RemoveFromPlaylistAsync(

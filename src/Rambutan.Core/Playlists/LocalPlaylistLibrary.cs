@@ -176,6 +176,14 @@ public sealed class LocalPlaylistLibrary
         return found ? added : null;
     }
 
+    /// <summary>Appends every item, duplicates kept, as <see cref="Import"/>
+    /// keeps them; false when there is no such playlist.</summary>
+    public bool Append(string id, IEnumerable<LocalPlaylistItem> items)
+    {
+        var added = items.ToList();
+        return Update(id, p => p with { Items = [.. p.Items, .. added], ChangedAt = _now() });
+    }
+
     public bool RemoveAt(string id, int index) => Update(id, p => LocalPlaylists.RemoveAt(p, index, _now()));
 
     public bool Insert(string id, int index, LocalPlaylistItem item) =>

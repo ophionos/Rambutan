@@ -55,6 +55,20 @@ public class LocalPlaylistLibraryTests
     }
 
     [Fact]
+    public void Append_keeps_duplicates_as_an_import_does()
+    {
+        var (library, store) = Make();
+        var imported = library.Import("Rock", [LocalPlaylistItem.Of(Song("a"))]);
+
+        Assert.True(library.Append(imported.Id, [LocalPlaylistItem.Of(Song("a")), LocalPlaylistItem.Of(Song("b"))]));
+
+        Assert.Equal(["a", "a", "b"], library.Find(imported.Id)!.Items.Select(i => i.Track.VideoId));
+        Assert.True(library.Find(imported.Id)!.ChangedAt > imported.ChangedAt);
+        Assert.Equal(2, store.Saves.Count);
+        Assert.False(library.Append("gone", [LocalPlaylistItem.Of(Song("c"))]));
+    }
+
+    [Fact]
     public void A_blank_name_is_refused_and_nothing_is_saved()
     {
         var (library, store) = Make();

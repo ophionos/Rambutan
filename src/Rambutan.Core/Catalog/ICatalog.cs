@@ -142,8 +142,11 @@ public interface ICatalog : IRadioSource
 
     Task RenamePlaylistAsync(string playlistId, string title, CancellationToken ct = default);
 
+    /// <summary>Appends songs. Without <paramref name="keepDuplicates"/>,
+    /// YouTube Music refuses the whole edit when one of them is already in the
+    /// playlist or comes twice; with it, it adds them all.</summary>
     Task AddToPlaylistAsync(
-        string playlistId, IReadOnlyList<string> videoIds, CancellationToken ct = default);
+        string playlistId, IReadOnlyList<string> videoIds, bool keepDuplicates = false, CancellationToken ct = default);
 
     /// <summary>Removes one row; setVideoId comes from the playlist page's TrackInfo.</summary>
     Task RemoveFromPlaylistAsync(

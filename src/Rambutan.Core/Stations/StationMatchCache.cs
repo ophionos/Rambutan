@@ -16,7 +16,9 @@ public sealed record StationSearchOutcome(TrackInfo? Song, TrackInfo? OtherVersi
 /// so a song YouTube Music adds later is still found. Failed searches are never
 /// kept. Safe to use from several resolves at once.
 /// </summary>
-public sealed class StationMatchCache(TimeProvider? clock = null)
+/// <param name="maxEntries">The newest outcomes kept when saved;
+/// <see cref="MaxEntries"/> for the stations.</param>
+public sealed class StationMatchCache(TimeProvider? clock = null, int maxEntries = StationMatchCache.MaxEntries)
 {
     public static readonly TimeSpan SongLifetime = TimeSpan.FromDays(30);
     public static readonly TimeSpan NoSongLifetime = TimeSpan.FromDays(3);
@@ -59,7 +61,7 @@ public sealed class StationMatchCache(TimeProvider? clock = null)
             return _entries
                 .Where(e => !IsExpired(e.Value))
                 .OrderByDescending(e => e.Value.SearchedAt)
-                .Take(MaxEntries)
+                .Take(maxEntries)
                 .ToList();
     }
 

@@ -118,6 +118,8 @@ public partial class App : Application
             var session = _services.GetRequiredService<SessionViewModel>();
             collections.IsSignedIn = () => session.IsSignedIn;
             actions.IsSignedIn = () => session.IsSignedIn;
+            _services.GetRequiredService<NavigationService>().SpotifyImports =
+                () => _services.GetRequiredService<SpotifyImports>();
             Controls.CollectionMenu.Actions = collections;
             // Rows show the downloaded mark through a binding; their spoken names
             // read the same set and are renamed when it changes.
@@ -560,6 +562,9 @@ public partial class App : Application
         if (lastFm is not null)
             lastFm.Changed += () => Dispatcher.UIThread.Post(homeStations.ConnectionChanged);
         services.AddSingleton(homeStations);
+        // The Spotify import's searches too, for the same reason; made when
+        // the import page first opens, which reads its saved matches.
+        services.AddSingleton(_ => new SpotifyImports(dataDir, stationSearch.SearchSongsAsync));
         // Local files matched to YouTube Music songs, off by default; through
         // the stations' signed-out client, for the same reason.
         services.AddSingleton(sp => new YouTubeMatches(
