@@ -131,6 +131,7 @@ public sealed class SpotifyImportViewModelTests : IDisposable
             "Van Halen Panama" => [Song("Panama", "panama"), Song("Panama (Live)", "live")],
             "Van Halen Jump" => [Song("Jump", "jump")],
             "Van Halen Unchained" => [Song("Unchained", "unchained")],
+            _ when query.StartsWith("Van Halen T", StringComparison.Ordinal) => [Song(query[10..], query[10..].ToLowerInvariant())],
             _ => [],
         };
         return Task.FromResult(results);
@@ -259,16 +260,52 @@ public sealed class SpotifyImportViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task A_list_that_fails_stops_the_import_and_is_not_remembered()
+    public async Task A_list_that_fails_stops_the_import_and_keeps_the_playlist_it_made()
     {
         var page = Page();
         var pop = new ImportedList(ImportedListKind.Playlist, "Pop", [Jump]);
-        await ChooseAndFindAsync(page, Rock(), pop);
+        var jazz = new ImportedList(ImportedListKind.Playlist, "Jazz", [Jump]);
+        await ChooseAndFindAsync(page, Rock(), pop, jazz);
         _catalog.AddFailure = id => id == "PL2" ? new HttpRequestException("offline") : null;
 
         await page.CreateCommand.ExecuteAsync(null);
 
         Assert.Contains("Pop", page.Problem);
-        Assert.Equal(["Rock"], new SpotifyImportRecordStore(_dir.FullName).Load().Select(r => r.ListName));
+        Assert.Equal(2, _catalog.CreatedPlaylists.Count);
+        var records = new SpotifyImportRecordStore(_dir.FullName).Load();
+        Assert.Equal(["Rock", "Pop"], records.Select(r => r.ListName));
+        Assert.Equal(new ImportedPart("PL2", 0), Assert.Single(records[1].Parts));
+        Assert.Empty(records[1].Keys);
+    }
+
+    // The second batch of 100 fails, or the first; a second import adds what
+    // is left to the same playlist.
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task An_import_that_stopped_partway_adds_the_rest_and_nothing_twice(int failingAdd)
+    {
+        var rows = Enumerable.Range(1, 150).Select(n => new ImportedTrack($"T{n}", ["Van Halen"])).ToArray();
+        var adds = 0;
+        _catalog.AddFailure = _ => ++adds == failingAdd ? new HttpRequestException("offline") : null;
+        var page = Page();
+        await ChooseAndFindAsync(page, Rock(rows));
+        await page.CreateCommand.ExecuteAsync(null);
+        Assert.NotNull(page.Problem);
+        var done = (failingAdd - 1) * ImportPlan.AddBatch;
+        Assert.Equal(done, _catalog.Added.Sum(a => a.VideoIds.Count));
+
+        var again = Page();
+        await ChooseAndFindAsync(again, Rock(rows));
+        Assert.Equal(150 - done, again.Rows.Count);
+        await again.CreateCommand.ExecuteAsync(null);
+
+        Assert.Null(again.Problem);
+        Assert.Single(_catalog.CreatedPlaylists);
+        var ids = _catalog.Added.SelectMany(a => a.VideoIds).ToList();
+        Assert.Equal(150, ids.Count);
+        Assert.Equal(150, ids.Distinct().Count());
+        Assert.All(_catalog.Added, a => Assert.Equal("PL1", a.PlaylistId));
+        Assert.Equal(150, Assert.Single(new SpotifyImportRecordStore(_dir.FullName).Load()).Parts[0].Count);
     }
 }

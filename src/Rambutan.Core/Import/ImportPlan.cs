@@ -90,6 +90,29 @@ public static class ImportPlan
         return added;
     }
 
+    /// <summary>
+    /// The rows an import got through when it stopped after adding
+    /// <paramref name="added"/> songs: every row before the next one with a
+    /// song to add, so a later import adds the rest and nothing twice.
+    /// </summary>
+    public static IReadOnlyList<ImportedTrack> Covered(
+        IReadOnlyList<ImportedTrack> rows, Func<ImportedTrack, bool> addsSong, int added)
+    {
+        var covered = new List<ImportedTrack>();
+        var seen = 0;
+        foreach (var row in rows)
+        {
+            if (addsSong(row))
+            {
+                if (seen == added)
+                    break;
+                seen++;
+            }
+            covered.Add(row);
+        }
+        return covered;
+    }
+
     /// <summary>The latest record of <paramref name="list"/> imported to
     /// <paramref name="target"/>, by the list's kind and name; null when it
     /// wasn't imported there before.</summary>

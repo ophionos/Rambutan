@@ -445,6 +445,9 @@ file sink), never to files directly.
   `spotify-imports.json` (versioned) keeps what each import made and every
   row it read, so importing the same list to the same place again adds only
   the rows new since (`ImportPlan.NewSince`) to the last playlist it made.
+  A list that stops partway is recorded as far as it got (each batch counts
+  as it lands, `ImportPlan.Covered`), so the next import adds the rest and
+  nothing twice. The page says the feature is experimental.
 - `rambutan://` links: the grammar is `Core/Links/DeepLinkParser`, acting on a
   link is `ViewModels/DeepLinkHandler`, and the Windows registration (HKCU,
   from Velopack's install, update and uninstall hooks only) is

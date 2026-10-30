@@ -242,6 +242,19 @@ public sealed class ImportPlanTests
     }
 
     [Fact]
+    public void An_import_that_stopped_covers_the_rows_before_the_next_song_to_add()
+    {
+        ImportedTrack a = new("A", ["X"]), lost = new("Lost", ["X"]), b = new("B", ["X"]), c = new("C", ["X"]);
+        IReadOnlyList<ImportedTrack> rows = [a, lost, b, lost, c];
+        bool Adds(ImportedTrack t) => t != lost;
+
+        Assert.Equal([lost], ImportPlan.Covered([lost, a], Adds, 0));
+        Assert.Equal([a, lost], ImportPlan.Covered(rows, Adds, 1));
+        Assert.Equal([a, lost, b, lost], ImportPlan.Covered(rows, Adds, 2));
+        Assert.Equal(rows, ImportPlan.Covered(rows, Adds, 3));
+    }
+
+    [Fact]
     public void The_earlier_import_is_the_latest_of_the_same_list_and_target()
     {
         var list = new ImportedList(ImportedListKind.Playlist, "Rock", []);

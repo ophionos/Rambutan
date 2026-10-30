@@ -12,7 +12,16 @@
        on the right. Nothing is created until the Import button. -->
   <Grid RowDefinitions="Auto,*">
     <StackPanel Grid.Row="0" Spacing="6" Margin="4,0,16,16">
-      <TextBlock Text="{l:T import.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold" />
+      <!-- Experimental: Spotify can change its export or its pages at any time. -->
+      <StackPanel Orientation="Horizontal" Spacing="14">
+        <TextBlock Text="{l:T import.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold"
+                   VerticalAlignment="Center" />
+        <Border BorderBrush="{StaticResource Token.Brush.Text.Muted}" BorderThickness="1" CornerRadius="999"
+                Padding="10,2" VerticalAlignment="Center" ToolTip.Tip="{l:T import.experimentalTip}">
+          <TextBlock Classes="rowmeta" Text="{l:T import.experimental}"
+                     AutomationProperties.HelpText="{l:T import.experimentalTip}" />
+        </Border>
+      </StackPanel>
       <TextBlock Classes="headersummary" Text="{l:T import.intro}" TextWrapping="Wrap" MaxWidth="760"
                  HorizontalAlignment="Left" />
       <TextBlock Classes="headermeta" Text="{l:T import.sent}" TextWrapping="Wrap" MaxWidth="760"

@@ -383,25 +383,32 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
                 var item = chosen[i];
                 ProgressDone = i;
                 ProgressText = Strings.Format("import.creating.progress", ("name", item.DisplayName), ("done", i + 1), ("total", chosen.Count));
-                var songs = _review.SongsOf(item.InScope);
                 var earlier = item.AddToEarlier ? item.Earlier : null;
+                var progress = new ListProgress(earlier);
+                Exception? failure = null;
                 try
                 {
-                    var record = earlier is null
-                        ? await CreateNewAsync(item, songs, target, made)
-                        : await AddToEarlierAsync(item, earlier, songs, target, made);
-                    if (earlier is not null)
-                        _records.Remove(earlier);
-                    if (record is not null)
-                        _records.Add(record);
-                    songsAdded += songs.Count;
+                    await ImportListAsync(item, earlier, _review.SongsOf(item.InScope), target, progress, made);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    AppLog.Write("import", $"Creating '{item.DisplayName}' failed: {ex.GetType().Name}: {ex.Message}");
-                    Problem = ex is NotSignedInException
+                    failure = ex;
+                }
+                songsAdded += progress.Added;
+                // Recorded even when it stopped partway, so the next import
+                // adds the rest to the same playlists and nothing twice.
+                if (RecordOf(item, earlier, target, progress, complete: failure is null) is { } record)
+                {
+                    if (earlier is not null)
+                        _records.Remove(earlier);
+                    _records.Add(record);
+                }
+                if (failure is not null)
+                {
+                    AppLog.Write("import", $"Importing '{item.DisplayName}' stopped: {failure.GetType().Name}: {failure.Message}");
+                    Problem = failure is NotSignedInException
                         ? Strings.Get("import.problem.signedOut")
-                        : Strings.Format("import.problem.createFailed", ("name", item.DisplayName), ("error", ex.Message));
+                        : Strings.Format("import.problem.createFailed", ("name", item.DisplayName), ("error", failure.Message));
                     break;
                 }
             }
@@ -433,71 +440,91 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
         }
     }
 
-    private async Task<ImportRecord?> CreateNewAsync(
-        ImportListItem item, IReadOnlyList<TrackInfo> songs, ImportTarget target, List<(string Name, string Id)> made)
+    /// <summary>What one list's import has done so far: its playlists, with
+    /// their counts, and the songs it added.</summary>
+    private sealed class ListProgress(ImportRecord? earlier)
     {
-        var name = item.DisplayName;
-        var parts = new List<ImportedPart>();
-        foreach (var planned in ImportPlan.Split(name, songs, ImportPlan.CapOf(target)))
-        {
-            var id = await CreatePlaylistAsync(planned, target);
-            made.Add((planned.Name, id));
-            parts.Add(new ImportedPart(id, planned.Songs.Count));
-        }
-        return parts.Count == 0
-            ? null
-            : new ImportRecord(item.List.Name, item.List.Kind, target, name, parts,
-                item.List.Tracks.Select(ImportMatcher.KeyOf).ToList(), DateTimeOffset.UtcNow);
+        public List<ImportedPart> Parts { get; } = earlier?.Parts.ToList() ?? [];
+
+        public int Added { get; set; }
     }
 
-    private async Task<ImportRecord> AddToEarlierAsync(
-        ImportListItem item, ImportRecord earlier, IReadOnlyList<TrackInfo> songs, ImportTarget target,
-        List<(string Name, string Id)> made)
+    // New playlists, or the new songs added to the earlier import's last
+    // playlist while it has room and then to new parts.
+    private async Task ImportListAsync(
+        ImportListItem item, ImportRecord? earlier, IReadOnlyList<TrackInfo> songs, ImportTarget target,
+        ListProgress progress, List<(string Name, string Id)> made)
     {
-        var (toLast, newParts) = ImportPlan.Append(earlier, songs, ImportPlan.CapOf(target));
-        var parts = earlier.Parts.ToList();
+        var cap = ImportPlan.CapOf(target);
+        if (earlier is null)
+        {
+            foreach (var planned in ImportPlan.Split(item.DisplayName, songs, cap))
+                await CreatePartAsync(planned, target, progress, made);
+            return;
+        }
+        var (toLast, newParts) = ImportPlan.Append(earlier, songs, cap);
         if (toLast.Count > 0)
-        {
-            var last = parts[^1];
-            await AddAsync(last.PlaylistId, toLast, target);
-            parts[^1] = last with { Count = last.Count + toLast.Count };
-        }
+            await AddAsync(progress, progress.Parts.Count - 1, toLast, target);
         foreach (var planned in newParts)
-        {
-            var id = await CreatePlaylistAsync(planned, target);
-            made.Add((planned.Name, id));
-            parts.Add(new ImportedPart(id, planned.Songs.Count));
-        }
-        return earlier with
-        {
-            Parts = parts,
-            Keys = item.List.Tracks.Select(ImportMatcher.KeyOf).ToList(),
-            ImportedAt = DateTimeOffset.UtcNow,
-        };
+            await CreatePartAsync(planned, target, progress, made);
     }
 
-    private async Task<string> CreatePlaylistAsync(PlannedPlaylist planned, ImportTarget target)
+    /// <summary>The record of a list's import; null when it changed nothing
+    /// (it stopped before any playlist or song), and the earlier record stays.</summary>
+    private ImportRecord? RecordOf(
+        ImportListItem item, ImportRecord? earlier, ImportTarget target, ListProgress progress, bool complete)
+    {
+        if (progress.Parts.Count == 0 ||
+            (!complete && progress.Added == 0 && progress.Parts.Count == (earlier?.Parts.Count ?? 0)))
+            return null;
+        IReadOnlyList<string> keys = complete
+            ? item.List.Tracks.Select(ImportMatcher.KeyOf).ToList()
+            : [.. earlier?.Keys ?? [],
+               .. ImportPlan.Covered(item.InScope, t => _review!.SongOf(t) is not null, progress.Added).Select(ImportMatcher.KeyOf)];
+        return new ImportRecord(item.List.Name, item.List.Kind, target, earlier?.PlaylistName ?? item.DisplayName,
+            progress.Parts.ToList(), keys, DateTimeOffset.UtcNow);
+    }
+
+    private async Task CreatePartAsync(
+        PlannedPlaylist planned, ImportTarget target, ListProgress progress, List<(string Name, string Id)> made)
     {
         if (target == ImportTarget.ThisComputer)
-            return _localPlaylists!.Import(planned.Name, planned.Songs.Select(LocalPlaylistItem.Of)).Id;
-        var id = await _catalog.CreatePlaylistAsync(planned.Name, privacy: PlaylistPrivacy.Private);
-        await AddAsync(id, planned.Songs, target);
-        return id;
+        {
+            var id = _localPlaylists!.Import(planned.Name, planned.Songs.Select(LocalPlaylistItem.Of)).Id;
+            made.Add((planned.Name, id));
+            progress.Parts.Add(new ImportedPart(id, planned.Songs.Count));
+            progress.Added += planned.Songs.Count;
+            return;
+        }
+        var created = await _catalog.CreatePlaylistAsync(planned.Name, privacy: PlaylistPrivacy.Private);
+        made.Add((planned.Name, created));
+        progress.Parts.Add(new ImportedPart(created, 0));
+        await AddAsync(progress, progress.Parts.Count - 1, planned.Songs, target);
     }
 
     // In batches, duplicates kept: a Spotify playlist may hold a song twice.
-    private async Task AddAsync(string playlistId, IReadOnlyList<TrackInfo> songs, ImportTarget target)
+    // Each batch that lands is counted at once, in case a later one fails.
+    private async Task AddAsync(ListProgress progress, int part, IReadOnlyList<TrackInfo> songs, ImportTarget target)
     {
+        var playlistId = progress.Parts[part].PlaylistId;
         if (target == ImportTarget.ThisComputer)
         {
             if (!_localPlaylists!.Append(playlistId, songs.Select(LocalPlaylistItem.Of)))
                 throw new InvalidOperationException(Strings.Get("import.problem.localGone"));
+            Count(songs.Count);
             return;
         }
         for (var i = 0; i < songs.Count; i += ImportPlan.AddBatch)
         {
             var batch = songs.Skip(i).Take(ImportPlan.AddBatch).Select(s => s.VideoId).ToList();
             await _catalog.AddToPlaylistAsync(playlistId, batch, keepDuplicates: true);
+            Count(batch.Count);
+        }
+
+        void Count(int n)
+        {
+            progress.Parts[part] = progress.Parts[part] with { Count = progress.Parts[part].Count + n };
+            progress.Added += n;
         }
     }
 }
