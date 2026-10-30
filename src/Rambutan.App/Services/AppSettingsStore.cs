@@ -25,6 +25,15 @@ public sealed class AppSettings
     /// progress on the taskbar button. Default on.</summary>
     public bool TaskbarControls { get; set; } = true;
 
+    /// <summary>A system notification when the track changes while no app
+    /// window has the focus. Off by default: the media overlay already shows
+    /// the track, and a notification per song is a preference.</summary>
+    public bool NotifyOnTrackChange { get; set; }
+
+    /// <summary>With <see cref="NotifyOnTrackChange"/>, also one for a track
+    /// that starts on its own while the app has the focus. Off by default.</summary>
+    public bool NotifyOnItsOwnWhileFocused { get; set; }
+
     /// <summary>A queue that runs out continues with radio. Default on, as
     /// in YouTube Music; repeat overrides it.</summary>
     public bool Autoplay { get; set; } = true;

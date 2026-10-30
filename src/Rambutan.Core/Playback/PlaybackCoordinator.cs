@@ -105,6 +105,10 @@ public sealed class PlaybackCoordinator : IDisposable
     /// must not advance again.</summary>
     private bool _skipAdvancedQueue;
 
+    /// <summary>An engine-event reaction holds the gate: a track it starts
+    /// started on its own, not at the user's command.</summary>
+    private bool _reacting;
+
     /// <summary>The successor a seek disarmed mid-fade. The engine may already
     /// have promoted it, with the event still on its way; that promotion must
     /// still count. Keys are unique, so a stale entry never matches anything else.</summary>
@@ -162,6 +166,11 @@ public sealed class PlaybackCoordinator : IDisposable
 
     public event Action<PlaybackState>? StateChanged;
     public event Action<TrackInfo?>? NowPlayingChanged;
+
+    /// <summary>A track began to play: raised with each non-null
+    /// <see cref="NowPlayingChanged"/>, saying whether the user started it or it
+    /// started on its own (the last one ended, autoplay, a skip past a failure).</summary>
+    public event Action<TrackStart>? TrackStarted;
     public event Action<PlaybackProgress>? ProgressChanged;
 
     /// <summary>The track that lost the network mid-play and waits for it to come
@@ -484,6 +493,7 @@ public sealed class PlaybackCoordinator : IDisposable
                 if (triggerKey != _currentKey || seqAtFire != _commandVersion)
                     return;
                 _activeWork = cts;
+                _reacting = true;
             }
             await work(seqAtFire, cts.Token);
         }
@@ -496,6 +506,7 @@ public sealed class PlaybackCoordinator : IDisposable
         }
         finally
         {
+            lock (_sync) _reacting = false;
             _gate.Release();
         }
     }
@@ -623,6 +634,7 @@ public sealed class PlaybackCoordinator : IDisposable
             _playedThisSession.Add(track.VideoId);
             _machine.TransitionTo(PlaybackState.Playing);
             NowPlayingChanged?.Invoke(track);
+            TrackStarted?.Invoke(new(track, OnItsOwn: _reacting));
         }
 
         // Detached, not awaited: preload's resolve + prebuffer must not extend the
@@ -1003,11 +1015,15 @@ public sealed class PlaybackCoordinator : IDisposable
             // The engine already advanced; bring the queue pointer along while the
             // lock guarantees no command issue interleaves — unless a skip fade
             // already moved it when the fade began.
-            if (_skipAdvancedQueue)
+            // A skip fade's promotion is the user's skip; any other is the
+            // engine moving on at the end of the track.
+            var skipped = _skipAdvancedQueue;
+            if (skipped)
                 _skipAdvancedQueue = false;
             else
                 _queue.NextTrack(TrackEndReason.Natural);
             NowPlayingChanged?.Invoke(promoted);
+            TrackStarted?.Invoke(new(promoted, OnItsOwn: !skipped));
         }
 
         if (clearRearmed)

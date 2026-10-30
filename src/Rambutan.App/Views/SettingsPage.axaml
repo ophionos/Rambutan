@@ -563,6 +563,28 @@
                               AutomationProperties.Name="{l:T settings.behavior.taskbarControls}" />
               </Grid>
             </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.behavior.notify}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.behavior.notifyHelp}" IsVisible="{Binding CanNotify}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.behavior.notifyUnavailable}" IsVisible="{Binding CannotNotify}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding NotifyOnTrackChange}" IsEnabled="{Binding CanNotify}"
+                              AutomationProperties.Name="{l:T settings.behavior.notify}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.behavior.notifyWhileFocused}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.behavior.notifyWhileFocusedHelp}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding NotifyOnItsOwnWhileFocused}"
+                              IsEnabled="{Binding CanNotifyOnItsOwnWhileFocused}"
+                              AutomationProperties.Name="{l:T settings.behavior.notifyWhileFocused}" />
+              </Grid>
+            </Border>
           </StackPanel>
         </Border>
       </StackPanel>
