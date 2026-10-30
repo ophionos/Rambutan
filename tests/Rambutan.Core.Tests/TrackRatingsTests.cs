@@ -233,6 +233,8 @@ public class TrackRatingsTests
         public Task<LibraryPage> GetLibrarySongsAsync(CancellationToken ct = default) => throw new NotSupportedException();
         public Task<LibraryPage> GetLibrarySongsContinuationAsync(ContinuationToken continuation, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<LibraryPage> GetLibraryPlaylistsContinuationAsync(ContinuationToken continuation, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<LibraryPage> GetHistoryAsync(CancellationToken ct = default) => throw new NotSupportedException();
+        public Task RemoveFromHistoryAsync(string removeToken, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<string> CreatePlaylistAsync(string title, string? description = null, PlaylistPrivacy privacy = PlaylistPrivacy.Private, CancellationToken ct = default) => throw new NotSupportedException();
         public Task DeletePlaylistAsync(string playlistId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task RenamePlaylistAsync(string playlistId, string title, CancellationToken ct = default) => throw new NotSupportedException();

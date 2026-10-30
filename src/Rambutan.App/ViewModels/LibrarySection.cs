@@ -1,5 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,8 +11,9 @@ using Rambutan.App.Localization;
 
 namespace Rambutan.App.ViewModels;
 
-/// <summary>The Library's tabs, in YouTube Music's order.</summary>
-public enum LibrarySectionKind { Playlists, Songs, Albums, Artists }
+/// <summary>The Library's tabs, in YouTube Music's order; History, a page of its
+/// own there, last.</summary>
+public enum LibrarySectionKind { Playlists, Songs, Albums, Artists, History }
 
 /// <summary>
 /// One Library tab: its first page, the pages after it as the list scrolls, and
@@ -55,6 +58,8 @@ public partial class LibrarySection : ViewModelBase
         Kind = kind;
         _first = first;
         _next = next;
+        if (kind == LibrarySectionKind.History)
+            Items.CollectionChanged += OnItemsChanged;
     }
 
     public static LibrarySection For(LibrarySectionKind kind, ICatalog catalog) => kind switch
@@ -65,6 +70,9 @@ public partial class LibrarySection : ViewModelBase
             () => catalog.GetLibraryArtistsAsync(), t => catalog.GetLibraryArtistsContinuationAsync(t)),
         LibrarySectionKind.Songs => new(kind,
             () => catalog.GetLibrarySongsAsync(), t => catalog.GetLibrarySongsContinuationAsync(t)),
+        // One page, so there is never a token to follow.
+        LibrarySectionKind.History => new(kind,
+            () => catalog.GetHistoryAsync(), _ => Task.FromResult(new LibraryPage { Items = [] })),
         _ => new(kind,
             () => catalog.GetLibraryPlaylistsAsync(), t => catalog.GetLibraryPlaylistsContinuationAsync(t)),
     };
@@ -102,6 +110,28 @@ public partial class LibrarySection : ViewModelBase
     }
 
     public bool IsSongs => Kind == LibrarySectionKind.Songs;
+
+    public bool IsHistory => Kind == LibrarySectionKind.History;
+
+    /// <summary>Songs and History show as track rows; the other tabs as cards.</summary>
+    public bool ShowsRows => IsSongs || IsHistory;
+
+    /// <summary>History's rows under YouTube Music's own headings, kept in step
+    /// with <see cref="Items"/>; empty on the other tabs.</summary>
+    public ObservableCollection<HistoryGroup> Groups { get; } = [];
+
+    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        Groups.Clear();
+        foreach (var entry in Items.OfType<HistoryEntry>())
+        {
+            // The rows come grouped, newest first; a heading only starts a group
+            // where it changes.
+            if (Groups.Count == 0 || Groups[^1].Played != entry.Played)
+                Groups.Add(new HistoryGroup(entry.Played));
+            Groups[^1].Entries.Add(entry);
+        }
+    }
 
     [RelayCommand]
     public async Task RefreshAsync()
@@ -191,7 +221,15 @@ public partial class LibrarySection : ViewModelBase
     {
         LibrarySectionKind.Albums => LoadSubject.MoreAlbums,
         LibrarySectionKind.Artists => LoadSubject.MoreArtists,
-        LibrarySectionKind.Songs => LoadSubject.MoreSongs,
+        LibrarySectionKind.Songs or LibrarySectionKind.History => LoadSubject.MoreSongs,
         _ => LoadSubject.MorePlaylists,
     };
+}
+
+/// <summary>History's rows under one of YouTube Music's headings ("Today", a month).</summary>
+public sealed class HistoryGroup(string played)
+{
+    public string Played { get; } = played;
+
+    public ObservableCollection<HistoryEntry> Entries { get; } = [];
 }

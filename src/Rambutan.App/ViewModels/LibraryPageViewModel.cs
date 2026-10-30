@@ -18,13 +18,13 @@ public enum LibrarySource { YouTubeMusic, ThisComputer }
 
 /// <summary>
 /// The Library, from two sources. YouTube Music's: saved playlists, saved songs,
-/// saved albums and subscribed artists, one tab each. On this computer: the
+/// saved albums, subscribed artists and the account's history, one tab each. On this computer: the
 /// watched folders' files (<see cref="LocalLibraryViewModel"/>), signed in or not.
 /// YouTube Music's tabs: A tab loads when first shown; a save or subscribe
 /// elsewhere marks its tab stale, so it reloads when next shown. A song removed
 /// from the library leaves the Songs tab at once.
 /// </summary>
-public partial class LibraryPageViewModel : ViewModelBase
+public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
 {
     private readonly ICatalog _catalog;
     private readonly NavigationService _navigation;
@@ -61,6 +61,8 @@ public partial class LibraryPageViewModel : ViewModelBase
     public bool IsSongs => SelectedSection.IsSongs;
 
     public LibrarySection Songs => Section(LibrarySectionKind.Songs);
+
+    public LibrarySection History => Section(LibrarySectionKind.History);
 
     /// <summary>On this computer; null where the local library isn't composed,
     /// and then the source switch doesn't show.</summary>
@@ -190,6 +192,50 @@ public partial class LibraryPageViewModel : ViewModelBase
         var tracks = Songs.Items.OfType<SongEntry>().Select(e => e.Track).ToList();
         var index = tracks.FindIndex(t => t.VideoId == song.Track.VideoId);
         return index >= 0 ? _coordinator.PlayQueueAsync(tracks, index) : Task.CompletedTask;
+    }
+
+    /// <summary>A history song plays with the whole history as its queue, newest
+    /// first, as the Songs tab's rows do.</summary>
+    [RelayCommand]
+    private Task PlayHistoryEntryAsync(HistoryEntry entry)
+    {
+        var entries = History.Items.OfType<HistoryEntry>().ToList();
+        var index = entries.IndexOf(entry);
+        return index >= 0
+            ? _coordinator.PlayQueueAsync(entries.Select(e => e.Track).ToList(), index)
+            : Task.CompletedTask;
+    }
+
+    public TrackMenuExtras MenuExtrasFor(object? row, TrackInfo track) =>
+        row is HistoryEntry { RemoveToken: not null } entry
+            ? new TrackMenuExtras(Edit:
+                [new(Strings.Get("menu.removeFromHistory"), "Icon.Delete", RemoveFromHistoryCommand, entry)])
+            : TrackMenuExtras.None;
+
+    /// <summary>
+    /// Takes the row out of the account's history at once. YouTube Music has no
+    /// way to put it back, so there is no Undo; it is only in the row's menu,
+    /// never a button on the row that a stray click could hit.
+    /// </summary>
+    [RelayCommand]
+    private async Task RemoveFromHistoryAsync(HistoryEntry entry)
+    {
+        if (entry.RemoveToken is not { } token)
+            return;
+        try
+        {
+            await _catalog.RemoveFromHistoryAsync(token);
+            History.RemoveEntry(entry);
+            _actions?.Report(Strings.Format("toast.history.removed", ("title", entry.Title)));
+        }
+        catch (NotSignedInException)
+        {
+            History.NeedsSignIn = true;
+        }
+        catch (Exception ex)
+        {
+            _actions?.ReportError(Strings.Format("toast.history.removeFailed", ("title", entry.Title), ("error", ex.Message)));
+        }
     }
 
     [RelayCommand]

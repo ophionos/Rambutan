@@ -65,7 +65,10 @@ public sealed class LibraryTests
     public void TheTabs_FollowYouTubeMusicsOrder()
     {
         Assert.Equal(
-            [LibrarySectionKind.Playlists, LibrarySectionKind.Songs, LibrarySectionKind.Albums, LibrarySectionKind.Artists],
+            [
+                LibrarySectionKind.Playlists, LibrarySectionKind.Songs, LibrarySectionKind.Albums,
+                LibrarySectionKind.Artists, LibrarySectionKind.History,
+            ],
             Library().Sections.Select(s => s.Kind));
     }
 

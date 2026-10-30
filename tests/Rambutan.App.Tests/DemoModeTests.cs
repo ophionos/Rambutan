@@ -210,6 +210,19 @@ public class DemoModeTests
     }
 
     [Fact]
+    public async Task History_LoadsAndRemovesWithoutError()
+    {
+        var client = Client(Options());
+
+        var history = await client.GetHistoryAsync();
+        var entries = history.Items.Select(i => Assert.IsType<HistoryEntry>(i)).ToList();
+        Assert.NotEmpty(entries);
+        Assert.Null(history.Continuation);
+
+        await client.RemoveFromHistoryAsync(entries[0].RemoveToken!);
+    }
+
+    [Fact]
     public async Task TheDemoAccountsOwnPlaylists_AreEditable_AndOthersAreNot()
     {
         var client = Client(Options());
