@@ -242,7 +242,9 @@ file sink), never to files directly.
   (`Lyrics/Providers/YouTubeMusicLyricsProvider`, through the stations'
   signed-out `InnerTubeClient.GetLyricsAsync`: the watch page's Lyrics tab,
   then the page it opens; plain text, with YouTube Music's credit line
-  shown beside its name). The user chooses one in the pane
+  shown beside its name; a local file asks by its match's id, its tagged
+  song's whatever the setting, and caches under its own id, and a file
+  with no song asks nothing and caches no miss). The user chooses one in the pane
   (`AppSettings.LyricsSource`, LRCLIB by default); only that one is asked,
   never the other after a miss, and each keeps its own cache (LRCLIB's in
   `lyrics/cache`, YouTube Music's under it in `youtubeMusic`). Lyrics text

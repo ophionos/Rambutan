@@ -102,6 +102,7 @@ public sealed class YouTubeMatchesTests : IDisposable
 
         Assert.Null(matches.StatusOf(Local("local:1", "Disco 2000")));
         Assert.Null(await matches.RadioSeedAsync(Local("local:1", "Disco 2000"), default));
+        Assert.Null(await matches.SongIdAsync("local:1", default));
         Assert.Equal([], matches.Fill(Local("local:1", "Disco 2000")).Artists);
         Assert.Null(matches.CoverPathFor("local:1"));
         Assert.Single(_searches);
@@ -156,6 +157,7 @@ public sealed class YouTubeMatchesTests : IDisposable
         Assert.Equal("khnokW3Mw24", status.Song.SongId);
         Assert.Equal("Disco 2000", status.Song.Title);
         Assert.Equal("YQHsXMglC9A", await matches.RadioSeedAsync(track, default));
+        Assert.Equal("YQHsXMglC9A", await matches.SongIdAsync("local:4", default));
         Assert.Equal("Pulp", Assert.Single(matches.Fill(track).Artists).Name);
         Assert.Empty(_searches);
     }

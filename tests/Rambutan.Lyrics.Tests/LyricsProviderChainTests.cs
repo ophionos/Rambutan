@@ -57,6 +57,24 @@ public class LyricsProviderChainTests
     }
 
     [Fact]
+    public async Task A_provider_with_nothing_to_ask_moves_on_and_alone_is_not_asked()
+    {
+        var notAsked = ScriptedProvider.Returning("a", LyricsResult.NotAsked("a"));
+
+        var alone = await new LyricsProviderChain([notAsked]).LookupAsync(Query, CancellationToken.None);
+        var withMiss = await new LyricsProviderChain([notAsked, ScriptedProvider.Returning("b", null)])
+            .LookupAsync(Query, CancellationToken.None);
+        var withAnswer = await new LyricsProviderChain([notAsked, ScriptedProvider.Returning("b", Lyrics("b"))])
+            .LookupAsync(Query, CancellationToken.None);
+
+        Assert.Equal(LyricsStatus.NotFound, alone.Status);
+        Assert.False(alone.Asked);
+        Assert.Equal(LyricsStatus.NotFound, withMiss.Status);
+        Assert.True(withMiss.Asked);
+        Assert.Equal("b", withAnswer.Document!.Source);
+    }
+
+    [Fact]
     public async Task A_failure_is_skipped_and_a_later_answer_still_wins()
     {
         var lookup = await new LyricsProviderChain(

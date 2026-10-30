@@ -29,7 +29,13 @@ public enum LyricsStatus
 /// <summary>The outcome of looking up one track, with each state the pane must show.</summary>
 public sealed record LyricsLookup(LyricsStatus Status, LyricsDocument? Document = null)
 {
+    /// <summary>False for a <see cref="LyricsStatus.NotFound"/> where no source
+    /// had anything to ask for the track (<see cref="LyricsResult.IsNotAsked"/>):
+    /// not cached.</summary>
+    public bool Asked { get; init; } = true;
+
     public static LyricsLookup NotFound { get; } = new(LyricsStatus.NotFound);
+    public static LyricsLookup NotAsked { get; } = new(LyricsStatus.NotFound) { Asked = false };
     public static LyricsLookup Unavailable { get; } = new(LyricsStatus.Unavailable);
     public static LyricsLookup NotLookedUp { get; } = new(LyricsStatus.NotLookedUp);
 

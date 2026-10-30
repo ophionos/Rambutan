@@ -161,7 +161,7 @@ public sealed partial class LyricsViewModel : ViewModelBase
     /// <summary>Why nothing was found, by the source asked.</summary>
     public string NoneHint => !IsYouTubeMusicChosen
         ? Strings.Get("lyrics.noneHint")
-        : _track is { } track && !YouTubeIds.IsVideoId(track.VideoId)
+        : _applied is { Asked: false }
             ? Strings.Get("lyrics.noneHint.notOnYouTube")
             : Strings.Get("lyrics.noneHint.youtubeMusic");
 

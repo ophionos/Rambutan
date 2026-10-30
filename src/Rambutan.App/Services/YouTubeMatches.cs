@@ -133,14 +133,19 @@ public sealed class YouTubeMatches(
     /// <summary>The matched song's id, for autoplay's radio; waits for a search
     /// under way. Null while off (unless the tags name the song), or without a
     /// match. Throws when the search fails.</summary>
-    public async Task<string?> RadioSeedAsync(TrackInfo track, CancellationToken ct)
+    public Task<string?> RadioSeedAsync(TrackInfo track, CancellationToken ct) => SongIdAsync(track.VideoId, ct);
+
+    /// <summary>The matched song's id for a local id, starting a search when
+    /// nothing is known (for YouTube Music's lyrics); as
+    /// <see cref="RadioSeedAsync"/>.</summary>
+    public async Task<string?> SongIdAsync(string id, CancellationToken ct)
     {
-        if (Tagged(track.VideoId) is { } tagged)
+        if (Tagged(id) is { } tagged)
             return tagged.VideoId;
-        if (!Enabled || !LocalIds.IsLocal(track.VideoId))
+        if (!Enabled || !LocalIds.IsLocal(id))
             return null;
         Load();
-        return (await matcher.MatchAsync(track.VideoId, QueryOf(track.VideoId), ct))?.VideoId;
+        return (await matcher.MatchAsync(id, QueryOf(id), ct))?.VideoId;
     }
 
     /// <summary>The track with what its tags lack filled from its match, if it

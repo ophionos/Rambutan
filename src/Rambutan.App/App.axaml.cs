@@ -587,6 +587,8 @@ public partial class App : Application
         // source, stored under the data directory like the other stores. The
         // sources are LRCLIB and YouTube Music, asked through the stations'
         // signed-out client: it sends only the video id, and works signed out.
+        // A local file asks YouTube Music by its match's id (its tagged song,
+        // or a match while matching is on), cached under the file's id.
         // A demo answers LRCLIB from invented lyrics, and YouTube Music from its
         // recording. The tags are read through libav, so that waits for ffmpeg,
         // as playback does: a restored local track asks at startup.
@@ -596,7 +598,8 @@ public partial class App : Application
                 ? null
                 : new HttpClient(new DemoLyricsHandler(Demo, sp.GetRequiredService<QueueModel>()))),
             new YouTubeMusicLyricsProvider(async (videoId, ct) =>
-                await stationSearch.GetLyricsAsync(videoId, ct) is { } found ? (found.Text, found.Credit) : null),
+                await stationSearch.GetLyricsAsync(videoId, ct) is { } found ? (found.Text, found.Credit) : null,
+                (id, ct) => sp.GetRequiredService<YouTubeMatches>().SongIdAsync(id, ct)),
         ],
         new LocalLyrics(
             id => sp.GetRequiredService<LocalLibraryScans>().Index.Find(id) is { IsMissing: false } file ? file.Path : null,
