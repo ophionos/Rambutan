@@ -207,11 +207,13 @@ public sealed class StationSnapshotStore(string dataDirectory)
 /// Loads <see cref="SavedStationMatches"/> into a <see cref="StationMatchCache"/>
 /// and saves it back. Never throws, like <see cref="StationSnapshotStore"/>.
 /// </summary>
-public sealed class StationMatchStore(string dataDirectory, StationMatchCache cache)
+/// <param name="fileName">The file in the profile's folder: the stations'
+/// own, or another cache's in the same format (an import's matches).</param>
+public sealed class StationMatchStore(string dataDirectory, StationMatchCache cache, string fileName = "station-matches.json")
 {
     private readonly object _write = new();
 
-    public string Path { get; } = System.IO.Path.Combine(dataDirectory, "station-matches.json");
+    public string Path { get; } = System.IO.Path.Combine(dataDirectory, fileName);
 
     public void Load()
     {

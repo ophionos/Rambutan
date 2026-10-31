@@ -56,6 +56,20 @@ public class SessionProbeTests
         Assert.Equal(new SessionInfo(SessionState.Valid, "Test Listener"), plain);
     }
 
+    [Fact]
+    public async Task TheAccountId_IsItsOwnChannel_FromARecordedMenu()
+    {
+        var body = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "account-menu.json"));
+        using var client = new InnerTubeClient(new HttpClient(new Json(body)));
+
+        var info = await client.GetSessionInfoAsync(InnerTubeSession.FromCookieString("SAPISID=live")!, default);
+
+        Assert.Equal(SessionState.Valid, info.State);
+        Assert.Equal("Test Listener", info.AccountName);
+        Assert.Equal("UCtestListener0000000000", info.AccountId);
+        Assert.Equal("https://yt3.ggpht.com/test-avatar=s88", info.AccountPhotoUrl);
+    }
+
     private sealed class Json(string body) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>

@@ -66,6 +66,10 @@ public partial class SessionViewModel : ViewModelBase
     private int _rotating;
     private ITimer? _rotateTimer;
     private string? _accountName;
+
+    /// <summary>The signed-in account's id (<see cref="SessionInfo.AccountId"/>);
+    /// null when signed out or unknown.</summary>
+    public string? AccountId { get; private set; }
     private int _checking;
 
     [ObservableProperty] private string _accountLabel = Strings.Get("account.notSignedIn");
@@ -340,9 +344,10 @@ public partial class SessionViewModel : ViewModelBase
         _lastChecked = info.State is SessionState.Anonymous ? null : _time.GetUtcNow();
         // A routine re-check that finds things as they were mustn't reload the
         // Library under the listener.
-        if (forceChanged || info.State != State || info.AccountName != _accountName)
+        if (forceChanged || info.State != State || info.AccountName != _accountName || info.AccountId != AccountId)
             _sessionChanged?.Invoke();
         _accountName = info.AccountName;
+        AccountId = info.AccountId;
         _accountPhoto = info.AccountPhotoUrl;
         State = info.State;
         NeedsSignIn = false;

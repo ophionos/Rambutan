@@ -92,6 +92,7 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
             OnPropertyChanged(nameof(IsYouTubeMusic));
             OnPropertyChanged(nameof(IsThisComputer));
             OnPropertyChanged(nameof(IsStats));
+            OnPropertyChanged(nameof(ShowsSpotifyImport));
             if (!_shown)
                 return;
             if (IsThisComputer)
@@ -110,6 +111,13 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
     public bool IsThisComputer => Source == LibrarySource.ThisComputer && Local is not null;
 
     public bool IsStats => Source == LibrarySource.Stats && Stats is not null;
+
+    /// <summary>Import from Spotify, beside both sources: signed out, it
+    /// imports to this computer.</summary>
+    public bool ShowsSpotifyImport => !IsStats && _navigation?.CanImportFromSpotify == true;
+
+    [RelayCommand]
+    private void ImportFromSpotify() => _navigation.OpenSpotifyImport();
 
     // Design-time
     public LibraryPageViewModel() : this(null!, null!, null!, null!) { }

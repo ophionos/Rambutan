@@ -38,6 +38,7 @@ dotnet publish src/Rambutan.App -c Release -r linux-x64   # AOT smoke (CI runs w
 
 # InnerTube fixtures: record / diff against live YTM (live-diff also checks Last.fm stations)
 dotnet run --project tools/Rambutan.FixtureRecorder -- --help
+# Spotify's share links (the maintainer's machine only, not CI): spotify <link>, spotify-live-diff
 
 # Web apps (web/remote, web/overlay; each its own npm project, output → src/Rambutan.LocalApi/wwwroot/)
 npm install && npm run build
@@ -444,6 +445,41 @@ file sink), never to files directly.
   of their own, never the account's, so they stay out of its search history.
   Bump `TrackMatcher.RulesVersion` when a rule change could change a pick; it
   invalidates the saved matches (`App/Services/StationStores`).
+- Spotify import: Library's Import from Spotify (`SpotifyImportViewModel`,
+  one for the app's lifetime) reads Spotify's data export (the zip or its
+  JSON files, `Core/Import/SpotifyExport`) or a CSV of songs (`TrackCsv`),
+  or public playlists' and albums' share links (`Core/Import/SpotifyLinks`,
+  read by `Integrations/Spotify/SpotifyLinkReader`). A link is an outbound
+  integration: nothing is sent until Read links, and the page says what is
+  sent. The reader takes the embed page (`open.spotify.com/embed/…`, at
+  most 100 songs, and an anonymous key), then the rest of a playlist from
+  the web player's `pathfinder` API with that key; both are undocumented,
+  and when the rest fails the list keeps its first songs and says it may be
+  longer. It never follows a short link (`spotify.link`). Spotify is asked
+  only by the user's Read links and by the fixture recorder's `spotify` and
+  `spotify-live-diff`, run from the maintainer's machine, never by CI.
+  It searches each distinct song's title and first artist through the
+  stations' signed-out `InnerTubeClient`, one at a time
+  (`Core/Import/ImportMatcher`: `TrackMatcher` without the last resort; the
+  answers in `import-matches.json`, the stations' format), and matching
+  sends nothing to Spotify. The user reviews the picks (`ImportReview`: another song,
+  left out), and only the Import button creates anything: private YouTube
+  Music playlists when signed in, else local ones. Duplicates are kept
+  (`AddToPlaylistAsync`'s `keepDuplicates`, `LocalPlaylistLibrary.Append`),
+  and a list longer than `ImportPlan.YouTubeMusicCap` becomes "Name (2)", ….
+  `spotify-imports.json` (versioned) keeps what each import made and every
+  row it read, so importing the same list to the same place again adds only
+  the rows new since (`ImportPlan.NewSince`) to the last playlist it made;
+  a link's list is that list by its link (`ImportRecord.Source`), else the
+  list of the same kind and name (so the data export's playlist and its link
+  stay one playlist; two links never match), and the page offers the links
+  imported before to read again. On YouTube Music the
+  same place is the same account: a record keeps the account's channel id
+  (`SessionInfo.AccountId`, the account menu's "Your channel" link), and
+  another account, or one without a channel, makes its own playlists.
+  A list that stops partway is recorded as far as it got (each batch counts
+  as it lands, `ImportPlan.Covered`), so the next import adds the rest and
+  nothing twice. The page says the feature is experimental.
 - `rambutan://` links: the grammar is `Core/Links/DeepLinkParser`, acting on a
   link is `ViewModels/DeepLinkHandler`, and the Windows registration (HKCU,
   from Velopack's install, update and uninstall hooks only) is

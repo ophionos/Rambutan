@@ -53,6 +53,9 @@
     <DataTemplate DataType="{x:Type vm:StationPageViewModel}">
       <views:StationPage />
     </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:SpotifyImportViewModel}">
+      <views:SpotifyImportPage />
+    </DataTemplate>
     <DataTemplate DataType="{x:Type vm:MoodsPageViewModel}">
       <views:MoodsPage />
     </DataTemplate>

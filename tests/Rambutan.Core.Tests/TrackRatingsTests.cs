@@ -238,7 +238,7 @@ public class TrackRatingsTests
         public Task<string> CreatePlaylistAsync(string title, string? description = null, PlaylistPrivacy privacy = PlaylistPrivacy.Private, CancellationToken ct = default) => throw new NotSupportedException();
         public Task DeletePlaylistAsync(string playlistId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task RenamePlaylistAsync(string playlistId, string title, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task AddToPlaylistAsync(string playlistId, IReadOnlyList<string> videoIds, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task AddToPlaylistAsync(string playlistId, IReadOnlyList<string> videoIds, bool keepDuplicates = false, CancellationToken ct = default) => throw new NotSupportedException();
         public Task RemoveFromPlaylistAsync(string playlistId, string videoId, string setVideoId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task MovePlaylistItemAsync(string playlistId, string setVideoId, string? beforeSetVideoId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<string?> InsertIntoPlaylistAsync(string playlistId, string videoId, string? beforeSetVideoId, CancellationToken ct = default) => throw new NotSupportedException();

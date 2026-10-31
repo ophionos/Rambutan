@@ -59,7 +59,8 @@ internal sealed record PlaylistEditAction(
     [property: JsonPropertyName("removedVideoId")] string? RemovedVideoId = null,
     [property: JsonPropertyName("setVideoId")] string? SetVideoId = null,
     [property: JsonPropertyName("playlistName")] string? PlaylistName = null,
-    [property: JsonPropertyName("movedSetVideoIdSuccessor")] string? MovedSetVideoIdSuccessor = null);
+    [property: JsonPropertyName("movedSetVideoIdSuccessor")] string? MovedSetVideoIdSuccessor = null,
+    [property: JsonPropertyName("dedupeOption")] string? DedupeOption = null);
 
 // The watch-queue request the web player sends for radio/autoplay. The tuner
 // setting and panel flags match the official client; without them the response

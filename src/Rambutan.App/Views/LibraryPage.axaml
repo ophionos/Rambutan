@@ -55,6 +55,14 @@
           <TextBlock Text="{l:T library.newPlaylist}" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
+      <Button VerticalAlignment="Center" Command="{Binding ImportFromSpotifyCommand}"
+              IsVisible="{Binding ShowsSpotifyImport}"
+              AutomationProperties.Name="{l:T library.importSpotify}">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <PathIcon Data="{StaticResource Icon.AddToPlaylist}" Width="14" Height="14" VerticalAlignment="Center" />
+          <TextBlock Text="{l:T library.importSpotify}" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
       <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsYouTubeMusic}">
         <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding SelectedSection.IsLoading}" />
         <!-- Offline, the albums and playlists tabs list the downloaded ones;

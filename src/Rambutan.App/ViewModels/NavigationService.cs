@@ -203,6 +203,30 @@ public partial class NavigationService : ViewModelBase
         _ = page.LoadAsync();
     }
 
+    /// <summary>The Spotify import's files and memory; null where it isn't
+    /// composed, and then Library offers no import.</summary>
+    public Func<SpotifyImports>? SpotifyImports { get; set; }
+
+    /// <summary>The signed-in account's id, for the imports it made; set by App.</summary>
+    public Func<string?>? Account { get; set; }
+
+    public bool CanImportFromSpotify => SpotifyImports is not null;
+
+    private SpotifyImportViewModel? _spotifyImport;
+
+    /// <summary>The import page. One for the app's lifetime, so leaving it
+    /// while it matches or creates and coming back shows where it is.</summary>
+    public void OpenSpotifyImport()
+    {
+        if (SpotifyImports is null)
+            return;
+        _spotifyImport ??= new SpotifyImportViewModel(SpotifyImports(), _catalog, _local?.PlaylistLibrary,
+            () => _actions.IsSignedIn?.Invoke() == true, this, _actions, () => Account?.Invoke());
+        _spotifyImport.Shown();
+        if (!ReferenceEquals(Current, _spotifyImport))
+            Push(_spotifyImport);
+    }
+
     /// <summary>A playlist on this computer. Null-safe where local playlists
     /// aren't composed: nothing opens.</summary>
     public void OpenLocalPlaylist(string id)

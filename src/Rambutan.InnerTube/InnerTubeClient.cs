@@ -326,13 +326,13 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
             using var doc = await PostAsync(
                 "account/account_menu", request, InnerTubeJsonContext.Default.BrowseRequest, session, ct);
 
-            if (doc.RootElement.TryGetPath(out var header,
-                    "actions", "0", "openPopupAction", "popup", "multiPageMenuRenderer",
-                    "header", "activeAccountHeaderRenderer") &&
+            if (doc.RootElement.TryGetPath(out var menu,
+                    "actions", "0", "openPopupAction", "popup", "multiPageMenuRenderer") &&
+                menu.TryGetPath(out var header, "header", "activeAccountHeaderRenderer") &&
                 ParseHelpers.RunsText(header, "accountName") is { } name)
             {
                 AppLog.Write("session", "check: valid");
-                return new SessionInfo(SessionState.Valid, name, AccountPhoto(header));
+                return new SessionInfo(SessionState.Valid, name, AccountPhoto(header), AccountChannel(menu));
             }
 
             // A 200 without an active account: YouTube Music answered as if signed
@@ -360,6 +360,30 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
 
     /// <summary>The largest of the account header's avatar sizes. Optional: a
     /// header without one is still a valid session.</summary>
+    /// <summary>The account's own channel id, from the menu's "Your channel" link:
+    /// unlike the name or the handle, it never changes. Null for an account
+    /// without a channel, whose menu has no such link.</summary>
+    internal static string? AccountChannel(JsonElement menu)
+    {
+        if (!menu.TryGetPath(out var sections, "sections") || sections.ValueKind != JsonValueKind.Array)
+            return null;
+        foreach (var section in sections.EnumerateArray())
+        {
+            if (!section.TryGetPath(out var items, "multiPageMenuSectionRenderer", "items") ||
+                items.ValueKind != JsonValueKind.Array)
+                continue;
+            foreach (var item in items.EnumerateArray())
+            {
+                if (item.TryGetPath(out var id,
+                        "compactLinkRenderer", "navigationEndpoint", "browseEndpoint", "browseId") &&
+                    id.ValueKind == JsonValueKind.String && id.GetString() is { } channel &&
+                    channel.StartsWith("UC", StringComparison.Ordinal))
+                    return channel;
+            }
+        }
+        return null;
+    }
+
     private static string? AccountPhoto(JsonElement header) =>
         header.TryGetPath(out var thumbs, "accountPhoto", "thumbnails") &&
         thumbs.ValueKind == JsonValueKind.Array && thumbs.GetArrayLength() > 0 &&
@@ -699,11 +723,15 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
         EditPlaylistAsync(
             playlistId, [new PlaylistEditAction("ACTION_SET_PLAYLIST_NAME", PlaylistName: title)], ct);
 
+    /// <param name="keepDuplicates">As ytmusicapi's <c>duplicates=True</c>: each
+    /// add says <c>DEDUPE_OPTION_SKIP</c>, which skips YouTube Music's check
+    /// for a song already there. Without it, one duplicate refuses the edit.</param>
     public Task AddToPlaylistAsync(
-        string playlistId, IReadOnlyList<string> videoIds, CancellationToken ct = default) =>
+        string playlistId, IReadOnlyList<string> videoIds, bool keepDuplicates = false, CancellationToken ct = default) =>
         EditPlaylistAsync(
             playlistId,
-            videoIds.Select(v => new PlaylistEditAction("ACTION_ADD_VIDEO", AddedVideoId: v)).ToArray(),
+            videoIds.Select(v => new PlaylistEditAction(
+                "ACTION_ADD_VIDEO", AddedVideoId: v, DedupeOption: keepDuplicates ? "DEDUPE_OPTION_SKIP" : null)).ToArray(),
             ct);
 
     public Task RemoveFromPlaylistAsync(
@@ -825,6 +853,11 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
             "music/get_search_suggestions", request,
             InnerTubeJsonContext.Default.SearchSuggestionsRequest, ct);
     }
+
+    /// <summary>Raw account menu of the client's session; for fixture recording.</summary>
+    internal Task<JsonDocument> RecordAccountMenuAsync(CancellationToken ct = default) =>
+        PostAsync("account/account_menu", new BrowseRequest(Context(), BrowseId: null),
+            InnerTubeJsonContext.Default.BrowseRequest, ct);
 
     private Task<JsonDocument> BrowseAsync(string browseId, CancellationToken ct, string? browseParams = null)
     {

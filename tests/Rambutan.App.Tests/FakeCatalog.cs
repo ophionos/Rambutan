@@ -291,10 +291,28 @@ internal sealed class FakeCatalog : ICatalog
 
     public Task<Rating?> GetRatingAsync(string videoId, CancellationToken ct = default) => Task.FromResult<Rating?>(null);
 
-    public Task<string> CreatePlaylistAsync(string title, string? description = null, PlaylistPrivacy privacy = PlaylistPrivacy.Private, CancellationToken ct = default) => throw new NotSupportedException();
+    // Created playlists get ids PL1, PL2, …; adds are recorded. Set AddFailure
+    // to make an add to that playlist throw.
+    public List<(string Title, PlaylistPrivacy Privacy)> CreatedPlaylists { get; } = [];
+    public List<(string PlaylistId, IReadOnlyList<string> VideoIds, bool KeepDuplicates)> Added { get; } = [];
+    public Func<string, Exception?>? AddFailure { get; set; }
+
+    public Task<string> CreatePlaylistAsync(string title, string? description = null, PlaylistPrivacy privacy = PlaylistPrivacy.Private, CancellationToken ct = default)
+    {
+        CreatedPlaylists.Add((title, privacy));
+        return Task.FromResult($"PL{CreatedPlaylists.Count}");
+    }
+
     public Task DeletePlaylistAsync(string playlistId, CancellationToken ct = default) => throw new NotSupportedException();
     public Task RenamePlaylistAsync(string playlistId, string title, CancellationToken ct = default) => throw new NotSupportedException();
-    public Task AddToPlaylistAsync(string playlistId, IReadOnlyList<string> videoIds, CancellationToken ct = default) => throw new NotSupportedException();
+
+    public Task AddToPlaylistAsync(string playlistId, IReadOnlyList<string> videoIds, bool keepDuplicates = false, CancellationToken ct = default)
+    {
+        if (AddFailure?.Invoke(playlistId) is { } failure)
+            return Task.FromException(failure);
+        Added.Add((playlistId, videoIds.ToList(), keepDuplicates));
+        return Task.CompletedTask;
+    }
 
     // Playlist row edits complete at once and are recorded. Set EditFailure to make
     // the next edits throw, as an offline request would.

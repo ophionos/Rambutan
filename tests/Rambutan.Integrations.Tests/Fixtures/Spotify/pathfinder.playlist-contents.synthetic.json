@@ -1,0 +1,58 @@
+{
+  "data": {
+    "playlistV2": {
+      "__typename": "Playlist",
+      "content": {
+        "__typename": "PlaylistItemsPage",
+        "items": [
+          {
+            "itemV2": {
+              "__typename": "TrackResponseWrapper",
+              "data": {
+                "__typename": "Track",
+                "uri": "spotify:track:0VjIjW4GlUZAMYd2vXMi3b",
+                "name": "Blinding Lights",
+                "trackDuration": { "totalMilliseconds": 200040 },
+                "albumOfTrack": { "uri": "spotify:album:4yP0hdKOZPNshxUOjY0cZj", "name": "After Hours" },
+                "artists": { "items": [ { "uri": "spotify:artist:1Xyo4u8uXC1ZmMpatF05PJ", "profile": { "name": "The Weeknd" } } ] }
+              }
+            }
+          },
+          {
+            "itemV2": {
+              "__typename": "EpisodeOrChapterResponseWrapper",
+              "data": { "__typename": "Episode", "uri": "spotify:episode:5Xt5DXGzch68nYYamXrNxZ", "name": "An episode" }
+            }
+          },
+          {
+            "itemV2": {
+              "__typename": "TrackResponseWrapper",
+              "data": {
+                "__typename": "Track",
+                "uri": "spotify:track:6habFhsOp2NvshLv26DqMb",
+                "name": "Despacito",
+                "trackDuration": { "totalMilliseconds": 228826 },
+                "albumOfTrack": { "uri": "spotify:album:5C0YLr4OoRGFDaqBxdp7lr", "name": "VIDA" },
+                "artists": {
+                  "items": [
+                    { "uri": "spotify:artist:4V8Sr092TqfHkfAA5fXXqG", "profile": { "name": "Luis Fonsi" } },
+                    { "uri": "spotify:artist:4VMYDCV2IEDYJArk749S6m", "profile": { "name": "Daddy Yankee" } }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "itemV2": {
+              "__typename": "TrackResponseWrapper",
+              "data": { "__typename": "Track", "uri": "spotify:track:2takcwOaAZWiXQijPHIx7B", "name": "" }
+            }
+          }
+        ],
+        "pagingInfo": { "offset": 100, "limit": 100 },
+        "totalCount": 104
+      }
+    }
+  },
+  "extensions": {}
+}

@@ -1,0 +1,240 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:core="using:Rambutan.Core.Models"
+             xmlns:controls="using:Rambutan.App.Controls"
+             x:Class="Rambutan.App.Views.SpotifyImportPage"
+             x:Name="Root"
+             x:DataType="vm:SpotifyImportViewModel">
+
+  <!-- Choose a file, then its lists on the left and the chosen list's songs
+       on the right. Nothing is created until the Import button. -->
+  <Grid RowDefinitions="Auto,*">
+    <StackPanel Grid.Row="0" Spacing="6" Margin="4,0,16,16">
+      <!-- Experimental: Spotify can change its export or its pages at any time. -->
+      <StackPanel Orientation="Horizontal" Spacing="14">
+        <TextBlock Text="{l:T import.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold"
+                   VerticalAlignment="Center" />
+        <Border BorderBrush="{StaticResource Token.Brush.Text.Muted}" BorderThickness="1" CornerRadius="999"
+                Padding="10,2" VerticalAlignment="Center" ToolTip.Tip="{l:T import.experimentalTip}">
+          <TextBlock Classes="rowmeta" Text="{l:T import.experimental}"
+                     AutomationProperties.HelpText="{l:T import.experimentalTip}" />
+        </Border>
+      </StackPanel>
+      <TextBlock Classes="headersummary" Text="{l:T import.intro}" TextWrapping="Wrap" MaxWidth="760"
+                 HorizontalAlignment="Left" />
+      <TextBlock Classes="headermeta" Text="{l:T import.sent}" TextWrapping="Wrap" MaxWidth="760"
+                 HorizontalAlignment="Left" />
+      <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
+        <Button Command="{Binding ChooseFileCommand}" IsEnabled="{Binding !IsBusy}" FontWeight="SemiBold"
+                Content="{Binding ChooseFileText}" />
+        <TextBlock Classes="headermeta" Text="{Binding FileName}" VerticalAlignment="Center"
+                   IsVisible="{Binding FileName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center"
+                     AutomationProperties.Name="{l:T common.loading}"
+                     IsVisible="{Binding IsReadingFile}" />
+      </StackPanel>
+      <!-- Share links: a request to Spotify, sent only on Read links. -->
+      <StackPanel Spacing="6" Margin="0,8,0,0" IsVisible="{Binding CanReadLinks}">
+        <TextBlock Classes="rowtitle" Text="{l:T import.link.label}" />
+        <DockPanel MaxWidth="760" HorizontalAlignment="Left">
+          <Button DockPanel.Dock="Right" Margin="12,0,0,0" FontWeight="SemiBold" Content="{l:T import.link.read}"
+                  Command="{Binding ReadLinksCommand}" IsEnabled="{Binding !IsBusy}" VerticalAlignment="Top" />
+          <TextBox Text="{Binding LinkText}" PlaceholderText="{l:T import.link.placeholder}" MinWidth="420"
+                   AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120"
+                   AutomationProperties.Name="{l:T import.link.label}"
+                   AutomationProperties.HelpText="{l:T import.link.sent}" />
+        </DockPanel>
+        <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsReadingLinks}">
+          <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center"
+                       AutomationProperties.Name="{l:T common.loading}" />
+          <TextBlock Classes="rowmeta" Text="{Binding LinkProgress}" VerticalAlignment="Center"
+                     AutomationProperties.LiveSetting="Polite" />
+          <Button Content="{l:T common.cancel}" Command="{Binding CancelCommand}" />
+        </StackPanel>
+        <TextBlock Classes="headermeta" Text="{l:T import.link.sent}" TextWrapping="Wrap" MaxWidth="760"
+                   HorizontalAlignment="Left" />
+        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasEarlierLinks}">
+          <TextBlock Classes="rowmeta" Text="{l:T import.earlierLinks}" VerticalAlignment="Center" />
+          <ItemsControl ItemsSource="{Binding EarlierLinks}" IsEnabled="{Binding !IsBusy}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:EarlierLinkItem">
+                <Button Classes="subtle small" Margin="0,0,6,0" Content="{Binding Name}"
+                        Command="{Binding ReadAgainCommand}" ToolTip.Tip="{Binding ReadAgainName}"
+                        AutomationProperties.Name="{Binding ReadAgainName}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </StackPanel>
+      <TextBlock Classes="headermeta" Text="{Binding Problem}" TextWrapping="Wrap" MaxWidth="760"
+                 HorizontalAlignment="Left" Foreground="{DynamicResource Token.Brush.Error}"
+                 AutomationProperties.LiveSetting="Assertive"
+                 IsVisible="{Binding Problem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+    </StackPanel>
+
+    <Grid Grid.Row="1" ColumnDefinitions="340,*" IsVisible="{Binding IsReady}" Margin="4,0,16,0">
+      <!-- The lists, where they go, and the two steps. -->
+      <DockPanel Grid.Column="0" Margin="0,0,20,0">
+        <StackPanel DockPanel.Dock="Top" Spacing="6" Margin="0,0,0,12">
+          <TextBlock Classes="rowtitle" Text="{l:T import.target.label}" />
+          <RadioButton GroupName="target" Content="{l:T import.target.youTubeMusic}"
+                       IsChecked="{Binding ToYouTubeMusic}" IsEnabled="{Binding CanUseYouTubeMusic}" />
+          <TextBlock Classes="rowmeta" Text="{l:T import.target.signIn}" Margin="28,0,0,0"
+                     IsVisible="{Binding !CanUseYouTubeMusic}" />
+          <RadioButton GroupName="target" Content="{l:T import.target.thisComputer}"
+                       IsChecked="{Binding ToThisComputer}" IsEnabled="{Binding CanUseThisComputer}" />
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Spacing="8" Margin="0,12,0,0">
+          <Button HorizontalAlignment="Stretch" Command="{Binding FindSongsCommand}"
+                  Content="{Binding FindText}">
+            <Button.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.And}">
+                <Binding Path="HasUnsearched" />
+                <Binding Path="CanStartWork" />
+              </MultiBinding>
+            </Button.IsVisible>
+          </Button>
+          <Button Classes="accent" HorizontalAlignment="Stretch" Command="{Binding CreateCommand}"
+                  Content="{Binding CreateText}" IsEnabled="{Binding CanCreate}"
+                  IsVisible="{Binding CanStartWork}" />
+          <StackPanel Spacing="6" IsVisible="{Binding IsMatching}">
+            <ProgressBar Minimum="0" Maximum="{Binding ProgressTotal}" Value="{Binding ProgressDone}"
+                         AutomationProperties.Name="{Binding ProgressText}" />
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Content="{l:T common.cancel}" Command="{Binding CancelCommand}" />
+              <TextBlock Classes="rowmeta" Text="{Binding ProgressText}" VerticalAlignment="Center"
+                         TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+            </DockPanel>
+          </StackPanel>
+          <StackPanel Spacing="6" IsVisible="{Binding IsCreating}">
+            <ProgressBar IsIndeterminate="True" AutomationProperties.Name="{Binding ProgressText}" />
+            <TextBlock Classes="rowmeta" Text="{Binding ProgressText}" TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite" />
+          </StackPanel>
+          <TextBlock Classes="rowmeta" Text="{Binding Result}" TextWrapping="Wrap"
+                     AutomationProperties.LiveSetting="Polite"
+                     IsVisible="{Binding Result, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+
+        <ListBox Classes="tracks" Background="Transparent" ItemsSource="{Binding Lists}"
+                 SelectedItem="{Binding SelectedList}"
+                 AutomationProperties.Name="{l:T import.listsName}">
+          <ListBox.Styles>
+            <Style Selector="ListBoxItem" x:DataType="vm:ImportListItem">
+              <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
+            </Style>
+          </ListBox.Styles>
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:ImportListItem">
+              <Grid ColumnDefinitions="Auto,*" Margin="0,4">
+                <CheckBox Grid.Column="0" IsChecked="{Binding IsChosen}" VerticalAlignment="Top"
+                          IsEnabled="{Binding #Root.((vm:SpotifyImportViewModel)DataContext).CanStartWork}"
+                          AutomationProperties.Name="{Binding DisplayName}" />
+                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Classes="rowtitle" Text="{Binding DisplayName}" />
+                  <TextBlock Classes="rowmeta" Text="{Binding Summary}" TextWrapping="Wrap" />
+                  <StackPanel Spacing="2" IsVisible="{Binding HasEarlier}">
+                    <TextBlock Classes="rowmeta" Text="{Binding EarlierText}" TextWrapping="Wrap" />
+                    <CheckBox IsChecked="{Binding AddToEarlier}"
+                              IsEnabled="{Binding #Root.((vm:SpotifyImportViewModel)DataContext).CanStartWork}"
+                              Content="{Binding AddToEarlierText}" />
+                  </StackPanel>
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+
+      <!-- The selected list's songs: what each adds, and the changes. -->
+      <DockPanel Grid.Column="1" IsVisible="{Binding HasSelectedList}">
+        <StackPanel DockPanel.Dock="Top" Spacing="4" Margin="0,0,0,8">
+          <TextBlock Classes="herotitle" FontSize="{StaticResource Token.Font.Section}"
+                     Text="{Binding SelectedList.DisplayName, FallbackValue={x:Null}}" />
+          <CheckBox Content="{l:T import.onlyProblems}" IsChecked="{Binding OnlyProblems}" />
+        </StackPanel>
+        <TextBlock DockPanel.Dock="Top" Classes="rowmeta" Text="{Binding NoRowsText}" Margin="0,8,0,0"
+                   TextWrapping="Wrap"
+                   IsVisible="{Binding NoRowsText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <ListBox Classes="tracks pagescroll" Background="Transparent" ItemsSource="{Binding Rows}"
+                 AutomationProperties.Name="{l:T import.rowsName}">
+          <ListBox.Styles>
+            <Style Selector="ListBoxItem" x:DataType="vm:ImportRowItem">
+              <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+            </Style>
+            <Style Selector="DockPanel.nothing">
+              <Setter Property="Opacity" Value="0.6" />
+            </Style>
+          </ListBox.Styles>
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:ImportRowItem">
+              <StackPanel Margin="0,2" Spacing="6">
+                <Grid ColumnDefinitions="*,*,Auto">
+                  <StackPanel Grid.Column="0" Spacing="1" VerticalAlignment="Center" Margin="0,0,12,0">
+                    <TextBlock Classes="rowtitle" Text="{Binding SourceTitle}" />
+                    <TextBlock Classes="rowmeta" Text="{Binding SourceArtist}" />
+                  </StackPanel>
+                  <DockPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0"
+                             Classes.nothing="{Binding !HasSong}">
+                    <PathIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Warning}" Width="16" Height="16"
+                              Margin="0,0,8,0" IsVisible="{Binding !HasSong}" />
+                    <TextBlock Classes="rowmeta" Text="{Binding Outcome}" TextTrimming="CharacterEllipsis"
+                               VerticalAlignment="Center" ToolTip.Tip="{Binding Outcome}" />
+                  </DockPanel>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center"
+                              IsEnabled="{Binding #Root.((vm:SpotifyImportViewModel)DataContext).CanStartWork}">
+                    <Button Classes="subtle small" Command="{Binding ChooseAnotherCommand}"
+                            Content="{Binding ChooseText}" />
+                    <Button Classes="subtle small" Content="{l:T import.row.leaveOut}" Command="{Binding LeaveOutCommand}">
+                      <Button.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                          <Binding Path="HasSong" />
+                          <Binding Path="!IsLeftOut" />
+                        </MultiBinding>
+                      </Button.IsVisible>
+                    </Button>
+                    <Button Classes="subtle small" Content="{l:T import.row.putBack}" Command="{Binding PutBackCommand}"
+                            IsVisible="{Binding IsLeftOut}" />
+                  </StackPanel>
+                </Grid>
+                <!-- Other songs to pick, from the same search. -->
+                <StackPanel Spacing="4" Margin="24,0,0,6" IsVisible="{Binding IsChoosing}">
+                  <TextBlock Classes="rowmeta" Text="{l:T import.row.searching}" IsVisible="{Binding IsSearching}" />
+                  <TextBlock Classes="rowmeta" Text="{Binding OthersNote}"
+                             IsVisible="{Binding OthersNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  <ItemsControl ItemsSource="{Binding Others}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="core:TrackInfo">
+                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+                          <Border Grid.Column="0" Classes="rowart">
+                            <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                          </Border>
+                          <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                            <TextBlock Classes="rowtitle" Text="{Binding Title}" />
+                            <TextBlock Classes="rowmeta" Text="{Binding ArtistDisplay}" />
+                          </StackPanel>
+                          <Button Grid.Column="2" Classes="subtle small" Content="{l:T import.row.pick}"
+                                  VerticalAlignment="Center"
+                                  Command="{Binding $parent[ItemsControl].((vm:ImportRowItem)DataContext).PickCommand}"
+                                  CommandParameter="{Binding}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Grid>
+  </Grid>
+</UserControl>
