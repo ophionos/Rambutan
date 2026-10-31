@@ -185,7 +185,7 @@
     "import.link.label": "Links to public Spotify playlists or albums",
     "import.link.placeholder": "https://open.spotify.com/playlist/…",
     "import.link.read": "Read links",
-    "import.link.sent": "Reading a link sends its address to Spotify: the list's embed page at open.spotify.com and, for a playlist of more than 100 songs, Spotify's web player, with the anonymous key that page gives. No Spotify account is used, and nothing is sent until you choose Read links.",
+    "import.link.sent": "Reading a link sends its address to Spotify: the list's embed page at open.spotify.com and, for a playlist of more than 100 songs, api-partner.spotify.com (Spotify's web player), with the anonymous key that page gives. No Spotify account is used. Nothing is sent until you choose Read links, or a list to read again.",
     "import.list.addToEarlier": "Add the new songs to \"{name}\"",
     "import.list.earlier": "Imported here before as \"{name}\" on {date}.",
     "import.list.found": "{count} found",

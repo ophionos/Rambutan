@@ -55,15 +55,23 @@ public sealed class SpotifyLinkReader
 
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(20);
 
+    /// <summary>The pause between pages of a long playlist, so a list of
+    /// thousands isn't asked for in one burst.</summary>
+    public static readonly TimeSpan PageSpacing = TimeSpan.FromMilliseconds(250);
+
     /// <summary>The embed page puts this between a song's artists; a plain
     /// comma can be part of a name ("Tyler, The Creator").</summary>
     private const string ArtistSeparator = ", ";
 
     private readonly HttpClient _http;
 
-    public SpotifyLinkReader(HttpClient? http = null)
+    private readonly TimeSpan _spacing;
+
+    /// <param name="spacing">The pause between pages; null for <see cref="PageSpacing"/>.</param>
+    public SpotifyLinkReader(HttpClient? http = null, TimeSpan? spacing = null)
     {
         _http = http ?? new HttpClient();
+        _spacing = spacing ?? PageSpacing;
         var version = typeof(SpotifyLinkReader).Assembly.GetName().Version;
         _http.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("Rambutan", version is null ? "dev" : version.ToString(3)));
@@ -95,6 +103,7 @@ public sealed class SpotifyLinkReader
         {
             while (true)
             {
+                await Task.Delay(_spacing, ct);
                 var page = await ReadPageAsync(link, token, offset, ct);
                 tracks.AddRange(page.Tracks);
                 skipped += page.Skipped;
@@ -206,7 +215,7 @@ public sealed class SpotifyLinkReader
             var entity = props.Get("state").Get("data").Get("entity");
             if (entity.ValueKind != JsonValueKind.Object)
             {
-                if (status == 404 || props.Get("status") is { ValueKind: JsonValueKind.Number } s && s.GetInt32() == 404)
+                if (status == 404 || props.Get("status") is { ValueKind: JsonValueKind.Number } s && s.TryGetInt32(out var code) && code == 404)
                     throw new SpotifyListUnavailableException($"Spotify has no public list at {link.WebUrl}.");
                 throw new HttpRequestException($"Spotify's embed page (HTTP {status}) has no list.");
             }

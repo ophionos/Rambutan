@@ -223,31 +223,38 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
         Result = null;
         var lists = new List<ImportedList>();
         var problems = new List<string>();
-        foreach (var link in links)
+        try
         {
-            try
+            foreach (var link in links)
             {
-                lists.Add(await read(link, CancellationToken.None));
+                try
+                {
+                    lists.Add(await read(link, CancellationToken.None));
+                }
+                catch (SpotifyListUnavailableException)
+                {
+                    problems.Add(Strings.Format("import.problem.linkUnavailable", ("link", link.WebUrl)));
+                }
+                // Whatever one link's answer was, the other links still count.
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    AppLog.Write("import", $"Couldn't read {link.Uri}: {ex.GetType().Name}: {ex.Message}");
+                    problems.Add(Strings.Format("import.problem.linkFailed", ("link", link.WebUrl), ("error", ex.Message)));
+                }
             }
-            catch (SpotifyListUnavailableException)
-            {
-                problems.Add(Strings.Format("import.problem.linkUnavailable", ("link", link.WebUrl)));
-            }
-            catch (Exception ex) when (ex is HttpRequestException or SpotifyApiException)
-            {
-                AppLog.Write("import", $"Couldn't read {link.Uri}: {ex.Message}");
-                problems.Add(Strings.Format("import.problem.linkFailed", ("link", link.WebUrl), ("error", ex.Message)));
-            }
-        }
 
-        if (lists.Count > 0)
-        {
-            var records = await Task.Run(_imports.LoadRecords);
-            Show(Strings.Format("import.fromLinks", ("count", lists.Count)), lists, records);
-            LinkText = "";
+            if (lists.Count > 0)
+            {
+                var records = await Task.Run(_imports.LoadRecords);
+                Show(Strings.Format("import.fromLinks", ("count", lists.Count)), lists, records);
+                LinkText = "";
+            }
         }
-        else
-            Phase = previous == ImportPhase.Reading ? ImportPhase.Start : previous;
+        finally
+        {
+            if (Phase == ImportPhase.Reading)
+                Phase = previous == ImportPhase.Reading ? ImportPhase.Start : previous;
+        }
         Problem = problems.Count > 0 ? string.Join("\n", problems) : Problem;
         return lists.Count > 0;
     }

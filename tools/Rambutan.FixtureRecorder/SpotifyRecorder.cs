@@ -89,6 +89,7 @@ internal static partial class SpotifyRecorder
         html = AccessToken().Replace(html, "\"accessToken\":\"REDACTED\"");
         html = CorrelationId().Replace(html, "\"correlationId\":\"00000000000000000000000000000000\"");
         html = SentryValue().Replace(html, "\"$1\":\"REDACTED\"");
+        html = CorrelationAttribute().Replace(html, "\"key\":\"correlation-id\",\"value\":\"REDACTED\"");
         return SentryPair().Replace(html, "sentry-REDACTED");
     }
 
@@ -97,6 +98,9 @@ internal static partial class SpotifyRecorder
 
     [GeneratedRegex("\"correlationId\":\"[0-9a-f]+\"")]
     private static partial Regex CorrelationId();
+
+    [GeneratedRegex("\"key\":\"correlation-id\",\"value\":\"[^\"]*\"")]
+    private static partial Regex CorrelationAttribute();
 
     [GeneratedRegex("\"(_sentryTraceData|_sentryBaggage)\":\"[^\"]*\"")]
     private static partial Regex SentryValue();

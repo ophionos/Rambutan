@@ -173,7 +173,7 @@ public class SpotifyLinkReaderTests
             ? Answer(embed)
             : Answer(Fixture("pathfinder.playlist-contents.synthetic.json"), type: "application/json"));
 
-        var list = await new SpotifyLinkReader(new HttpClient(handler)).ReadAsync(AllOut);
+        var list = await new SpotifyLinkReader(new HttpClient(handler), TimeSpan.Zero).ReadAsync(AllOut);
 
         Assert.False(list.Incomplete);
         Assert.Equal(102, list.Tracks.Count);
@@ -194,7 +194,7 @@ public class SpotifyLinkReaderTests
             ? Answer(embed)
             : Answer("""{"errors":[{"message":"PersistedQueryNotFound"}]}""", HttpStatusCode.BadRequest, "application/json"));
 
-        var list = await new SpotifyLinkReader(new HttpClient(handler)).ReadAsync(AllOut);
+        var list = await new SpotifyLinkReader(new HttpClient(handler), TimeSpan.Zero).ReadAsync(AllOut);
 
         Assert.True(list.Incomplete);
         Assert.Equal(100, list.Tracks.Count);
