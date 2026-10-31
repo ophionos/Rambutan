@@ -72,7 +72,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsStart), nameof(IsReading), nameof(IsReady), nameof(IsBusy), nameof(IsMatching),
-        nameof(IsCreating), nameof(CanStartWork))]
+        nameof(IsCreating), nameof(CanStartWork), nameof(IsReadingFile))]
     private ImportPhase _phase;
 
     public bool IsStart => Phase == ImportPhase.Start;
@@ -103,6 +103,14 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
     [ObservableProperty] private string _linkText = "";
 
     public bool CanReadLinks => _imports.ReadLink is not null;
+
+    /// <summary>Which link is being read, while links are read; null otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReadingLinks), nameof(IsReadingFile))]
+    private string? _linkProgress;
+
+    public bool IsReadingLinks => LinkProgress is not null;
+    public bool IsReadingFile => IsReading && !IsReadingLinks;
 
     /// <summary>Lists imported from links before, newest first, to read again.</summary>
     public ObservableCollection<EarlierLinkItem> EarlierLinks { get; } = [];
@@ -224,13 +232,22 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
         Result = null;
         var lists = new List<ImportedList>();
         var problems = new List<string>();
+        var cancelled = false;
+        using var work = _work = new CancellationTokenSource();
         try
         {
-            foreach (var link in links)
+            for (var i = 0; i < links.Count; i++)
             {
+                var link = links[i];
+                LinkProgress = Strings.Format("import.link.reading", ("done", i + 1), ("total", links.Count));
                 try
                 {
-                    lists.Add(await read(link, CancellationToken.None));
+                    lists.Add(await read(link, work.Token));
+                }
+                catch (OperationCanceledException) when (work.IsCancellationRequested)
+                {
+                    cancelled = true;
+                    break;
                 }
                 catch (SpotifyListUnavailableException)
                 {
@@ -253,10 +270,14 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
         }
         finally
         {
+            _work = null;
+            LinkProgress = null;
             if (Phase == ImportPhase.Reading)
                 Phase = previous == ImportPhase.Reading ? ImportPhase.Start : previous;
         }
         Problem = problems.Count > 0 ? string.Join("\n", problems) : Problem;
+        if (cancelled && Phase == ImportPhase.Ready)
+            Result = Strings.Get(lists.Count > 0 ? "import.link.cancelled" : "import.link.cancelledNone");
         return lists.Count > 0;
     }
 

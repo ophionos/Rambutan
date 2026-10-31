@@ -33,7 +33,7 @@
                    IsVisible="{Binding FileName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center"
                      AutomationProperties.Name="{l:T common.loading}"
-                     IsVisible="{Binding IsReading}" />
+                     IsVisible="{Binding IsReadingFile}" />
       </StackPanel>
       <!-- Share links: a request to Spotify, sent only on Read links. -->
       <StackPanel Spacing="6" Margin="0,8,0,0" IsVisible="{Binding CanReadLinks}">
@@ -46,6 +46,13 @@
                    AutomationProperties.Name="{l:T import.link.label}"
                    AutomationProperties.HelpText="{l:T import.link.sent}" />
         </DockPanel>
+        <StackPanel Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsReadingLinks}">
+          <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center"
+                       AutomationProperties.Name="{l:T common.loading}" />
+          <TextBlock Classes="rowmeta" Text="{Binding LinkProgress}" VerticalAlignment="Center"
+                     AutomationProperties.LiveSetting="Polite" />
+          <Button Content="{l:T common.cancel}" Command="{Binding CancelCommand}" />
+        </StackPanel>
         <TextBlock Classes="headermeta" Text="{l:T import.link.sent}" TextWrapping="Wrap" MaxWidth="760"
                    HorizontalAlignment="Left" />
         <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasEarlierLinks}">

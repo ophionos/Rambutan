@@ -12,6 +12,7 @@ public sealed class SpotifyLinkImportTests : IDisposable
 {
     private const string RockId = "37i9dQZF1DXcBWIGoYBM5M";
     private const string PrivateId = "0000000000000000000000";
+    private const string SlowId = "2222222222222222222222";
 
     private readonly DirectoryInfo _dir = Directory.CreateTempSubdirectory("rambutan-spotify-link-");
     private readonly FakeCatalog _catalog = new();
@@ -44,11 +45,21 @@ public sealed class SpotifyLinkImportTests : IDisposable
     private static TrackInfo Song(string title, string id) =>
         new() { VideoId = id, Title = title, Artists = [new ArtistRef("Van Halen")] };
 
+    private readonly TaskCompletionSource _slowStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private async Task<ImportedList> ReadSlow(CancellationToken ct)
+    {
+        _slowStarted.SetResult();
+        await Task.Delay(Timeout.Infinite, ct);
+        throw new InvalidOperationException("unreachable");
+    }
+
     private Task<ImportedList> Read(SpotifyListLink link, CancellationToken ct)
     {
         _read.Add(link);
         return link.Id switch
         {
+            SlowId => ReadSlow(ct),
             RockId => Task.FromResult(new ImportedList(ImportedListKind.Playlist, "Rock", _rock, Source: link.Uri,
                 Incomplete: _incomplete)),
             PrivateId => throw new SpotifyListUnavailableException("not public"),
@@ -107,6 +118,44 @@ public sealed class SpotifyLinkImportTests : IDisposable
         Assert.Empty(page.Lists);
         Assert.NotNull(page.Problem);
         Assert.Equal("https://open.spotify.com/playlist/" + PrivateId, page.LinkText);
+    }
+
+    [Fact]
+    public async Task Cancelling_keeps_the_lists_read_before_it()
+    {
+        var page = Page();
+        page.LinkText = $"spotify:playlist:{RockId} spotify:playlist:{SlowId} spotify:album:{PrivateId}";
+
+        var reading = page.ReadLinksCommand.ExecuteAsync(null);
+        await _slowStarted.Task;
+        Assert.True(page.IsReadingLinks);
+        Assert.Equal(Localization.Strings.Format("import.link.reading", ("done", 2), ("total", 3)), page.LinkProgress);
+        page.CancelCommand.Execute(null);
+        await reading;
+
+        Assert.Equal([RockId, SlowId], _read.Select(l => l.Id));
+        Assert.False(page.IsReadingLinks);
+        Assert.Equal(ImportPhase.Ready, page.Phase);
+        Assert.Equal("Rock", Assert.Single(page.Lists).DisplayName);
+        Assert.Equal(Localization.Strings.Get("import.link.cancelled"), page.Result);
+        Assert.Null(page.Problem);
+    }
+
+    [Fact]
+    public async Task Cancelling_before_any_list_is_read_returns_to_the_start()
+    {
+        var page = Page();
+        page.LinkText = "spotify:playlist:" + SlowId;
+
+        var reading = page.ReadLinksCommand.ExecuteAsync(null);
+        await _slowStarted.Task;
+        page.CancelCommand.Execute(null);
+        await reading;
+
+        Assert.Equal(ImportPhase.Start, page.Phase);
+        Assert.Empty(page.Lists);
+        Assert.Null(page.Problem);
+        Assert.Equal("spotify:playlist:" + SlowId, page.LinkText);
     }
 
     [Fact]
