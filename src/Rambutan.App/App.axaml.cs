@@ -32,6 +32,7 @@ using Rambutan.Integrations;
 using Rambutan.Integrations.Notifications;
 using Rambutan.Integrations.Discord;
 using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.Spotify;
 using Rambutan.LocalLibrary;
 using Rambutan.Lyrics.Providers;
 using Rambutan.Lyrics.Store;
@@ -565,7 +566,9 @@ public partial class App : Application
         services.AddSingleton(homeStations);
         // The Spotify import's searches too, for the same reason; made when
         // the import page first opens, which reads its saved matches.
-        services.AddSingleton(_ => new SpotifyImports(dataDir, stationSearch.SearchSongsAsync));
+        // Its share links are read from Spotify only when the user asks.
+        services.AddSingleton(_ => new SpotifyImports(dataDir, stationSearch.SearchSongsAsync,
+            new SpotifyLinkReader(Demo is null ? null : new HttpClient(new DemoSpotifyHandler(Demo))).ReadAsync));
         // Local files matched to YouTube Music songs, off by default; through
         // the stations' signed-out client, for the same reason.
         services.AddSingleton(sp => new YouTubeMatches(

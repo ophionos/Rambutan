@@ -27,7 +27,7 @@ namespace Rambutan.App.Services.Demo;
 /// <item><c>RAMBUTAN_DEMO_LATENCY</c>: milliseconds added to every catalog and lyrics
 /// response (default 300, about a real round trip; long values show skeletons).</item>
 /// <item><c>RAMBUTAN_DEMO_FAIL</c>: comma-separated areas that fail as if offline:
-/// <c>home, moods, search, album, artist, playlist, library, radio, account, mutations, lyrics, lastfm, downloads,
+/// <c>home, moods, search, album, artist, playlist, library, radio, account, mutations, lyrics, lastfm, spotify, downloads,
 /// artwork</c> (no cover loads except a download's kept one), <c>streams</c> (a track that isn't downloaded fails to play as offline),
 /// or <c>all</c>. <c>home-more</c>, <c>playlist-more</c>, <c>library-more</c> and <c>search-more</c>
 /// fail only the next page, after the first loaded. <c>session</c> (named only, not part of <c>all</c>)
@@ -36,7 +36,9 @@ namespace Rambutan.App.Services.Demo;
 /// drops the network 20 s into each track's first play, for 30 s
 /// (<see cref="DemoNetworkDrop"/>). <c>lastfm-unavailable</c> (named only) answers
 /// Last.fm's station requests as it does for a profile it has no station for
-/// (<see cref="DemoLastFmStationHandler"/>).</item>
+/// (<see cref="DemoLastFmStationHandler"/>). <c>spotify</c> fails reading a
+/// Spotify link, and <c>spotify-unavailable</c> (named only) answers it as for a
+/// private list (<see cref="DemoSpotifyHandler"/>).</item>
 /// </list>
 /// </summary>
 public sealed record DemoOptions(

@@ -301,3 +301,63 @@ public sealed class TrackCsvTests
         Assert.Equal(artists, TrackCsv.Artists(cell));
     }
 }
+
+public sealed class SpotifyLinksTests
+{
+    private const string Id = "37i9dQZF1DXcBWIGoYBM5M";
+
+    [Theory]
+    [InlineData("https://open.spotify.com/playlist/" + Id, SpotifyListKind.Playlist)]
+    [InlineData("  https://open.spotify.com/playlist/" + Id + "?si=abc123&pi=x  ", SpotifyListKind.Playlist)]
+    [InlineData("https://open.spotify.com/intl-de/playlist/" + Id, SpotifyListKind.Playlist)]
+    [InlineData("https://open.spotify.com/embed/playlist/" + Id + "?utm_source=generator", SpotifyListKind.Playlist)]
+    [InlineData("open.spotify.com/playlist/" + Id, null)]
+    [InlineData("spotify:playlist:" + Id, SpotifyListKind.Playlist)]
+    [InlineData("https://open.spotify.com/album/" + Id, SpotifyListKind.Album)]
+    [InlineData("spotify:album:" + Id, SpotifyListKind.Album)]
+    [InlineData("spotify:user:someone:playlist:" + Id, SpotifyListKind.Playlist)]
+    [InlineData("https://open.spotify.com/track/" + Id, null)]
+    [InlineData("https://open.spotify.com/artist/" + Id, null)]
+    [InlineData("https://open.spotify.com/playlist/tooShort", null)]
+    [InlineData("https://example.com/playlist/" + Id, null)]
+    [InlineData("ftp://open.spotify.com/playlist/" + Id, null)]
+    [InlineData("https://spotify.link/AbCdEf", null)]
+    [InlineData("", null)]
+    public void Parse_reads_playlist_and_album_links(string text, SpotifyListKind? kind)
+    {
+        var link = SpotifyLinks.Parse(text);
+
+        Assert.Equal(kind, link?.Kind);
+        if (link is not null)
+            Assert.Equal(Id, link.Id);
+    }
+
+    [Fact]
+    public void A_link_names_its_uri_and_pages()
+    {
+        var link = new SpotifyListLink(SpotifyListKind.Album, Id);
+
+        Assert.Equal("spotify:album:" + Id, link.Uri);
+        Assert.Equal("https://open.spotify.com/album/" + Id, link.WebUrl);
+        Assert.Equal("https://open.spotify.com/embed/album/" + Id, link.EmbedUrl);
+        Assert.Equal(link, SpotifyLinks.Parse(link.Uri));
+    }
+
+    [Theory]
+    [InlineData("https://spotify.link/AbCdEf", true)]
+    [InlineData("https://spotify.app.link/AbCdEf", true)]
+    [InlineData("https://spoti.fi/3xyz", true)]
+    [InlineData("https://open.spotify.com/playlist/" + Id, false)]
+    [InlineData("not a link", false)]
+    public void Short_links_are_recognised(string text, bool isShort)
+    {
+        Assert.Equal(isShort, SpotifyLinks.IsShortLink(text));
+    }
+
+    [Fact]
+    public void Words_split_a_paste_of_several_links()
+    {
+        Assert.Equal(["a", "b", "c", "d"], SpotifyLinks.Words(" a, b\r\nc\td "));
+        Assert.Empty(SpotifyLinks.Words(null));
+    }
+}

@@ -30,11 +30,17 @@ public enum ImportedListKind
 /// <param name="Tracks">The songs in the file's order, duplicates included.</param>
 /// <param name="Skipped">Rows that aren't songs (podcast episodes, audiobook
 /// chapters) or have no title, which the import leaves out and says so.</param>
+/// <param name="Source">The list's Spotify URI (<see cref="SpotifyListLink.Uri"/>)
+/// when it was read from a link, so it can be read again; null for a file's list.</param>
+/// <param name="Incomplete">The read stopped before the list's end: only its
+/// first songs are here.</param>
 public sealed record ImportedList(
     ImportedListKind Kind,
     string Name,
     IReadOnlyList<ImportedTrack> Tracks,
-    int Skipped = 0);
+    int Skipped = 0,
+    string? Source = null,
+    bool Incomplete = false);
 
 public enum ImportProblem
 {

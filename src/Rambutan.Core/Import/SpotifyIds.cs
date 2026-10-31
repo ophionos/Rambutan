@@ -35,6 +35,6 @@ public static class SpotifyIds
         return IsId(text) ? text : null;
     }
 
-    private static bool IsId(string text) =>
+    internal static bool IsId(string text) =>
         text.Length == Length && text.All(char.IsAsciiLetterOrDigit);
 }

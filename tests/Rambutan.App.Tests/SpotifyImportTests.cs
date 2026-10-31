@@ -138,7 +138,7 @@ public sealed class SpotifyImportViewModelTests : IDisposable
     }
 
     private SpotifyImportViewModel Page() =>
-        new(new SpotifyImports(_dir.FullName, Search, TimeSpan.Zero), _catalog, _local, () => _signedIn);
+        new(new SpotifyImports(_dir.FullName, Search, spacing: TimeSpan.Zero), _catalog, _local, () => _signedIn);
 
     private static ImportedList Rock(params ImportedTrack[] tracks) =>
         new(ImportedListKind.Playlist, "Rock", tracks.Length > 0 ? tracks : [Panama, Jump, Panama, Lost]);

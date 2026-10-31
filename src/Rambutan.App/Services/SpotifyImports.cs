@@ -32,11 +32,14 @@ public sealed class SpotifyImports
 
     /// <param name="searchSongs">A signed-out catalog's song search (the
     /// stations' client), never the account's.</param>
+    /// <param name="readLink">Reads a share link's list from Spotify; null
+    /// when links can't be read.</param>
     /// <param name="spacing">The pause between searches; null for the matcher's own.</param>
     public SpotifyImports(
         string dataDirectory, Func<string, CancellationToken, Task<IReadOnlyList<TrackInfo>>> searchSongs,
-        TimeSpan? spacing = null)
+        Func<SpotifyListLink, CancellationToken, Task<ImportedList>>? readLink = null, TimeSpan? spacing = null)
     {
+        ReadLink = readLink;
         var cache = new StationMatchCache(maxEntries: MaxMatches);
         _matchStore = new StationMatchStore(dataDirectory, cache, "import-matches.json");
         _records = new SpotifyImportRecordStore(dataDirectory);
@@ -48,6 +51,10 @@ public sealed class SpotifyImports
     public ImportMatcher Matcher { get; }
 
     public Func<string, CancellationToken, Task<IReadOnlyList<TrackInfo>>> SearchSongs { get; }
+
+    /// <summary>Reads a share link's list: a request to Spotify, sent only when
+    /// the user asks. Null when links can't be read.</summary>
+    public Func<SpotifyListLink, CancellationToken, Task<ImportedList>>? ReadLink { get; }
 
     /// <summary>Saves the matches made so far. Never throws; call off the UI thread.</summary>
     public void SaveMatches() => _matchStore.Save();
@@ -130,6 +137,10 @@ public sealed class SavedSpotifyImport
     public List<string> Keys { get; set; } = [];
 
     public DateTimeOffset ImportedAt { get; set; }
+
+    /// <summary>The list's Spotify URI when it was read from a link, to read
+    /// it again; absent for a file's list.</summary>
+    public string? Source { get; set; }
 }
 
 public sealed class SavedImportedPart
@@ -210,6 +221,7 @@ public sealed class SpotifyImportRecordStore(string dataDirectory)
         Parts = r.Parts.Select(p => new SavedImportedPart { PlaylistId = p.PlaylistId, Count = p.Count }).ToList(),
         Keys = r.Keys.ToList(),
         ImportedAt = r.ImportedAt,
+        Source = r.Source,
     };
 
     /// <summary>A record as saved; null when a field it can't do without is
@@ -235,6 +247,7 @@ public sealed class SpotifyImportRecordStore(string dataDirectory)
             .Select(p => new ImportedPart(p.PlaylistId!, p.Count))
             .ToList();
         return new ImportRecord(s.ListName ?? "", kind.Value, target.Value, s.PlaylistName, parts,
-            s.Keys.Where(k => k is not null).ToList(), s.ImportedAt);
+            s.Keys.Where(k => k is not null).ToList(), s.ImportedAt,
+            SpotifyLinks.Parse(s.Source) is { } link ? link.Uri : null);
     }
 }

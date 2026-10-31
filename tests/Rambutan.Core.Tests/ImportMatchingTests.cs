@@ -266,4 +266,19 @@ public sealed class ImportPlanTests
         Assert.Same(latest, ImportPlan.EarlierImport([old, latest, local, liked], list, ImportTarget.YouTubeMusic));
         Assert.Null(ImportPlan.EarlierImport([old], list with { Name = "Pop" }, ImportTarget.YouTubeMusic));
     }
+
+    [Fact]
+    public void A_link_list_finds_its_earlier_import_by_its_source_not_its_name()
+    {
+        const string source = "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M";
+        var fromLink = new ImportedList(ImportedListKind.Playlist, "Renamed on Spotify", [], Source: source);
+        var fromFile = new ImportedList(ImportedListKind.Playlist, "Rock", []);
+        var linkRecord = Record(1) with { Source = source };
+        var fileRecord = Record(2) with { ImportedAt = DateTimeOffset.UnixEpoch.AddDays(1) };
+
+        Assert.Same(linkRecord, ImportPlan.EarlierImport([linkRecord, fileRecord], fromLink, ImportTarget.YouTubeMusic));
+        Assert.Same(fileRecord, ImportPlan.EarlierImport([linkRecord, fileRecord], fromFile, ImportTarget.YouTubeMusic));
+        Assert.Null(ImportPlan.EarlierImport([fileRecord], fromLink, ImportTarget.YouTubeMusic));
+        Assert.Null(ImportPlan.EarlierImport([linkRecord], fromFile, ImportTarget.YouTubeMusic));
+    }
 }

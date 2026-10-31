@@ -52,6 +52,12 @@ for (var i = 0; i < args.Length; i++)
 if (positional.Count < 1)
     return Usage();
 
+// Spotify's share links: run by the maintainer only, never by CI's live-diff.
+if (positional[0] == "spotify" && positional.Count >= 2)
+    return await SpotifyRecorder.RecordAsync(positional[1], outPath);
+if (positional[0] == "spotify-live-diff")
+    return await SpotifyRecorder.LiveDiffAsync(positional.Count >= 2 ? positional[1] : null);
+
 using var client = new InnerTubeClient();
 
 // Exercise every anonymous parser against live responses. IDs are not
@@ -422,6 +428,8 @@ static int Usage()
           dotnet run --project tools/Rambutan.FixtureRecorder -- suggestions <partial query>   (search-box completions)
           dotnet run --project tools/Rambutan.FixtureRecorder -- next <videoId> [--playlist <id> [--params <params>]]   (radio/automix watch queue; with --playlist, a page's mix, such as an artist's radio)
           dotnet run --project tools/Rambutan.FixtureRecorder -- live-diff   (run all anonymous parsers against live YTM and Last.fm)
+          dotnet run --project tools/Rambutan.FixtureRecorder -- spotify <link> [--out <dir>]   (a Spotify playlist's or album's embed page and, past 100 songs, the web player's next page; into tests/Rambutan.Integrations.Tests/Fixtures/Spotify)
+          dotnet run --project tools/Rambutan.FixtureRecorder -- spotify-live-diff [<link>]   (read a long public playlist from its link; the maintainer's machine only, not CI)
 
         options:
           --out <file>      output path (default: tests/Rambutan.InnerTube.Tests/Fixtures/<derived>.json)

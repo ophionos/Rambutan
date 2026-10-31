@@ -35,6 +35,37 @@
                      AutomationProperties.Name="{l:T common.loading}"
                      IsVisible="{Binding IsReading}" />
       </StackPanel>
+      <!-- Share links: a request to Spotify, sent only on Read links. -->
+      <StackPanel Spacing="6" Margin="0,8,0,0" IsVisible="{Binding CanReadLinks}">
+        <TextBlock Classes="rowtitle" Text="{l:T import.link.label}" />
+        <DockPanel MaxWidth="760" HorizontalAlignment="Left">
+          <Button DockPanel.Dock="Right" Margin="12,0,0,0" FontWeight="SemiBold" Content="{l:T import.link.read}"
+                  Command="{Binding ReadLinksCommand}" IsEnabled="{Binding !IsBusy}" VerticalAlignment="Top" />
+          <TextBox Text="{Binding LinkText}" PlaceholderText="{l:T import.link.placeholder}" MinWidth="420"
+                   AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="120"
+                   AutomationProperties.Name="{l:T import.link.label}"
+                   AutomationProperties.HelpText="{l:T import.link.sent}" />
+        </DockPanel>
+        <TextBlock Classes="headermeta" Text="{l:T import.link.sent}" TextWrapping="Wrap" MaxWidth="760"
+                   HorizontalAlignment="Left" />
+        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasEarlierLinks}">
+          <TextBlock Classes="rowmeta" Text="{l:T import.earlierLinks}" VerticalAlignment="Center" />
+          <ItemsControl ItemsSource="{Binding EarlierLinks}" IsEnabled="{Binding !IsBusy}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:EarlierLinkItem">
+                <Button Classes="subtle small" Margin="0,0,6,0" Content="{Binding Name}"
+                        Command="{Binding ReadAgainCommand}" ToolTip.Tip="{Binding ReadAgainName}"
+                        AutomationProperties.Name="{Binding ReadAgainName}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </StackPanel>
       <TextBlock Classes="headermeta" Text="{Binding Problem}" TextWrapping="Wrap" MaxWidth="760"
                  HorizontalAlignment="Left" Foreground="{DynamicResource Token.Brush.Error}"
                  AutomationProperties.LiveSetting="Assertive"

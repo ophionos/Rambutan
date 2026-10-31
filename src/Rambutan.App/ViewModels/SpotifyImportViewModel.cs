@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -14,6 +15,7 @@ using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Import;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playlists;
+using Rambutan.Integrations.Spotify;
 
 namespace Rambutan.App.ViewModels;
 
@@ -31,11 +33,12 @@ public enum ImportPhase
 
 /// <summary>
 /// Importing a Spotify library, from Library: read a file (the data export or
-/// a CSV), choose its lists and where they go, match their songs on YouTube
+/// a CSV) or public lists' share links, choose the lists and where they go, match their songs on YouTube
 /// Music (one signed-out search per distinct song), review the picks, then
 /// create the playlists. Nothing is written until Create. A list imported
 /// before to the same place adds only the songs new since, to the playlist
-/// it made then (Update from Spotify).
+/// it made then (Update from Spotify); a link's list is remembered by its
+/// link, to read again.
 /// </summary>
 public sealed partial class SpotifyImportViewModel : ViewModelBase
 {
@@ -82,7 +85,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
     public bool IsCreating => Phase == ImportPhase.Creating;
     public bool CanStartWork => Phase == ImportPhase.Ready;
 
-    /// <summary>The file read, by its name.</summary>
+    /// <summary>What was read: the file, by its name, or how many links.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ChooseFileText))]
     private string? _fileName;
@@ -94,6 +97,16 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
     [ObservableProperty] private string? _result;
 
     public ObservableCollection<ImportListItem> Lists { get; } = [];
+
+    /// <summary>Spotify links pasted, one or more; nothing is sent until Read.</summary>
+    [ObservableProperty] private string _linkText = "";
+
+    public bool CanReadLinks => _imports.ReadLink is not null;
+
+    /// <summary>Lists imported from links before, newest first, to read again.</summary>
+    public ObservableCollection<EarlierLinkItem> EarlierLinks { get; } = [];
+
+    public bool HasEarlierLinks => EarlierLinks.Count > 0;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedList))]
@@ -148,6 +161,95 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
         else if (Phase == ImportPhase.Start)
             ToYouTubeMusic = CanUseYouTubeMusic;
         Refresh();
+        if (Phase == ImportPhase.Start)
+            _ = LoadEarlierLinksAsync();
+    }
+
+    private async Task LoadEarlierLinksAsync()
+    {
+        var records = await Task.Run(_imports.LoadRecords);
+        if (Phase == ImportPhase.Start)
+            ShowEarlierLinks(records);
+    }
+
+    private void ShowEarlierLinks(IEnumerable<ImportRecord> records)
+    {
+        EarlierLinks.Clear();
+        if (CanReadLinks)
+        {
+            foreach (var record in records
+                         .Where(r => r.Source is not null)
+                         .OrderByDescending(r => r.ImportedAt)
+                         .DistinctBy(r => r.Source))
+            {
+                if (SpotifyLinks.Parse(record.Source) is { } link)
+                    EarlierLinks.Add(new EarlierLinkItem(record.ListName.Length > 0 ? record.ListName : record.PlaylistName,
+                        link, ReadAgainAsync));
+            }
+        }
+        OnPropertyChanged(nameof(HasEarlierLinks));
+    }
+
+    /// <summary>Reads the lists of the pasted links, one at a time; shows those
+    /// read, and says which couldn't be.</summary>
+    [RelayCommand]
+    private async Task ReadLinksAsync()
+    {
+        if (IsBusy)
+            return;
+        var words = SpotifyLinks.Words(LinkText);
+        var links = words.Select(SpotifyLinks.Parse).OfType<SpotifyListLink>().Distinct().ToList();
+        var shortLinks = words.Any(SpotifyLinks.IsShortLink);
+        if (links.Count == 0)
+        {
+            Result = null;
+            Problem = Strings.Get(shortLinks ? "import.problem.shortLink" : "import.problem.noLink");
+            return;
+        }
+        if (await ReadAsync(links) && shortLinks)
+            Problem = string.Join("\n", new[] { Problem, Strings.Get("import.problem.shortLink") }.OfType<string>());
+    }
+
+    private Task ReadAgainAsync(SpotifyListLink link) => IsBusy ? Task.CompletedTask : ReadAsync([link]);
+
+    // False when nothing could be read.
+    private async Task<bool> ReadAsync(IReadOnlyList<SpotifyListLink> links)
+    {
+        if (_imports.ReadLink is not { } read)
+            return false;
+        var previous = Phase;
+        Phase = ImportPhase.Reading;
+        Problem = null;
+        Result = null;
+        var lists = new List<ImportedList>();
+        var problems = new List<string>();
+        foreach (var link in links)
+        {
+            try
+            {
+                lists.Add(await read(link, CancellationToken.None));
+            }
+            catch (SpotifyListUnavailableException)
+            {
+                problems.Add(Strings.Format("import.problem.linkUnavailable", ("link", link.WebUrl)));
+            }
+            catch (Exception ex) when (ex is HttpRequestException or SpotifyApiException)
+            {
+                AppLog.Write("import", $"Couldn't read {link.Uri}: {ex.Message}");
+                problems.Add(Strings.Format("import.problem.linkFailed", ("link", link.WebUrl), ("error", ex.Message)));
+            }
+        }
+
+        if (lists.Count > 0)
+        {
+            var records = await Task.Run(_imports.LoadRecords);
+            Show(Strings.Format("import.fromLinks", ("count", lists.Count)), lists, records);
+            LinkText = "";
+        }
+        else
+            Phase = previous == ImportPhase.Reading ? ImportPhase.Start : previous;
+        Problem = problems.Count > 0 ? string.Join("\n", problems) : Problem;
+        return lists.Count > 0;
     }
 
     /// <summary>The name a list is created under: its own, or Liked Songs'.</summary>
@@ -194,6 +296,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
     internal void Show(string fileName, IReadOnlyList<ImportedList> lists, IReadOnlyList<ImportRecord>? records = null)
     {
         _records = (records ?? _imports.LoadRecords()).ToList();
+        ShowEarlierLinks(_records);
         if (_review is not null)
             _review.Changed -= OnReviewChanged;
         _review = new ImportReview(lists);
@@ -417,6 +520,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
         {
             var records = _records.ToList();
             await Task.Run(() => _imports.SaveRecords(records));
+            ShowEarlierLinks(records);
             Phase = ImportPhase.Ready;
             ApplyTarget();
             Refresh();
@@ -482,7 +586,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
             : [.. earlier?.Keys ?? [],
                .. ImportPlan.Covered(item.InScope, t => _review!.SongOf(t) is not null, progress.Added).Select(ImportMatcher.KeyOf)];
         return new ImportRecord(item.List.Name, item.List.Kind, target, earlier?.PlaylistName ?? item.DisplayName,
-            progress.Parts.ToList(), keys, DateTimeOffset.UtcNow);
+            progress.Parts.ToList(), keys, DateTimeOffset.UtcNow, item.List.Source);
     }
 
     private async Task CreatePartAsync(
@@ -587,6 +691,8 @@ public sealed partial class ImportListItem(ImportedList list, ImportReview revie
             parts.Add(Strings.Format("import.list.leftOut", ("count", counts.LeftOut)));
         if (List.Skipped > 0)
             parts.Add(Strings.Format("import.list.skipped", ("count", List.Skipped)));
+        if (List.Incomplete)
+            parts.Add(Strings.Format("import.list.incomplete", ("count", List.Tracks.Count + List.Skipped)));
         Summary = string.Join(" · ", parts);
     }
 }
@@ -696,4 +802,17 @@ public sealed partial class ImportRowItem(
         OnPropertyChanged(nameof(Outcome));
         OnPropertyChanged(nameof(AccessibleName));
     }
+}
+
+/// <summary>A list imported from a link before, to read again and add what is new.</summary>
+public sealed partial class EarlierLinkItem(string name, SpotifyListLink link, Func<SpotifyListLink, Task> readAgain)
+{
+    public string Name { get; } = name;
+
+    public SpotifyListLink Link { get; } = link;
+
+    public string ReadAgainName => Strings.Format("import.readAgainName", ("name", Name));
+
+    [RelayCommand]
+    private Task ReadAgainAsync() => readAgain(Link);
 }

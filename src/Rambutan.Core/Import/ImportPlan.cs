@@ -17,6 +17,8 @@ public sealed record ImportedPart(string PlaylistId, int Count);
 /// <param name="Keys">Every song of the list as it was read
 /// (<see cref="ImportMatcher.KeyOf"/>), once per row: the ones added, and the
 /// ones not found or left out, so those don't come back as new.</param>
+/// <param name="Source">The list's Spotify URI when it was read from a link
+/// (<see cref="ImportedList.Source"/>); null for a file's list.</param>
 public sealed record ImportRecord(
     string ListName,
     ImportedListKind ListKind,
@@ -24,7 +26,8 @@ public sealed record ImportRecord(
     string PlaylistName,
     IReadOnlyList<ImportedPart> Parts,
     IReadOnlyList<string> Keys,
-    DateTimeOffset ImportedAt);
+    DateTimeOffset ImportedAt,
+    string? Source = null);
 
 /// <summary>A playlist to create: its name and its songs, in order.</summary>
 public sealed record PlannedPlaylist(string Name, IReadOnlyList<TrackInfo> Songs);
@@ -114,11 +117,16 @@ public static class ImportPlan
     }
 
     /// <summary>The latest record of <paramref name="list"/> imported to
-    /// <paramref name="target"/>, by the list's kind and name; null when it
-    /// wasn't imported there before.</summary>
+    /// <paramref name="target"/>: by its link's URI when it was read from one,
+    /// else by the file list's kind and name (a link's list renamed on Spotify
+    /// stays the same list, and a file's list of the same name isn't it);
+    /// null when it wasn't imported there before.</summary>
     public static ImportRecord? EarlierImport(IEnumerable<ImportRecord> records, ImportedList list, ImportTarget target) =>
         records
-            .Where(r => r.Target == target && r.ListKind == list.Kind && r.ListName == list.Name && r.Parts.Count > 0)
+            .Where(r => r.Target == target && r.Parts.Count > 0 &&
+                        (list.Source is not null
+                            ? r.Source == list.Source
+                            : r.Source is null && r.ListKind == list.Kind && r.ListName == list.Name))
             .MaxBy(r => r.ImportedAt);
 
     private static List<PlannedPlaylist> Parts(string name, IReadOnlyList<TrackInfo> songs, int cap, int first)
