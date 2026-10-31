@@ -121,21 +121,27 @@ public static class ImportPlan
     }
 
     /// <summary>The latest record of <paramref name="list"/> imported to
-    /// <paramref name="target"/>: by its link's URI when it was read from one,
-    /// else by the file list's kind and name (a link's list renamed on Spotify
-    /// stays the same list, and a file's list of the same name isn't it);
-    /// null when it wasn't imported there before. On YouTube Music only the
-    /// <paramref name="account"/> that made the playlists can add to them, so a
-    /// record of another account, or with no account, is never it.</summary>
+    /// <paramref name="target"/>; null when it wasn't imported there before.
+    /// A list read from a link is first its link's (renamed on Spotify, it stays
+    /// the same list); otherwise a list is the one of the same kind and name,
+    /// so a playlist imported from the data export and later from its link
+    /// stays one playlist. Two links are never the same list, whatever their
+    /// names. On YouTube Music only the <paramref name="account"/> that made
+    /// the playlists can add to them, so a record of another account, or with
+    /// no account, is never it.</summary>
     public static ImportRecord? EarlierImport(
-        IEnumerable<ImportRecord> records, ImportedList list, ImportTarget target, string? account = null) =>
-        records
+        IEnumerable<ImportRecord> records, ImportedList list, ImportTarget target, string? account = null)
+    {
+        var here = records
             .Where(r => r.Target == target && r.Parts.Count > 0 &&
-                        (target != ImportTarget.YouTubeMusic || (account is not null && r.Account == account)) &&
-                        (list.Source is not null
-                            ? r.Source == list.Source
-                            : r.Source is null && r.ListKind == list.Kind && r.ListName == list.Name))
+                        (target != ImportTarget.YouTubeMusic || (account is not null && r.Account == account)))
+            .ToList();
+        if (list.Source is not null && here.Where(r => r.Source == list.Source).MaxBy(r => r.ImportedAt) is { } linked)
+            return linked;
+        return here
+            .Where(r => (r.Source is null || list.Source is null) && r.ListKind == list.Kind && r.ListName == list.Name)
             .MaxBy(r => r.ImportedAt);
+    }
 
     private static List<PlannedPlaylist> Parts(string name, IReadOnlyList<TrackInfo> songs, int cap, int first)
     {

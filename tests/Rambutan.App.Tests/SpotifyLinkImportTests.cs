@@ -30,6 +30,7 @@ public sealed class SpotifyLinkImportTests : IDisposable
 
     private static readonly ImportedTrack Panama = new("Panama", ["Van Halen"]);
     private static readonly ImportedTrack Jump = new("Jump", ["Van Halen"]);
+    private static readonly ImportedTrack Eruption = new("Eruption", ["Van Halen"]);
 
     private Task<IReadOnlyList<TrackInfo>> Search(string query, CancellationToken ct)
     {
@@ -37,6 +38,7 @@ public sealed class SpotifyLinkImportTests : IDisposable
         {
             "Van Halen Panama" => [Song("Panama", "panama")],
             "Van Halen Jump" => [Song("Jump", "jump")],
+            "Van Halen Eruption" => [Song("Eruption", "eruption")],
             _ => [],
         };
         return Task.FromResult(results);
@@ -198,6 +200,43 @@ public sealed class SpotifyLinkImportTests : IDisposable
         Assert.Single(_catalog.CreatedPlaylists);
         var added = Assert.Single(_catalog.Added);
         Assert.Equal(["jump"], added.VideoIds);
+    }
+
+    [Fact]
+    public async Task A_link_adds_to_the_playlist_its_list_made_from_the_data_export()
+    {
+        var fromFile = Page();
+        fromFile.Show("export.zip", [new ImportedList(ImportedListKind.Playlist, "Rock", [Panama])]);
+        fromFile.Lists[0].IsChosen = true;
+        await fromFile.FindSongsCommand.ExecuteAsync(null);
+        await fromFile.CreateCommand.ExecuteAsync(null);
+        _catalog.Added.Clear();
+
+        _rock = [Panama, Jump];
+        var fromLink = Page();
+        fromLink.LinkText = "spotify:playlist:" + RockId;
+        await fromLink.ReadLinksCommand.ExecuteAsync(null);
+        Assert.True(fromLink.Lists[0].HasEarlier);
+        fromLink.Lists[0].IsChosen = true;
+        await fromLink.FindSongsCommand.ExecuteAsync(null);
+        await fromLink.CreateCommand.ExecuteAsync(null);
+
+        Assert.Single(_catalog.CreatedPlaylists);
+        Assert.Equal(["jump"], Assert.Single(_catalog.Added).VideoIds);
+        // The record now knows the link, and the export's list still finds it.
+        var record = Assert.Single(new SpotifyImportRecordStore(_dir.FullName).Load());
+        Assert.Equal("spotify:playlist:" + RockId, record.Source);
+        _catalog.Added.Clear();
+        var fileAgain = Page();
+        fileAgain.Show("export.zip", [new ImportedList(ImportedListKind.Playlist, "Rock", [Panama, Jump, Eruption])]);
+        Assert.True(fileAgain.Lists[0].HasEarlier);
+        fileAgain.Lists[0].IsChosen = true;
+        await fileAgain.FindSongsCommand.ExecuteAsync(null);
+        await fileAgain.CreateCommand.ExecuteAsync(null);
+
+        Assert.Single(_catalog.CreatedPlaylists);
+        Assert.Equal(["eruption"], Assert.Single(_catalog.Added).VideoIds);
+        Assert.Equal("spotify:playlist:" + RockId, Assert.Single(new SpotifyImportRecordStore(_dir.FullName).Load()).Source);
     }
 
     [Fact]

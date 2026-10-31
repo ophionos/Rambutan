@@ -270,18 +270,28 @@ public sealed class ImportPlanTests
     }
 
     [Fact]
-    public void A_link_list_finds_its_earlier_import_by_its_source_not_its_name()
+    public void A_link_list_is_its_link_first_and_else_the_file_list_of_its_name()
     {
         const string source = "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M";
-        var fromLink = new ImportedList(ImportedListKind.Playlist, "Renamed on Spotify", [], Source: source);
+        const string other = "spotify:playlist:0000000000000000000000";
+        var fromLink = new ImportedList(ImportedListKind.Playlist, "Rock", [], Source: source);
+        var renamed = fromLink with { Name = "Renamed on Spotify" };
         var fromFile = new ImportedList(ImportedListKind.Playlist, "Rock", []);
         var linkRecord = Record(1) with { Source = source };
         var fileRecord = Record(2) with { ImportedAt = DateTimeOffset.UnixEpoch.AddDays(1) };
+        var otherLink = Record(3) with { Source = other, ImportedAt = DateTimeOffset.UnixEpoch.AddDays(2) };
 
+        // Its own link wins over a later file list of the same name.
         Assert.Same(linkRecord, ImportPlan.EarlierImport([linkRecord, fileRecord], fromLink, ImportTarget.YouTubeMusic, Me));
-        Assert.Same(fileRecord, ImportPlan.EarlierImport([linkRecord, fileRecord], fromFile, ImportTarget.YouTubeMusic, Me));
-        Assert.Null(ImportPlan.EarlierImport([fileRecord], fromLink, ImportTarget.YouTubeMusic, Me));
-        Assert.Null(ImportPlan.EarlierImport([linkRecord], fromFile, ImportTarget.YouTubeMusic, Me));
+        Assert.Same(linkRecord, ImportPlan.EarlierImport([linkRecord, fileRecord], renamed, ImportTarget.YouTubeMusic, Me));
+        // Imported from the data export before: the same playlist.
+        Assert.Same(fileRecord, ImportPlan.EarlierImport([fileRecord], fromLink, ImportTarget.YouTubeMusic, Me));
+        Assert.Null(ImportPlan.EarlierImport([fileRecord], renamed, ImportTarget.YouTubeMusic, Me));
+        // Another link of the same name is another list.
+        Assert.Null(ImportPlan.EarlierImport([otherLink], fromLink, ImportTarget.YouTubeMusic, Me));
+        // A file's list is the latest of its name, from a link or not.
+        Assert.Same(otherLink, ImportPlan.EarlierImport([linkRecord, fileRecord, otherLink], fromFile, ImportTarget.YouTubeMusic, Me));
+        Assert.Same(linkRecord, ImportPlan.EarlierImport([linkRecord], fromFile, ImportTarget.YouTubeMusic, Me));
     }
 
     [Fact]

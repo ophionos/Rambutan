@@ -470,8 +470,10 @@ file sink), never to files directly.
   `spotify-imports.json` (versioned) keeps what each import made and every
   row it read, so importing the same list to the same place again adds only
   the rows new since (`ImportPlan.NewSince`) to the last playlist it made;
-  a link's list is that list by its link (`ImportRecord.Source`), and the
-  page offers the links imported before to read again. On YouTube Music the
+  a link's list is that list by its link (`ImportRecord.Source`), else the
+  list of the same kind and name (so the data export's playlist and its link
+  stay one playlist; two links never match), and the page offers the links
+  imported before to read again. On YouTube Music the
   same place is the same account: a record keeps the account's channel id
   (`SessionInfo.AccountId`, the account menu's "Your channel" link), and
   another account, or one without a channel, makes its own playlists.

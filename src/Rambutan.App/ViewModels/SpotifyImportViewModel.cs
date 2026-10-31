@@ -635,7 +635,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
             : [.. earlier?.Keys ?? [],
                .. ImportPlan.Covered(item.InScope, t => _review!.SongOf(t) is not null, progress.Added).Select(ImportMatcher.KeyOf)];
         return new ImportRecord(item.List.Name, item.List.Kind, target, earlier?.PlaylistName ?? item.DisplayName,
-            progress.Parts.ToList(), keys, DateTimeOffset.UtcNow, item.List.Source, account);
+            progress.Parts.ToList(), keys, DateTimeOffset.UtcNow, item.List.Source ?? earlier?.Source, account);
     }
 
     private async Task CreatePartAsync(
