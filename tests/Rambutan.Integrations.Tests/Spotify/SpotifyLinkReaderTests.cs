@@ -7,10 +7,11 @@ using Rambutan.Integrations.Spotify;
 namespace Rambutan.Integrations.Tests.Spotify;
 
 /// <summary>
-/// The embed pages are recorded (their anonymous key, correlation id and
-/// Sentry trace scrubbed). The web player API's page is hand-made in the shape
-/// its playlist query answers: recording it is the maintainer's
-/// (<c>FixtureRecorder -- spotify</c>).
+/// The embed pages and the web player API's page are recorded
+/// (<c>FixtureRecorder -- spotify</c>; the anonymous key, correlation ids and
+/// Sentry trace scrubbed): "All Out 2010s" is 150 songs, 100 on its embed
+/// page and 50 on the next. The <c>.synthetic</c> page is hand-made in the
+/// recorded shape, for the rows a recording of Spotify's own playlist lacks.
 /// </summary>
 public class SpotifyLinkReaderTests
 {
@@ -115,6 +116,22 @@ public class SpotifyLinkReaderTests
     [Fact]
     public void A_page_of_the_web_players_api_lists_its_songs()
     {
+        var page = SpotifyLinkReader.ParsePlaylistPage(Fixture("pathfinder.playlist-contents.json"));
+
+        Assert.Equal(150, page.Total);
+        Assert.Equal(0, page.Skipped);
+        Assert.Equal(50, page.Tracks.Count);
+        var last = page.Tracks[^1];
+        Assert.Equal("Roar", last.Title);
+        Assert.Equal(["Katy Perry"], last.Artists);
+        Assert.Equal("PRISM", last.Album);
+        Assert.Equal(TimeSpan.FromMilliseconds(223546), last.Duration);
+        Assert.Equal("27tNWlhdAryQY04Gb2ZhUI", last.SpotifyId);
+    }
+
+    [Fact]
+    public void Rows_of_the_web_players_api_that_arent_songs_are_skipped()
+    {
         var page = SpotifyLinkReader.ParsePlaylistPage(Fixture("pathfinder.playlist-contents.synthetic.json"));
 
         Assert.Equal(104, page.Total);
@@ -171,14 +188,14 @@ public class SpotifyLinkReaderTests
         var embed = Fixture("embed.playlist-100.html").Replace("\"accessToken\":\"REDACTED\"", "\"accessToken\":\"anon-key\"");
         var handler = new StubHandler(r => r.Method == HttpMethod.Get
             ? Answer(embed)
-            : Answer(Fixture("pathfinder.playlist-contents.synthetic.json"), type: "application/json"));
+            : Answer(Fixture("pathfinder.playlist-contents.json"), type: "application/json"));
 
         var list = await new SpotifyLinkReader(new HttpClient(handler), TimeSpan.Zero).ReadAsync(AllOut);
 
         Assert.False(list.Incomplete);
-        Assert.Equal(102, list.Tracks.Count);
-        Assert.Equal(2, list.Skipped);
-        Assert.Equal("Blinding Lights", list.Tracks[100].Title);
+        Assert.Equal("All Out 2010s", list.Name);
+        Assert.Equal(150, list.Tracks.Count);
+        Assert.Equal("Roar", list.Tracks[^1].Title);
         Assert.Equal(2, handler.Requests.Count);
         var (page, body) = handler.Requests[1];
         Assert.Equal(SpotifyLinkReader.PathfinderUri, page.RequestUri);
