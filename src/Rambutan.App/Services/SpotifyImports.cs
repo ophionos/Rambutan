@@ -141,6 +141,10 @@ public sealed class SavedSpotifyImport
     /// <summary>The list's Spotify URI when it was read from a link, to read
     /// it again; absent for a file's list.</summary>
     public string? Source { get; set; }
+
+    /// <summary>For an import to YouTube Music, the id of the account whose
+    /// playlists these are; absent for this computer.</summary>
+    public string? Account { get; set; }
 }
 
 public sealed class SavedImportedPart
@@ -222,6 +226,7 @@ public sealed class SpotifyImportRecordStore(string dataDirectory)
         Keys = r.Keys.ToList(),
         ImportedAt = r.ImportedAt,
         Source = r.Source,
+        Account = r.Account,
     };
 
     /// <summary>A record as saved; null when a field it can't do without is
@@ -248,6 +253,7 @@ public sealed class SpotifyImportRecordStore(string dataDirectory)
             .ToList();
         return new ImportRecord(s.ListName ?? "", kind.Value, target.Value, s.PlaylistName, parts,
             s.Keys.Where(k => k is not null).ToList(), s.ImportedAt,
-            SpotifyLinks.Parse(s.Source) is { } link ? link.Uri : null);
+            SpotifyLinks.Parse(s.Source) is { } link ? link.Uri : null,
+            target == ImportTarget.YouTubeMusic && !string.IsNullOrEmpty(s.Account) ? s.Account : null);
     }
 }

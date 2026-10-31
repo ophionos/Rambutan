@@ -19,6 +19,9 @@ public sealed record ImportedPart(string PlaylistId, int Count);
 /// ones not found or left out, so those don't come back as new.</param>
 /// <param name="Source">The list's Spotify URI when it was read from a link
 /// (<see cref="ImportedList.Source"/>); null for a file's list.</param>
+/// <param name="Account">For an import to YouTube Music, the id of the account
+/// whose playlists these are; null for one to this computer, or when the
+/// account's id wasn't known (then no later import adds to it).</param>
 public sealed record ImportRecord(
     string ListName,
     ImportedListKind ListKind,
@@ -27,7 +30,8 @@ public sealed record ImportRecord(
     IReadOnlyList<ImportedPart> Parts,
     IReadOnlyList<string> Keys,
     DateTimeOffset ImportedAt,
-    string? Source = null);
+    string? Source = null,
+    string? Account = null);
 
 /// <summary>A playlist to create: its name and its songs, in order.</summary>
 public sealed record PlannedPlaylist(string Name, IReadOnlyList<TrackInfo> Songs);
@@ -120,10 +124,14 @@ public static class ImportPlan
     /// <paramref name="target"/>: by its link's URI when it was read from one,
     /// else by the file list's kind and name (a link's list renamed on Spotify
     /// stays the same list, and a file's list of the same name isn't it);
-    /// null when it wasn't imported there before.</summary>
-    public static ImportRecord? EarlierImport(IEnumerable<ImportRecord> records, ImportedList list, ImportTarget target) =>
+    /// null when it wasn't imported there before. On YouTube Music only the
+    /// <paramref name="account"/> that made the playlists can add to them, so a
+    /// record of another account, or with no account, is never it.</summary>
+    public static ImportRecord? EarlierImport(
+        IEnumerable<ImportRecord> records, ImportedList list, ImportTarget target, string? account = null) =>
         records
             .Where(r => r.Target == target && r.Parts.Count > 0 &&
+                        (target != ImportTarget.YouTubeMusic || (account is not null && r.Account == account)) &&
                         (list.Source is not null
                             ? r.Source == list.Source
                             : r.Source is null && r.ListKind == list.Kind && r.ListName == list.Name))

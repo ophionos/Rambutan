@@ -121,6 +121,7 @@ public partial class App : Application
             actions.IsSignedIn = () => session.IsSignedIn;
             _services.GetRequiredService<NavigationService>().SpotifyImports =
                 () => _services.GetRequiredService<SpotifyImports>();
+            _services.GetRequiredService<NavigationService>().Account = () => session.AccountId;
             Controls.CollectionMenu.Actions = collections;
             // Rows show the downloaded mark through a binding; their spoken names
             // read the same set and are renamed when it changes.

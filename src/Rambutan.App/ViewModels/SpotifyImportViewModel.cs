@@ -46,17 +46,21 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
     private readonly ICatalog _catalog;
     private readonly LocalPlaylistLibrary? _localPlaylists;
     private readonly Func<bool> _isSignedIn;
+    private readonly Func<string?> _account;
     private readonly NavigationService? _navigation;
     private readonly TrackActionsViewModel? _actions;
 
     private ImportReview? _review;
     private List<ImportRecord> _records = [];
+    // The account the lists' earlier imports were found for.
+    private string? _appliedAccount;
     private CancellationTokenSource? _work;
 
     public SpotifyImportViewModel(
         SpotifyImports imports, ICatalog catalog, LocalPlaylistLibrary? localPlaylists, Func<bool> isSignedIn,
-        NavigationService? navigation = null, TrackActionsViewModel? actions = null)
+        NavigationService? navigation = null, TrackActionsViewModel? actions = null, Func<string?>? account = null)
     {
+        _account = account ?? (() => null);
         _imports = imports;
         _catalog = catalog;
         _localPlaylists = localPlaylists;
@@ -169,6 +173,8 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
             ToYouTubeMusic = false;
         else if (Phase == ImportPhase.Start)
             ToYouTubeMusic = CanUseYouTubeMusic;
+        if (Phase == ImportPhase.Ready && _account() != _appliedAccount)
+            ApplyTarget();
         Refresh();
         if (Phase == ImportPhase.Start)
             _ = LoadEarlierLinksAsync();
@@ -367,9 +373,10 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
     // Which lists were imported to this place before, and so add only what is new.
     private void ApplyTarget()
     {
+        _appliedAccount = _account();
         foreach (var item in Lists)
         {
-            var earlier = ImportPlan.EarlierImport(_records, item.List, Target);
+            var earlier = ImportPlan.EarlierImport(_records, item.List, Target, _appliedAccount);
             // A local playlist deleted since can't take the new songs.
             if (earlier is not null && Target == ImportTarget.ThisComputer &&
                 _localPlaylists?.Find(earlier.Parts[^1].PlaylistId) is null)
@@ -503,7 +510,17 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
     {
         if (_review is null || !CanCreate)
             return;
+        // Another account signed in since the lists were shown: its playlists
+        // are the only ones it can add to.
+        if (_account() != _appliedAccount)
+        {
+            ApplyTarget();
+            Refresh();
+            if (!CanCreate)
+                return;
+        }
         var target = Target;
+        var account = target == ImportTarget.YouTubeMusic ? _appliedAccount : null;
         var chosen = Lists.Where(l => l.IsChosen).ToList();
         Phase = ImportPhase.Creating;
         Problem = null;
@@ -532,7 +549,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
                 songsAdded += progress.Added;
                 // Recorded even when it stopped partway, so the next import
                 // adds the rest to the same playlists and nothing twice.
-                if (RecordOf(item, earlier, target, progress, complete: failure is null) is { } record)
+                if (RecordOf(item, earlier, target, account, progress, complete: failure is null) is { } record)
                 {
                     if (earlier is not null)
                         _records.Remove(earlier);
@@ -608,7 +625,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
     /// <summary>The record of a list's import; null when it changed nothing
     /// (it stopped before any playlist or song), and the earlier record stays.</summary>
     private ImportRecord? RecordOf(
-        ImportListItem item, ImportRecord? earlier, ImportTarget target, ListProgress progress, bool complete)
+        ImportListItem item, ImportRecord? earlier, ImportTarget target, string? account, ListProgress progress, bool complete)
     {
         if (progress.Parts.Count == 0 ||
             (!complete && progress.Added == 0 && progress.Parts.Count == (earlier?.Parts.Count ?? 0)))
@@ -618,7 +635,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
             : [.. earlier?.Keys ?? [],
                .. ImportPlan.Covered(item.InScope, t => _review!.SongOf(t) is not null, progress.Added).Select(ImportMatcher.KeyOf)];
         return new ImportRecord(item.List.Name, item.List.Kind, target, earlier?.PlaylistName ?? item.DisplayName,
-            progress.Parts.ToList(), keys, DateTimeOffset.UtcNow, item.List.Source);
+            progress.Parts.ToList(), keys, DateTimeOffset.UtcNow, item.List.Source, account);
     }
 
     private async Task CreatePartAsync(

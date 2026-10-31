@@ -830,6 +830,11 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
             InnerTubeJsonContext.Default.SearchSuggestionsRequest, ct);
     }
 
+    /// <summary>Raw account menu of the client's session; for fixture recording.</summary>
+    internal Task<JsonDocument> RecordAccountMenuAsync(CancellationToken ct = default) =>
+        PostAsync("account/account_menu", new BrowseRequest(Context(), BrowseId: null),
+            InnerTubeJsonContext.Default.BrowseRequest, ct);
+
     private Task<JsonDocument> BrowseAsync(string browseId, CancellationToken ct, string? browseParams = null)
     {
         var request = new BrowseRequest(Context(), browseId, Params: browseParams);

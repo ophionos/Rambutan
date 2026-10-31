@@ -207,6 +207,9 @@ public partial class NavigationService : ViewModelBase
     /// composed, and then Library offers no import.</summary>
     public Func<SpotifyImports>? SpotifyImports { get; set; }
 
+    /// <summary>The signed-in account's id, for the imports it made; set by App.</summary>
+    public Func<string?>? Account { get; set; }
+
     public bool CanImportFromSpotify => SpotifyImports is not null;
 
     private SpotifyImportViewModel? _spotifyImport;
@@ -218,7 +221,7 @@ public partial class NavigationService : ViewModelBase
         if (SpotifyImports is null)
             return;
         _spotifyImport ??= new SpotifyImportViewModel(SpotifyImports(), _catalog, _local?.PlaylistLibrary,
-            () => _actions.IsSignedIn?.Invoke() == true, this, _actions);
+            () => _actions.IsSignedIn?.Invoke() == true, this, _actions, () => Account?.Invoke());
         _spotifyImport.Shown();
         if (!ReferenceEquals(Current, _spotifyImport))
             Push(_spotifyImport);

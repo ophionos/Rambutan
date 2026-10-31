@@ -210,7 +210,9 @@ public sealed class ImportPlanTests
 
     private static ImportRecord Record(params int[] counts) => new(
         "Rock", ImportedListKind.Playlist, ImportTarget.YouTubeMusic, "Rock (Spotify)",
-        counts.Select((c, i) => new ImportedPart($"PL{i}", c)).ToList(), [], DateTimeOffset.UnixEpoch);
+        counts.Select((c, i) => new ImportedPart($"PL{i}", c)).ToList(), [], DateTimeOffset.UnixEpoch, Account: Me);
+
+    private const string Me = "account-me";
 
     [Fact]
     public void An_update_fills_the_last_part_then_adds_parts_after_it()
@@ -263,8 +265,8 @@ public sealed class ImportPlanTests
         var local = latest with { Target = ImportTarget.ThisComputer, ImportedAt = DateTimeOffset.UnixEpoch.AddDays(2) };
         var liked = latest with { ListKind = ImportedListKind.LikedSongs, ImportedAt = DateTimeOffset.UnixEpoch.AddDays(3) };
 
-        Assert.Same(latest, ImportPlan.EarlierImport([old, latest, local, liked], list, ImportTarget.YouTubeMusic));
-        Assert.Null(ImportPlan.EarlierImport([old], list with { Name = "Pop" }, ImportTarget.YouTubeMusic));
+        Assert.Same(latest, ImportPlan.EarlierImport([old, latest, local, liked], list, ImportTarget.YouTubeMusic, Me));
+        Assert.Null(ImportPlan.EarlierImport([old], list with { Name = "Pop" }, ImportTarget.YouTubeMusic, Me));
     }
 
     [Fact]
@@ -276,9 +278,26 @@ public sealed class ImportPlanTests
         var linkRecord = Record(1) with { Source = source };
         var fileRecord = Record(2) with { ImportedAt = DateTimeOffset.UnixEpoch.AddDays(1) };
 
-        Assert.Same(linkRecord, ImportPlan.EarlierImport([linkRecord, fileRecord], fromLink, ImportTarget.YouTubeMusic));
-        Assert.Same(fileRecord, ImportPlan.EarlierImport([linkRecord, fileRecord], fromFile, ImportTarget.YouTubeMusic));
-        Assert.Null(ImportPlan.EarlierImport([fileRecord], fromLink, ImportTarget.YouTubeMusic));
-        Assert.Null(ImportPlan.EarlierImport([linkRecord], fromFile, ImportTarget.YouTubeMusic));
+        Assert.Same(linkRecord, ImportPlan.EarlierImport([linkRecord, fileRecord], fromLink, ImportTarget.YouTubeMusic, Me));
+        Assert.Same(fileRecord, ImportPlan.EarlierImport([linkRecord, fileRecord], fromFile, ImportTarget.YouTubeMusic, Me));
+        Assert.Null(ImportPlan.EarlierImport([fileRecord], fromLink, ImportTarget.YouTubeMusic, Me));
+        Assert.Null(ImportPlan.EarlierImport([linkRecord], fromFile, ImportTarget.YouTubeMusic, Me));
+    }
+
+    [Fact]
+    public void Only_the_account_that_made_the_playlists_adds_to_them()
+    {
+        var list = new ImportedList(ImportedListKind.Playlist, "Rock", []);
+        var mine = Record(1);
+        var unknown = Record(1) with { Account = null };
+        var local = Record(1) with { Target = ImportTarget.ThisComputer, Account = null };
+
+        Assert.Same(mine, ImportPlan.EarlierImport([mine], list, ImportTarget.YouTubeMusic, Me));
+        Assert.Null(ImportPlan.EarlierImport([mine], list, ImportTarget.YouTubeMusic, "account-other"));
+        Assert.Null(ImportPlan.EarlierImport([mine], list, ImportTarget.YouTubeMusic, account: null));
+        Assert.Null(ImportPlan.EarlierImport([unknown], list, ImportTarget.YouTubeMusic, Me));
+        // This computer's playlists belong to the profile, whoever is signed in.
+        Assert.Same(local, ImportPlan.EarlierImport([local], list, ImportTarget.ThisComputer, "account-other"));
+        Assert.Same(local, ImportPlan.EarlierImport([local], list, ImportTarget.ThisComputer));
     }
 }

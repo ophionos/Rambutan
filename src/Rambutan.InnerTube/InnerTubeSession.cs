@@ -206,4 +206,7 @@ public enum SessionState
     Unreachable,
 }
 
-public sealed record SessionInfo(SessionState State, string? AccountName, string? AccountPhotoUrl = null);
+/// <param name="AccountId">A stable id of the signed-in account, which its name
+/// isn't; null when not signed in or when the account menu didn't give one.</param>
+public sealed record SessionInfo(
+    SessionState State, string? AccountName, string? AccountPhotoUrl = null, string? AccountId = null);

@@ -142,6 +142,11 @@ switch (positional[0])
                       $".{Slug(positional[1])}.json";
         break;
 
+    case "account-menu" when cookiesPath is not null:
+        doc = await client.RecordAccountMenuAsync();
+        defaultName = "account-menu.json";
+        break;
+
     case "suggestions" when positional.Count >= 2:
         doc = await client.RecordSearchSuggestionsAsync(positional[1]);
         defaultName = $"search-suggestions.{Slug(positional[1])}.json";

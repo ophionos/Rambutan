@@ -69,7 +69,7 @@ public sealed class SpotifyLinkImportTests : IDisposable
 
     private SpotifyImportViewModel Page(bool readsLinks = true) => new(
         new SpotifyImports(_dir.FullName, Search, readsLinks ? Read : null, TimeSpan.Zero),
-        _catalog, new LocalPlaylistLibrary(new MemoryStore()), () => true);
+        _catalog, new LocalPlaylistLibrary(new MemoryStore()), () => true, account: () => "account-me");
 
     [Fact]
     public async Task Nothing_is_sent_for_text_that_isnt_a_list_link()

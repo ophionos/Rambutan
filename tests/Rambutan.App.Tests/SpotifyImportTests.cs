@@ -81,13 +81,16 @@ public sealed class SpotifyImportsTests : IDisposable
     public void The_records_are_kept_and_a_newer_file_is_left_as_it_is()
     {
         var store = new SpotifyImportRecordStore(_dir.FullName);
-        store.Save([Record("Rock"), Record("Pop") with { ListKind = ImportedListKind.LikedSongs, Target = ImportTarget.ThisComputer }]);
+        store.Save([Record("Rock") with { Account = "account-me" },
+            Record("Pop") with { ListKind = ImportedListKind.LikedSongs, Target = ImportTarget.ThisComputer, Account = "stray" }]);
 
         var read = new SpotifyImportRecordStore(_dir.FullName).Load();
         Assert.Equal(2, read.Count);
         Assert.Equal(["a", "b"], read[0].Keys);
         Assert.Equal(new ImportedPart("PL1", 2), Assert.Single(read[0].Parts));
         Assert.Equal((ImportedListKind.LikedSongs, ImportTarget.ThisComputer), (read[1].ListKind, read[1].Target));
+        Assert.Equal("account-me", read[0].Account);
+        Assert.Null(read[1].Account);
 
         const string newer = """{"version":2,"imports":[]}""";
         File.WriteAllText(store.Path, newer);
@@ -106,6 +109,7 @@ public sealed class SpotifyImportViewModelTests : IDisposable
     private readonly List<string> _searched = [];
     private readonly LocalPlaylistLibrary _local = new(new MemoryStore());
     private bool _signedIn = true;
+    private string _account = "account-me";
 
     public void Dispose() => _dir.Delete(recursive: true);
 
@@ -138,7 +142,8 @@ public sealed class SpotifyImportViewModelTests : IDisposable
     }
 
     private SpotifyImportViewModel Page() =>
-        new(new SpotifyImports(_dir.FullName, Search, spacing: TimeSpan.Zero), _catalog, _local, () => _signedIn);
+        new(new SpotifyImports(_dir.FullName, Search, spacing: TimeSpan.Zero), _catalog, _local, () => _signedIn,
+            account: () => _signedIn ? _account : null);
 
     private static ImportedList Rock(params ImportedTrack[] tracks) =>
         new(ImportedListKind.Playlist, "Rock", tracks.Length > 0 ? tracks : [Panama, Jump, Panama, Lost]);
@@ -233,6 +238,37 @@ public sealed class SpotifyImportViewModelTests : IDisposable
         var record = Assert.Single(new SpotifyImportRecordStore(_dir.FullName).Load());
         Assert.Equal(4, record.Parts[0].Count);
         Assert.Equal(5, record.Keys.Count);
+    }
+
+    [Fact]
+    public async Task Another_account_makes_its_own_playlist_and_keeps_the_first_ones_record()
+    {
+        var first = Page();
+        await ChooseAndFindAsync(first, Rock());
+        await first.CreateCommand.ExecuteAsync(null);
+        Assert.Equal("account-me", Assert.Single(new SpotifyImportRecordStore(_dir.FullName).Load()).Account);
+        _catalog.Added.Clear();
+
+        _account = "account-other";
+        var again = Page();
+        await ChooseAndFindAsync(again, Rock(Panama, Jump));
+        Assert.False(again.Lists[0].HasEarlier);
+        await again.CreateCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, _catalog.CreatedPlaylists.Count);
+        Assert.DoesNotContain(_catalog.Added, a => a.PlaylistId == "PL1");
+        var records = new SpotifyImportRecordStore(_dir.FullName).Load();
+        Assert.Equal(["account-me", "account-other"], records.Select(r => r.Account).Order());
+
+        _account = "account-me";
+        var back = Page();
+        await ChooseAndFindAsync(back, Rock(Panama, Jump));
+        Assert.True(back.Lists[0].HasEarlier);
+
+        // Signed in as another account while the page waits: shown again, it knows.
+        _account = "account-third";
+        back.Shown();
+        Assert.False(back.Lists[0].HasEarlier);
     }
 
     [Fact]
