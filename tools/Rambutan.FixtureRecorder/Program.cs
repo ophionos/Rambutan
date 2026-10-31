@@ -431,6 +431,7 @@ static int Usage()
           dotnet run --project tools/Rambutan.FixtureRecorder -- home [options]   (Home and every continuation, in one session: <out>, <out>-continuation-N)
           dotnet run --project tools/Rambutan.FixtureRecorder -- search <query> [--filter songs|videos|albums|artists|playlists] [--continuation <token>] [options]   (no --filter: the unfiltered "All" search)
           dotnet run --project tools/Rambutan.FixtureRecorder -- suggestions <partial query>   (search-box completions)
+          dotnet run --project tools/Rambutan.FixtureRecorder -- account-menu --cookies <file>   (the signed-in account menu; scrub its channel id and handle by hand)
           dotnet run --project tools/Rambutan.FixtureRecorder -- next <videoId> [--playlist <id> [--params <params>]]   (radio/automix watch queue; with --playlist, a page's mix, such as an artist's radio)
           dotnet run --project tools/Rambutan.FixtureRecorder -- live-diff   (run all anonymous parsers against live YTM and Last.fm)
           dotnet run --project tools/Rambutan.FixtureRecorder -- spotify <link> [--out <dir>]   (a Spotify playlist's or album's embed page and, past 100 songs, the web player's next page; into tests/Rambutan.Integrations.Tests/Fixtures/Spotify)
@@ -490,7 +491,10 @@ static int Scrub(JsonNode node, string[] redactedKeys, string? accountName)
                 var value = obj[key];
                 if (redactedKeys.Contains(key))
                 {
-                    obj[key] = key == "accountName" ? "Redacted User" : "REDACTED";
+                    // The account menu's name is a runs object, which the session probe reads.
+                    obj[key] = key != "accountName" ? "REDACTED"
+                        : value is JsonObject ? new JsonObject { ["runs"] = new JsonArray(new JsonObject { ["text"] = "Redacted User" }) }
+                        : "Redacted User";
                     count++;
                 }
                 else if (TryScrubString(value, accountName, out var replaced))

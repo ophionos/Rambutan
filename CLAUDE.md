@@ -471,7 +471,10 @@ file sink), never to files directly.
   row it read, so importing the same list to the same place again adds only
   the rows new since (`ImportPlan.NewSince`) to the last playlist it made;
   a link's list is that list by its link (`ImportRecord.Source`), and the
-  page offers the links imported before to read again.
+  page offers the links imported before to read again. On YouTube Music the
+  same place is the same account: a record keeps the account's channel id
+  (`SessionInfo.AccountId`, the account menu's "Your channel" link), and
+  another account, or one without a channel, makes its own playlists.
   A list that stops partway is recorded as far as it got (each batch counts
   as it lands, `ImportPlan.Covered`), so the next import adds the rest and
   nothing twice. The page says the feature is experimental.

@@ -290,8 +290,8 @@ public sealed class DemoInnerTubeHandler(DemoOptions options) : HttpMessageHandl
         });
     }
 
-    // The one path InnerTubeClient.GetSessionInfoAsync reads.
+    // The paths InnerTubeClient.GetSessionInfoAsync reads.
     private static readonly string AccountMenu =
-        """{"actions":[{"openPopupAction":{"popup":{"multiPageMenuRenderer":{"header":{"activeAccountHeaderRenderer":{"accountName":{"runs":[{"text":"NAME"}]},"accountPhoto":{"thumbnails":[{"url":"https://yt3.ggpht.com/demo-avatar=s88","width":88,"height":88}]}}}}}}}]}"""
+        """{"actions":[{"openPopupAction":{"popup":{"multiPageMenuRenderer":{"header":{"activeAccountHeaderRenderer":{"accountName":{"runs":[{"text":"NAME"}]},"accountPhoto":{"thumbnails":[{"url":"https://yt3.ggpht.com/demo-avatar=s88","width":88,"height":88}]}}},"sections":[{"multiPageMenuSectionRenderer":{"items":[{"compactLinkRenderer":{"navigationEndpoint":{"browseEndpoint":{"browseId":"UCdemoListener0000000000"}}}}]}}]}}}}]}"""
             .Replace("NAME", DemoOptions.AccountName);
 }

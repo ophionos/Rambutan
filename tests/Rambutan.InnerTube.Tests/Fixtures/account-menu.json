@@ -1,0 +1,391 @@
+{
+  "responseContext": {
+    "visitorData": "REDACTED",
+    "serviceTrackingParams": [
+      {
+        "service": "CSI",
+        "params": [
+          {
+            "key": "c",
+            "value": "WEB_REMIX"
+          },
+          {
+            "key": "cver",
+            "value": "1.20260708.01.00"
+          },
+          {
+            "key": "yt_li",
+            "value": "1"
+          },
+          {
+            "key": "GetAccountMenu_rid",
+            "value": "0x7cf29ba1339e0799"
+          }
+        ]
+      },
+      {
+        "service": "GFEEDBACK",
+        "params": [
+          {
+            "key": "logged_in",
+            "value": "1"
+          }
+        ]
+      },
+      {
+        "service": "ECATCHER",
+        "params": [
+          {
+            "key": "client.version",
+            "value": "1.20000101"
+          },
+          {
+            "key": "client.name",
+            "value": "WEB_REMIX"
+          }
+        ]
+      }
+    ],
+    "responseId": "IhMIzK_06oPjlwMVh4V8Bh0ivhrh"
+  },
+  "actions": [
+    {
+      "clickTrackingParams": "REDACTED",
+      "openPopupAction": {
+        "popup": {
+          "multiPageMenuRenderer": {
+            "header": {
+              "activeAccountHeaderRenderer": {
+                "accountName": {
+                  "runs": [
+                    {
+                      "text": "Test Listener"
+                    }
+                  ]
+                },
+                "accountPhoto": {
+                  "thumbnails": [
+                    {
+                      "url": "https://yt3.ggpht.com/test-avatar=s88",
+                      "width": 108,
+                      "height": 108
+                    }
+                  ]
+                },
+                "settingsEndpoint": {
+                  "clickTrackingParams": "REDACTED",
+                  "applicationSettingsEndpoint": {
+                    "hack": true
+                  }
+                },
+                "manageAccountTitle": {
+                  "runs": [
+                    {
+                      "text": "Manage your Google Account",
+                      "navigationEndpoint": {
+                        "clickTrackingParams": "REDACTED",
+                        "urlEndpoint": {
+                          "url": "https://myaccount.google.com/u/0/?utm_source=YouTubeWeb&tab=rk&utm_medium=act&sl=true&tab=rk&hl=en",
+                          "target": "TARGET_NEW_WINDOW"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "trackingParams": "REDACTED",
+                "channelHandle": "REDACTED"
+              }
+            },
+            "sections": [
+              {
+                "multiPageMenuSectionRenderer": {
+                  "items": [
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "ACCOUNT_BOX"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Your channel"
+                            }
+                          ]
+                        },
+                        "navigationEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "browseEndpoint": {
+                            "browseId": "UCtestListener0000000000",
+                            "canonicalBaseUrl": "/@TestListener",
+                            "browseEndpointContextSupportedConfigs": {
+                              "browseEndpointContextMusicConfig": {
+                                "pageType": "MUSIC_PAGE_TYPE_USER_CHANNEL"
+                              }
+                            }
+                          }
+                        },
+                        "trackingParams": "REDACTED"
+                      }
+                    },
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "MONETIZATION_ON"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Paid memberships"
+                            }
+                          ]
+                        },
+                        "navigationEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "browseEndpoint": {
+                            "browseId": "FEmemberships_and_purchases",
+                            "params": "kgMDmAEK"
+                          }
+                        },
+                        "trackingParams": "REDACTED"
+                      }
+                    },
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "SWITCH_ACCOUNTS"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Switch account"
+                            }
+                          ]
+                        },
+                        "trackingParams": "REDACTED",
+                        "secondaryIcon": {
+                          "iconType": "CHEVRON_RIGHT"
+                        },
+                        "serviceEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "getAccountSwitcherEndpoint": {
+                            "hack": true
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "EXIT_TO_APP"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Sign out"
+                            }
+                          ]
+                        },
+                        "navigationEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "signOutEndpoint": {
+                            "hack": true
+                          }
+                        },
+                        "trackingParams": "REDACTED"
+                      }
+                    }
+                  ],
+                  "trackingParams": "REDACTED"
+                }
+              },
+              {
+                "multiPageMenuSectionRenderer": {
+                  "items": [
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "CLOUD_UPLOAD"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Upload music"
+                            }
+                          ]
+                        },
+                        "trackingParams": "REDACTED",
+                        "serviceEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "signalServiceEndpoint": {
+                            "signal": "CLIENT_SIGNAL",
+                            "actions": [
+                              {
+                                "clickTrackingParams": "REDACTED",
+                                "signalAction": {
+                                  "signal": "OPEN_FILE_PICKER"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "WATCH_HISTORY"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "History"
+                            }
+                          ]
+                        },
+                        "navigationEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "browseEndpoint": {
+                            "browseId": "FEmusic_history"
+                          }
+                        },
+                        "trackingParams": "REDACTED"
+                      }
+                    },
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "SETTINGS"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Settings"
+                            }
+                          ]
+                        },
+                        "navigationEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "applicationSettingsEndpoint": {
+                            "hack": true
+                          }
+                        },
+                        "trackingParams": "REDACTED"
+                      }
+                    },
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "PRIVACY_INFO"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Terms & privacy policy"
+                            }
+                          ]
+                        },
+                        "navigationEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "urlEndpoint": {
+                            "url": "https://www.youtube.com/t/terms?gl=US&chromeless=1"
+                          }
+                        },
+                        "trackingParams": "REDACTED"
+                      }
+                    },
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "HELP"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Help"
+                            }
+                          ]
+                        },
+                        "trackingParams": "REDACTED",
+                        "serviceEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "signalServiceEndpoint": {
+                            "signal": "CLIENT_SIGNAL",
+                            "actions": [
+                              {
+                                "clickTrackingParams": "REDACTED",
+                                "signalAction": {
+                                  "signal": "HELP"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "FEEDBACK"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Send feedback"
+                            }
+                          ]
+                        },
+                        "trackingParams": "REDACTED",
+                        "serviceEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "signalServiceEndpoint": {
+                            "signal": "CLIENT_SIGNAL",
+                            "actions": [
+                              {
+                                "clickTrackingParams": "REDACTED",
+                                "sendFeedbackAction": {
+                                  "bucket": "Kevlar"
+                                }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "compactLinkRenderer": {
+                        "icon": {
+                          "iconType": "CANCEL"
+                        },
+                        "title": {
+                          "runs": [
+                            {
+                              "text": "Withdraw from contract"
+                            }
+                          ]
+                        },
+                        "navigationEndpoint": {
+                          "clickTrackingParams": "REDACTED",
+                          "urlEndpoint": {
+                            "url": "https://support.google.com/youtube/workflow/17112204?hl=en",
+                            "target": "TARGET_NEW_WINDOW"
+                          }
+                        },
+                        "trackingParams": "REDACTED"
+                      }
+                    }
+                  ],
+                  "trackingParams": "REDACTED"
+                }
+              }
+            ],
+            "trackingParams": "REDACTED",
+            "style": "MULTI_PAGE_MENU_STYLE_TYPE_ACCOUNT"
+          }
+        },
+        "popupType": "DROPDOWN",
+        "reusePopup": true
+      }
+    }
+  ],
+  "trackingParams": "REDACTED"
+}
