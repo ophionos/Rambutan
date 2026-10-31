@@ -195,7 +195,7 @@
     "import.list.notFound": "{count} not found",
     "import.list.skipped": "{count, plural, one {# podcast episode or audiobook skipped} other {# podcast episodes or audiobooks skipped}}",
     "import.list.songs": "{count, plural, one {# song} other {# songs}}",
-    "import.listsName": "Lists in the file",
+    "import.listsName": "Lists read from Spotify",
     "import.matching.cancelled": "Searching stopped. The songs found so far are kept.",
     "import.matching.done": "Every song was searched. Check the lists before you import.",
     "import.matching.progress": "Searching YouTube Music: {done} of {total}",

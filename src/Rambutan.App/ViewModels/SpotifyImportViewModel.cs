@@ -78,7 +78,8 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
     public bool IsStart => Phase == ImportPhase.Start;
     public bool IsReading => Phase == ImportPhase.Reading;
 
-    public string ChooseFileText => Strings.Get(FileName is null ? "import.chooseFile" : "import.chooseOther");
+    public string ChooseFileText => Strings.Get(_fromFile ? "import.chooseOther" : "import.chooseFile");
+    private bool _fromFile;
     public bool IsReady => Phase is ImportPhase.Ready or ImportPhase.Matching or ImportPhase.Creating;
     public bool IsBusy => Phase is ImportPhase.Reading or ImportPhase.Matching or ImportPhase.Creating;
     public bool IsMatching => Phase == ImportPhase.Matching;
@@ -246,7 +247,7 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
             if (lists.Count > 0)
             {
                 var records = await Task.Run(_imports.LoadRecords);
-                Show(Strings.Format("import.fromLinks", ("count", lists.Count)), lists, records);
+                Show(Strings.Format("import.fromLinks", ("count", lists.Count)), lists, records, fromFile: false);
                 LinkText = "";
             }
         }
@@ -300,7 +301,8 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
 
     /// <summary>Shows a file's lists, none of them chosen yet, against the
     /// earlier imports (read from the disk when null).</summary>
-    internal void Show(string fileName, IReadOnlyList<ImportedList> lists, IReadOnlyList<ImportRecord>? records = null)
+    internal void Show(string fileName, IReadOnlyList<ImportedList> lists, IReadOnlyList<ImportRecord>? records = null,
+        bool fromFile = true)
     {
         _records = (records ?? _imports.LoadRecords()).ToList();
         ShowEarlierLinks(_records);
@@ -308,7 +310,9 @@ public sealed partial class SpotifyImportViewModel : ViewModelBase
             _review.Changed -= OnReviewChanged;
         _review = new ImportReview(lists);
         _review.Changed += OnReviewChanged;
+        _fromFile = fromFile;
         FileName = fileName;
+        OnPropertyChanged(nameof(ChooseFileText));
         foreach (var item in Lists)
             item.PropertyChanged -= OnListChanged;
         Lists.Clear();

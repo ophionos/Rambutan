@@ -92,6 +92,7 @@ public sealed class SpotifyLinkImportTests : IDisposable
         Assert.Equal("", page.LinkText);
         Assert.Contains("open.spotify.com/playlist/" + PrivateId, page.Problem);
         Assert.Contains("offline", page.Problem);
+        Assert.Equal(Localization.Strings.Get("import.chooseFile"), page.ChooseFileText);
     }
 
     [Fact]
