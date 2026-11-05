@@ -366,6 +366,12 @@
                         Maximum="{Binding Player.DurationSeconds}"
                         Value="{Binding Player.PositionSeconds}"
                         IsEnabled="{Binding Player.NowPlaying, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <!-- The knob, drawn here for the same reason as SeekFill: the
+                     template's thumb sits off the panel-centered line. Its centre
+                     follows SeekFill's end (code-behind). -->
+                <Ellipse x:Name="SeekKnob" Width="10" Height="10" IsHitTestVisible="False"
+                         VerticalAlignment="Center" HorizontalAlignment="Left"
+                         Fill="{StaticResource Token.Brush.White}" />
               </Panel>
 
               <TextBlock Classes="time duration" Text="{Binding Player.DurationDisplay}" TextAlignment="Left"
