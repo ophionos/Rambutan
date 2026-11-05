@@ -582,11 +582,14 @@ public partial class MainWindow : Window
         }
     }
 
-    private void UpdateSeekFill() =>
+    private void UpdateSeekFill()
+    {
         SeekFill.Width = PositionSlider.Maximum > 0
             ? SeekArea.Bounds.Width *
               Math.Clamp(PositionSlider.Value / PositionSlider.Maximum, 0, 1)
             : 0;
+        SeekKnob.Margin = new Thickness(SeekFill.Width - SeekKnob.Width / 2, 0, 0, 0);
+    }
 
     /// <summary>Pointer x → slider-range seconds, clamped to the track.</summary>
     private double SeekTarget(double x) =>

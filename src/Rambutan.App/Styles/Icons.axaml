@@ -165,16 +165,18 @@
     <Setter Property="Height" Value="3" />
   </Style>
 
+  <!-- The template's thumb stays for input only; the player bar draws the
+       visible knob (Ellipse#SeekKnob), centred on the line it draws. -->
   <Style Selector="Slider.seek /template/ Track#PART_Track Thumb">
     <Setter Property="Width" Value="10" />
     <Setter Property="Height" Value="10" />
     <Setter Property="Opacity" Value="0" />
-    <!-- The template arranges the thumb 2px below the drawn line (measured);
-         nudge it back onto the line. -->
-    <Setter Property="RenderTransform" Value="translateY(-2px)" />
   </Style>
 
-  <Style Selector="Slider.seek:pointerover /template/ Track#PART_Track Thumb">
+  <Style Selector="Panel#SeekArea Ellipse#SeekKnob">
+    <Setter Property="Opacity" Value="0" />
+  </Style>
+  <Style Selector="Panel#SeekArea:not(.idle):pointerover Ellipse#SeekKnob">
     <Setter Property="Opacity" Value="1" />
   </Style>
 
