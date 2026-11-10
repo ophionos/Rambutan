@@ -29,6 +29,9 @@ public sealed class LocalLyrics(
     /// large is its pictures.</summary>
     private const int MaxTagBytes = 32 * 1024 * 1024;
 
+    /// <summary>A larger <c>.lrc</c> file isn't read: it is no lyrics.</summary>
+    public const int MaxSidecarBytes = 4 * 1024 * 1024;
+
     /// <summary>Windows matches file names ignoring case already; elsewhere a
     /// name that differs in case needs the folder listed.</summary>
     private static readonly bool CaseSensitiveNames = !OperatingSystem.IsWindows();
@@ -82,7 +85,14 @@ public sealed class LocalLyrics(
     {
         try
         {
-            return FindSidecar(audioPath) is { } lrc ? FileText.Decode(File.ReadAllBytes(lrc)) : null;
+            if (FindSidecar(audioPath) is not { } lrc)
+                return null;
+            if (new FileInfo(lrc).Length > MaxSidecarBytes)
+            {
+                AppLog.Write("lyrics", $"The .lrc file beside {id} is larger than {MaxSidecarBytes} bytes; not read.");
+                return null;
+            }
+            return FileText.Decode(File.ReadAllBytes(lrc));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

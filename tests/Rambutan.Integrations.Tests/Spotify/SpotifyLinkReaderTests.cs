@@ -229,6 +229,78 @@ public class SpotifyLinkReaderTests
         Assert.Single(handler.Requests);
     }
 
+    /// <summary>A body that never ends and counts what was read from it.</summary>
+    private sealed class EndlessStream : Stream
+    {
+        public long Served;
+
+        public override int Read(Span<byte> buffer)
+        {
+            buffer.Clear();
+            Served += buffer.Length;
+            return buffer.Length;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) =>
+            ValueTask.FromResult(Read(buffer.Span));
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private static HttpResponseMessage Endless(EndlessStream body, long? declaredLength)
+    {
+        var content = new StreamContent(body);
+        content.Headers.ContentLength = declaredLength;
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+    }
+
+    [Fact]
+    public async Task A_page_with_no_declared_length_is_cut_off_at_the_limit()
+    {
+        var body = new EndlessStream();
+        var handler = new StubHandler(_ => Endless(body, null));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            new SpotifyLinkReader(new HttpClient(handler)).ReadAsync(TopHits));
+
+        Assert.InRange(body.Served, 1, SpotifyLinkReader.MaxResponseBytes + 81920);
+    }
+
+    [Fact]
+    public async Task A_page_declared_over_the_limit_is_refused_without_reading()
+    {
+        var body = new EndlessStream();
+        var handler = new StubHandler(_ => Endless(body, SpotifyLinkReader.MaxResponseBytes + 1));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            new SpotifyLinkReader(new HttpClient(handler)).ReadAsync(TopHits));
+
+        Assert.Equal(0, body.Served);
+    }
+
+    [Fact]
+    public async Task A_playlist_page_over_the_limit_keeps_the_first_songs_as_incomplete()
+    {
+        var embed = Fixture("embed.playlist-100.html").Replace("\"accessToken\":\"REDACTED\"", "\"accessToken\":\"anon-key\"");
+        var handler = new StubHandler(r => r.Method == HttpMethod.Get ? Answer(embed) : Endless(new EndlessStream(), null));
+
+        var list = await new SpotifyLinkReader(new HttpClient(handler), TimeSpan.Zero).ReadAsync(AllOut);
+
+        Assert.True(list.Incomplete);
+        Assert.Equal(100, list.Tracks.Count);
+        Assert.Equal(2, handler.Requests.Count);
+    }
+
     [Fact]
     public async Task A_page_not_found_answer_is_unavailable()
     {

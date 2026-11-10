@@ -404,6 +404,28 @@ public class LrcLibProviderTests
         Assert.Equal(new LyricsQuery("vid", "Song", "First", null, TimeSpan.FromSeconds(100)), query);
     }
 
+    [Fact]
+    public async Task An_answer_with_no_declared_length_is_cut_off_at_the_limit()
+    {
+        var body = new EndlessStream();
+        var (provider, _) = Create(h => h.Serve("get", _ => EndlessStream.Response(body, null)));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => provider.TryGetAsync(Full, CancellationToken.None));
+
+        Assert.InRange(body.Served, 1, LrcLibProvider.MaxResponseBytes + 81920);
+    }
+
+    [Fact]
+    public async Task An_answer_declared_over_the_limit_is_refused_without_reading()
+    {
+        var body = new EndlessStream();
+        var (provider, _) = Create(h => h.Serve("get", _ => EndlessStream.Response(body, LrcLibProvider.MaxResponseBytes + 1)));
+
+        await Assert.ThrowsAsync<HttpRequestException>(() => provider.TryGetAsync(Full, CancellationToken.None));
+
+        Assert.Equal(0, body.Served);
+    }
+
     private static HttpResponseMessage Json(string body) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),

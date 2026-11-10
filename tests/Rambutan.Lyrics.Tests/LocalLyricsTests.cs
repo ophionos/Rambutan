@@ -54,6 +54,28 @@ public sealed class LocalLyricsTests : IDisposable
     }
 
     [Fact]
+    public async Task An_lrc_file_over_the_limit_is_not_read_and_the_tags_are_used()
+    {
+        Sidecar("[00:01.00]From the file\n" + new string('x', LocalLyrics.MaxSidecarBytes));
+        _tags.Add("From the tags");
+
+        var doc = await Local().TryGetAsync(Id, default);
+
+        Assert.Equal(LocalLyrics.TagsSourceName, doc!.Source);
+    }
+
+    [Fact]
+    public async Task An_lrc_file_at_the_limit_is_read()
+    {
+        const string head = "[00:01.00]From the file\n";
+        Sidecar(head + new string(' ', LocalLyrics.MaxSidecarBytes - head.Length));
+
+        var doc = await Local().TryGetAsync(Id, default);
+
+        Assert.Equal(LocalLyrics.SidecarSourceName, doc!.Source);
+    }
+
+    [Fact]
     public async Task An_enhanced_lrc_file_keeps_its_word_timing()
     {
         Sidecar("[00:01.00]<00:01.00>Two <00:01.50>words");
