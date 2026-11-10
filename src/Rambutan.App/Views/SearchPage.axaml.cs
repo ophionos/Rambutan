@@ -1,3 +1,4 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -43,6 +44,9 @@ public partial class SearchPage : UserControl
         // moves its selection or swallows the key.
         SuggestionList.AddHandler(KeyDownEvent, OnSuggestionKeyDown, RoutingStrategies.Tunnel);
         SuggestionList.Tapped += OnSuggestionTapped;
+
+        RecentList.AddHandler(KeyDownEvent, OnRecentKeyDown);
+        RecentList.AddHandler(Button.ClickEvent, OnRecentClick);
 
         // A filtered search's next page, as the list nears its end. Extent changes
         // raise this too, so a first page too short to scroll asks for the next.
@@ -123,6 +127,45 @@ public partial class SearchPage : UserControl
                 e.Handled = true;
                 break;
         }
+    }
+
+    private void OnRecentKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Delete && e.KeyModifiers == KeyModifiers.None &&
+            e.Source is Button { DataContext: RecentQueryItem recent })
+        {
+            RemoveRecent(recent);
+            e.Handled = true;
+        }
+    }
+
+    private void OnRecentClick(object? sender, RoutedEventArgs e)
+    {
+        if (e.Source is Button { DataContext: RecentQueryItem recent } button && button.Classes.Contains("recentremove"))
+        {
+            RemoveRecent(recent);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>Removes a chip and keeps keyboard focus in the list: on the chip
+    /// that takes its place, or in the box when none is left.</summary>
+    private void RemoveRecent(RecentQueryItem recent)
+    {
+        if (_vm is null)
+            return;
+
+        var index = _vm.Recent.IndexOf(recent);
+        _vm.RemoveRecentCommand.Execute(recent.Query);
+        Dispatcher.UIThread.Post(() =>
+        {
+            var chips = RovingFocus.Stops(RecentList).OfType<Button>()
+                .Where(b => b.Classes.Contains("recentrun")).ToList();
+            if (chips.Count == 0)
+                SearchBox.Focus(NavigationMethod.Directional);
+            else
+                chips[System.Math.Min(System.Math.Max(index, 0), chips.Count - 1)].Focus(NavigationMethod.Directional);
+        });
     }
 
     private void OnSuggestionKeyDown(object? sender, KeyEventArgs e)

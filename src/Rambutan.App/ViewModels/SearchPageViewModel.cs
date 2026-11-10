@@ -25,8 +25,14 @@ public sealed record SearchTab(SearchFilter? Filter)
     public static SearchTab All { get; } = new((SearchFilter?)null);
 }
 
-/// <summary>A query from this machine's search history, in the drop-down.</summary>
-public sealed record RecentQueryItem(string Query);
+/// <summary>A query from this machine's search history, in the drop-down and on
+/// the resting page.</summary>
+public sealed record RecentQueryItem(string Query)
+{
+    /// <summary>The remove button's screen-reader name; names the query so a list of
+    /// identical buttons can be told apart.</summary>
+    public string RemoveName => Strings.Format("search.removeRecentNamed", ("value", Query));
+}
 
 /// <summary>A completion YTM offered for the typed text; <see cref="FromHistory"/>
 /// marks the signed-in account's own past searches.</summary>
@@ -58,7 +64,40 @@ public partial class SearchPageViewModel : ViewModelBase
         }
     }
     /// <summary>Distinguishes "no results" from "hasn't searched yet" (empty states).</summary>
-    [ObservableProperty] private bool _hasSearched;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsEmptyHint))]
+    private bool _hasSearched;
+
+    /// <summary>The searches this machine remembers, newest first: the resting
+    /// page's chips. Follows <see cref="SearchHistory.Changed"/>.</summary>
+    public ObservableCollection<RecentQueryItem> Recent { get; } = [];
+
+    public bool HasRecent => Recent.Count > 0;
+
+    /// <summary>Moods &amp; genres under the recent searches; null where the page
+    /// has no catalog to ask.</summary>
+    public MoodsPageViewModel? Moods { get; }
+
+    /// <summary>The moods section (title and tiles or their skeleton) shows: it
+    /// is loading or it has tiles. A failure takes its place, compact.</summary>
+    public bool ShowsMoodsSection => Moods is { LoadError: null, IsEmpty: false };
+
+    /// <summary>The resting page has no history and no tiles to show, so the
+    /// sentence says what the page is for.</summary>
+    public bool ShowsEmptyHint =>
+        !HasSearched && !HasRecent && (Moods is null || Moods.IsEmpty || Moods.LoadError is not null);
+
+    private bool _moodsRequested;
+
+    /// <summary>Loads the moods the first time the page is shown. A failed load is
+    /// retried by its error's Try again, not on each visit.</summary>
+    public void EnsureMoodsLoaded()
+    {
+        if (_moodsRequested || Moods is null)
+            return;
+        _moodsRequested = true;
+        _ = Moods.LoadAsync();
+    }
 
     /// <summary>A filtered search has another page; the view asks for it as the
     /// list nears its end. Always false on All, which YTM doesn't page.</summary>
@@ -137,28 +176,58 @@ public partial class SearchPageViewModel : ViewModelBase
 
     public SearchPageViewModel(
         ICatalog catalog, PlaybackCoordinator coordinator, NavigationService navigation,
-        SearchHistory? history = null, LocalSearchFunc? searchLocal = null)
+        SearchHistory? history = null, LocalSearchFunc? searchLocal = null,
+        MoodsPageViewModel? moods = null)
     {
         _catalog = catalog;
         _coordinator = coordinator;
         _navigation = navigation;
         _history = history ?? new SearchHistory(null);
         _searchLocal = searchLocal;
+        Moods = moods;
+
+        SyncRecent();
+        _history.Changed += OnHistoryChanged;
+        if (Moods is not null)
+        {
+            Moods.PropertyChanged += (_, _) =>
+            {
+                OnPropertyChanged(nameof(ShowsMoodsSection));
+                OnPropertyChanged(nameof(ShowsEmptyHint));
+            };
+        }
     }
 
-    // With the box empty it lists recent queries; while typing, the recent ones
-    // that match, then YTM's completions, then the entities YTM matched outright.
+    private void OnHistoryChanged()
+    {
+        SyncRecent();
+        // The drop-down's recent rows follow a remove or a clear made anywhere.
+        foreach (var gone in Dropdown.OfType<RecentQueryItem>()
+                     .Where(r => !_history.Queries.Contains(r.Query)).ToList())
+        {
+            Dropdown.Remove(gone);
+        }
+        IsDropdownOpen = IsDropdownOpen && Dropdown.Count > 0;
+    }
+
+    private void SyncRecent()
+    {
+        Recent.Clear();
+        foreach (var query in _history.Queries)
+            Recent.Add(new RecentQueryItem(query));
+        OnPropertyChanged(nameof(HasRecent));
+        OnPropertyChanged(nameof(ShowsEmptyHint));
+    }
+
+    // While typing, the drop-down lists the recent queries that match, then YTM's
+    // completions, then the entities YTM matched outright. An empty box lists
+    // nothing: the page under it shows the recent searches.
 
     /// <summary>Recent queries, YTM's completions and matched entities, in that order.</summary>
     public ObservableCollection<object> Dropdown { get; } = [];
 
     [ObservableProperty] private bool _isDropdownOpen;
 
-    /// <summary>The box is empty and the list is the history, which gets a header
-    /// with Clear.</summary>
-    [ObservableProperty] private bool _showingRecent;
-
-    internal const int RecentShownWhenEmpty = 8;
     internal const int RecentShownWhileTyping = 3;
     internal static readonly TimeSpan SuggestDelay = TimeSpan.FromMilliseconds(200);
 
@@ -177,12 +246,9 @@ public partial class SearchPageViewModel : ViewModelBase
         if (_fieldActive == active)
             return;
         _fieldActive = active;
-        // Focus alone offers history only. With a query already in the box (back
-        // on Search, or after a search) the list waits for a keystroke instead of
-        // covering the results.
-        if (active && string.IsNullOrWhiteSpace(Query))
-            RefreshDropdown();
-        else if (!active)
+        // Focus alone opens nothing: the list waits for a keystroke, so it never
+        // covers the resting page's recent searches or the results.
+        if (!active)
             CloseDropdown();
     }
 
@@ -196,8 +262,32 @@ public partial class SearchPageViewModel : ViewModelBase
 
     partial void OnQueryChanged(string value)
     {
-        if (!_settingQuery)
-            RefreshDropdown();
+        if (_settingQuery)
+            return;
+        // Emptying the box ends the search on screen at once, not at the next Enter.
+        if (string.IsNullOrWhiteSpace(value))
+            ReturnToResting();
+        RefreshDropdown();
+    }
+
+    /// <summary>Drops the search on screen, and any still running, so the page
+    /// shows its resting state and a late answer finds nobody to show it to.</summary>
+    private void ReturnToResting()
+    {
+        _search?.Cancel();
+        _search = null;
+        _more?.Cancel();
+        _more = null;
+        _next = null;
+        HasMore = false;
+        IsLoadingMore = false;
+        MoreError = null;
+        Results.Clear();
+        TopResult = null;
+        ShowLocal([], 0, expanded: false);
+        HasSearched = false;
+        IsBusy = false;
+        LoadError = null;
     }
 
     private void RefreshDropdown()
@@ -210,8 +300,7 @@ public partial class SearchPageViewModel : ViewModelBase
         var text = Query.Trim();
         if (text.Length == 0)
         {
-            ShowingRecent = true;
-            Fill(_history.Queries.Take(RecentShownWhenEmpty).Select(q => new RecentQueryItem(q)));
+            Fill([]);
             return;
         }
 
@@ -244,7 +333,6 @@ public partial class SearchPageViewModel : ViewModelBase
         if (suggest.IsCancellationRequested)
             return;
 
-        ShowingRecent = false;
         var shown = recent.Select(r => r.Query).ToHashSet(StringComparer.OrdinalIgnoreCase);
         Fill(recent.Cast<object>()
             .Concat(remote.Queries.Where(q => !shown.Contains(q.Query))
@@ -319,24 +407,10 @@ public partial class SearchPageViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void RemoveRecent(string query)
-    {
-        _history.Remove(query);
-        var shown = Dropdown.OfType<RecentQueryItem>().FirstOrDefault(r => r.Query == query);
-        if (shown is not null)
-            Dropdown.Remove(shown);
-        if (ShowingRecent)
-            RefreshDropdown(); // the next one moves up into the list
-        IsDropdownOpen = _fieldActive && Dropdown.Count > 0;
-    }
+    private void RemoveRecent(string query) => _history.Remove(query);
 
     [RelayCommand]
-    private void ClearRecent()
-    {
-        _history.Clear();
-        RefreshDropdown();
-        IsDropdownOpen = _fieldActive && Dropdown.Count > 0;
-    }
+    private void ClearRecent() => _history.Clear();
 
     /// <summary>The fetch whose results the page will show; any earlier one is stale.</summary>
     private CancellationTokenSource? _search;
@@ -373,12 +447,7 @@ public partial class SearchPageViewModel : ViewModelBase
         // back to the page's resting state.
         if (string.IsNullOrWhiteSpace(Query))
         {
-            Results.Clear();
-            TopResult = null;
-            ShowLocal([], 0, expanded: false);
-            HasSearched = false;
-            IsBusy = false;
-            LoadError = null;
+            ReturnToResting();
             return;
         }
 

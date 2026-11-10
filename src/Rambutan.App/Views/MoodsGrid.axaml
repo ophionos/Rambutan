@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:core="using:Rambutan.Core.Models"
+             x:Class="Rambutan.App.Views.MoodsGrid"
+             x:Name="Root"
+             x:DataType="vm:MoodsPageViewModel">
+
+  <!-- The tiles of Moods & genres, a group per heading as YouTube Music sends
+       them, shared by the Moods page and the Search page's resting state. A
+       tile opens that mood's or genre's page. -->
+  <Panel>
+    <!-- First-load skeleton: one group of tile shapes. -->
+    <StackPanel Spacing="10">
+      <StackPanel.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.And}">
+          <Binding Path="IsLoading" />
+          <Binding Path="!Sections.Count" />
+        </MultiBinding>
+      </StackPanel.IsVisible>
+      <Border Classes="skeleton" Width="150" Height="16" HorizontalAlignment="Left" />
+      <WrapPanel ItemSpacing="10" LineSpacing="10">
+        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
+        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
+        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
+        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
+        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
+        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
+        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
+        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
+      </WrapPanel>
+    </StackPanel>
+
+    <ItemsControl ItemsSource="{Binding Sections}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="core:MoodSection">
+          <StackPanel Spacing="10" Margin="0,0,0,24">
+            <TextBlock Text="{Binding Title}" FontSize="{StaticResource Token.Font.Section}" FontWeight="Bold" />
+            <!-- One tab stop per group, arrows inside it. -->
+            <ItemsControl ItemsSource="{Binding Categories}"
+                          AutomationProperties.Name="{Binding Title}"
+                          controls:RovingFocus.IsEnabled="True">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel ItemSpacing="10" LineSpacing="10" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="core:MoodCategory">
+                  <Button Classes="moodtile"
+                          AutomationProperties.Name="{Binding Title}"
+                          Command="{Binding #Root.((vm:MoodsPageViewModel)DataContext).OpenCategoryCommand}"
+                          CommandParameter="{Binding}">
+                    <Grid ColumnDefinitions="6,*">
+                      <Border Background="{Binding Color, Converter={x:Static vm:Converters.MoodStripe}}" />
+                      <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="14,0,10,0"
+                                 FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </Panel>
+</UserControl>
