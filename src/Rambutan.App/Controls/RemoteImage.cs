@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using Avalonia;
 using Avalonia.Controls;
@@ -52,7 +53,15 @@ public sealed class RemoteImage : Image
             return;
 
         var bitmap = await Cache.GetAsync(url, DecodeWidth);
-        if (bitmap is not null && generation == _generation)
+        if (generation != _generation)
+            return;
+        if (bitmap is not null)
             await Dispatcher.UIThread.InvokeAsync(() => Source = bitmap);
+        else
+            LoadFailed?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>The cache gave no bitmap for the current <see cref="Url"/>. Raised on the
+    /// UI thread; not raised when there is no cache to ask.</summary>
+    internal event EventHandler? LoadFailed;
 }

@@ -158,8 +158,8 @@
               <Panel>
                 <Border CornerRadius="{StaticResource Token.Radius.Control}" ClipToBounds="True" Width="56" Height="56"
                         Background="{StaticResource Token.Brush.Overlay.14}">
-                  <controls:RemoteImage Url="{Binding Player.ArtworkUrl}" DecodeWidth="128"
-                                        Stretch="UniformToFill" />
+                  <controls:CoverImage Url="{Binding Player.ArtworkUrl}" DecodeWidth="128"
+                                       Stretch="UniformToFill" ReduceMotion="{Binding Appearance.ReduceMotion}" />
                 </Border>
                 <Panel x:Name="BarVisualizer" IsHitTestVisible="False">
                   <Panel.IsVisible>
@@ -840,8 +840,8 @@
       <!-- Hidden (not detached, so scroll and selection survive) while Now
            Playing is open: that overlay is translucent, and a page showing
            through it would fight the art. -->
-      <ContentControl Margin="24,20,12,0" Content="{Binding Navigation.Current}"
-                      IsVisible="{Binding !NowPlaying.IsOpen}" />
+      <TransitioningContentControl Classes="pagehost" Margin="24,20,12,0" Content="{Binding Navigation.Current}"
+                                   IsVisible="{Binding !NowPlaying.IsOpen}" />
       <views:NowPlayingView DataContext="{Binding NowPlaying}"
                             IsVisible="{Binding IsOpen}" />
 
