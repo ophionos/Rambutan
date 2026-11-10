@@ -35,7 +35,8 @@ public sealed class LocalPlaylistTrackRow(LocalPlaylistItem item, bool isMissing
     public TrackInfo Track => Item.Track;
     public string Title => Track.Title;
 
-    /// <summary>The dimming is visual only, so a missing file goes into the name.</summary>
+    /// <summary>"Title, Artists, Album", as the page's album column shows it; the
+    /// dimming is visual only, so a missing file goes into the name, last.</summary>
     public string AccessibleName
     {
         get
@@ -43,6 +44,8 @@ public sealed class LocalPlaylistTrackRow(LocalPlaylistItem item, bool isMissing
             var name = string.IsNullOrWhiteSpace(Track.ArtistDisplay)
                 ? Title
                 : Strings.Format("queue.row.nameWithArtist", ("title", Title), ("artist", Track.ArtistDisplay));
+            if (!string.IsNullOrWhiteSpace(Track.Album))
+                name = $"{name}, {Track.Album}";
             return IsMissing ? Strings.Format("localPlaylist.row.missing", ("name", name)) : name;
         }
     }

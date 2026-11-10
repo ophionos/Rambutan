@@ -144,7 +144,7 @@
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
   <!-- A row whose file is gone: still listed, visibly not playable. -->
-  <Style Selector="Grid.missing > Border.rowart, Grid.missing > StackPanel.rowtext">
+  <Style Selector="Grid.missing > Border.rowart, Grid.missing > StackPanel.rowtext, Grid.missing > Panel.rowalbum">
     <Setter Property="Opacity" Value="0.5" />
   </Style>
 
@@ -366,6 +366,30 @@
   </Style>
   <Style Selector="Button.textlink:pressed">
     <Setter Property="RenderTransform" Value="none" />
+  </Style>
+
+  <!-- A track row's album column (Controls/TrackColumns): after the title
+       block, before the actions, as wide as the list gives it. -->
+  <Style Selector="Panel.rowalbum">
+    <Setter Property="Margin" Value="16,0,0,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- Its link: the meta line's size and colour at rest, so a column of links
+       doesn't outweigh the titles; brighter and underlined under the pointer.
+       Declared after the textlink states, which it overrides. -->
+  <Style Selector="Button.textlink.rowlink">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Meta}" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Button.textlink.rowlink /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+  </Style>
+  <Style Selector="Button.textlink.rowlink:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+  </Style>
+  <Style Selector="Button.textlink.rowlink TextBlock">
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
   </Style>
 
   <!-- Album track numbers: right-aligned so 9 and 10 line up. -->
