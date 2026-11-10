@@ -94,6 +94,7 @@ public sealed class LocalPlaylistPageTests : IDisposable
 
         Assert.Equal(["V", "Only", "Gone"], Titles(page));
         Assert.Equal([false, false, true], page.Rows.Select(r => r.IsMissing));
+        Assert.Equal("Only, A, Album", page.Rows[1].AccessibleName);
         Assert.Equal("Gone, Nobody, file missing", page.Rows[2].AccessibleName);
         Assert.Equal("Evening walk", page.Title);
         Assert.True(page.HasPlayable);

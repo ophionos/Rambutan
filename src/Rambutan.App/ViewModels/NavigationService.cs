@@ -118,8 +118,9 @@ public partial class NavigationService : ViewModelBase
     public void GoSearch()
     {
         _search ??= new SearchPageViewModel(_catalog, _coordinator, this, _searchHistory,
-            _local is null ? null : _local.SearchAsync);
+            _local is null ? null : _local.SearchAsync, new MoodsPageViewModel(_catalog, this));
         NavigateRoot(_search, NavSection.Search);
+        _search.EnsureMoodsLoaded();
         _search.RequestFocus();
     }
 

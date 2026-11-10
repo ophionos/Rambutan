@@ -698,6 +698,25 @@
     <Setter Property="FontSize" Value="{StaticResource Token.Font.Group}" />
     <Setter Property="FontWeight" Value="SemiBold" />
     <Setter Property="Margin" Value="4,0,0,0" />
+    <!-- Focusable only so that choosing a section in the page's section list
+         can move focus to its heading; Tab passes over it. -->
+    <Setter Property="Focusable" Value="True" />
+    <Setter Property="KeyboardNavigation.IsTabStop" Value="False" />
+    <Setter Property="AutomationProperties.HeadingLevel" Value="2" />
+  </Style>
+  <!-- The section list beside the column: the section in view carries the
+       usual selected chip; the others are quieter. -->
+  <Style Selector="ListBox.sections ListBoxItem">
+    <Setter Property="Padding" Value="12,7" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style Selector="ListBox.sections ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+  </Style>
+  <Style Selector="ListBox.sections ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBox.sections ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text}" />
   </Style>
   <Style Selector="Border.settingsgroup">
     <Setter Property="Background" Value="{StaticResource Token.Brush.Surface.Card}" />
@@ -781,6 +800,10 @@
     <Setter Property="Padding" Value="3" />
     <Setter Property="HorizontalAlignment" Value="Right" />
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <!-- Every option is in view, so there is nothing to scroll to; a list
+         that brings its selection into view moves the page around it instead,
+         and Settings opened scrolled down to this control. -->
+    <Setter Property="AutoScrollToSelectedItem" Value="False" />
   </Style>
   <Style Selector="ListBox.segmented ListBoxItem">
     <Setter Property="Padding" Value="14,5" />

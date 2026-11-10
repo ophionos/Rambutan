@@ -21,8 +21,8 @@
         <TextBlock Classes="headermeta" Text="{Binding LoadedText}"
                    IsVisible="{Binding LoadedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         <TextBlock Classes="headersummary" Text="{Binding Summary}" IsVisible="{Binding !!Items.Count}" />
-        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
-          <Button Classes="cardplay hero" Command="{Binding PlayAllCommand}"
+        <controls:ActionRow Spacing="12" Margin="0,12,0,0">
+          <Button Classes="cardplay hero" controls:ActionRow.Keep="True" Command="{Binding PlayAllCommand}"
                   ToolTip.Tip="{l:T common.playAll}" AutomationProperties.Name="{l:T common.playAll}">
             <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24" />
           </Button>
@@ -37,7 +37,7 @@
           </Button>
           <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T home.station.loading}"
                        IsVisible="{Binding IsLoading}" />
-        </StackPanel>
+        </controls:ActionRow>
         <ContentControl Content="{Binding LoadError}"
                         ContentTemplate="{StaticResource ErrorState.Compact}"
                         HorizontalAlignment="Left"

@@ -3,7 +3,7 @@
              xmlns:l="using:Rambutan.App.Localization"
              xmlns:vm="using:Rambutan.App.ViewModels"
              xmlns:controls="using:Rambutan.App.Controls"
-             xmlns:core="using:Rambutan.Core.Models"
+             xmlns:views="using:Rambutan.App.Views"
              x:Class="Rambutan.App.Views.MoodsPage"
              x:Name="Root"
              x:DataType="vm:MoodsPageViewModel">
@@ -16,61 +16,8 @@
       <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
     </StackPanel>
 
-    <!-- First-load skeleton: one group of tile shapes. -->
-    <StackPanel Grid.Row="1" Margin="4,0,16,0" Spacing="10">
-      <StackPanel.IsVisible>
-        <MultiBinding Converter="{x:Static BoolConverters.And}">
-          <Binding Path="IsLoading" />
-          <Binding Path="!Sections.Count" />
-        </MultiBinding>
-      </StackPanel.IsVisible>
-      <Border Classes="skeleton" Width="150" Height="16" HorizontalAlignment="Left" />
-      <WrapPanel ItemSpacing="10" LineSpacing="10">
-        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
-        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
-        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
-        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
-        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
-        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
-        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
-        <Border Classes="skeleton" Width="196" Height="52" CornerRadius="8" />
-      </WrapPanel>
-    </StackPanel>
-
     <ScrollViewer Grid.Row="1" Classes="pagescroll" controls:ScrollMemory.IsEnabled="True">
-      <ItemsControl ItemsSource="{Binding Sections}" Margin="4,0">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="core:MoodSection">
-            <StackPanel Spacing="10" Margin="0,0,0,24">
-              <TextBlock Text="{Binding Title}" FontSize="{StaticResource Token.Font.Section}" FontWeight="Bold" />
-              <!-- One tab stop per group, arrows inside it. -->
-              <ItemsControl ItemsSource="{Binding Categories}"
-                            AutomationProperties.Name="{Binding Title}"
-                            controls:RovingFocus.IsEnabled="True">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <WrapPanel ItemSpacing="10" LineSpacing="10" />
-                  </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="core:MoodCategory">
-                    <Button Classes="moodtile"
-                            AutomationProperties.Name="{Binding Title}"
-                            Command="{Binding #Root.((vm:MoodsPageViewModel)DataContext).OpenCategoryCommand}"
-                            CommandParameter="{Binding}">
-                      <Grid ColumnDefinitions="6,*">
-                        <Border Background="{Binding Color, Converter={x:Static vm:Converters.MoodStripe}}" />
-                        <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="14,0,10,0"
-                                   FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                      </Grid>
-                    </Button>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
+      <views:MoodsGrid Margin="4,0,16,0" />
     </ScrollViewer>
 
     <TextBlock Grid.Row="1" Classes="settinghelp" Margin="4,0,16,0" Text="{l:T moods.empty}" IsVisible="{Binding IsEmpty}" />

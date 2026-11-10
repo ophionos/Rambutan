@@ -12,6 +12,7 @@ public partial class SettingsPage : UserControl
     public SettingsPage()
     {
         InitializeComponent();
+        InitializeSections();
 
         // The folder picker needs a TopLevel, which only the view has.
         DataContextChanged += (_, _) =>

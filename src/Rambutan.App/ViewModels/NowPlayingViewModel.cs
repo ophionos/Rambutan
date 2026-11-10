@@ -143,13 +143,20 @@ public partial class NowPlayingViewModel : ViewModelBase
         || !IsStageShown
         || (IsLyricsPaneVisible ? !IsFullscreen : Appearance.ReduceMotion);
 
+    /// <summary>The artwork is the small cover in the header above the lyrics
+    /// (the view sets it), too small to draw around.</summary>
+    [ObservableProperty]
+    private bool _isArtworkCompact;
+
     /// <summary>The radial style draws around the artwork, in place of the
-    /// stage's visualizer; without the artwork, the stage draws bars. Never under
-    /// reduced motion, which keeps the "paused" note in view.</summary>
+    /// stage's visualizer; without the artwork, or with only the header's
+    /// cover, the stage draws bars. Never under reduced motion, which keeps
+    /// the "paused" note in view.</summary>
     public bool ShowsRing =>
         DrawnStyle == VisualizerStyle.Radial
         && !Appearance.ReduceMotion
-        && IsArtworkShown;
+        && IsArtworkShown
+        && !IsArtworkCompact;
 
     /// <summary>The style the stage draws in: the drawn one, or bars when that
     /// is the ring.</summary>
@@ -433,6 +440,8 @@ public partial class NowPlayingViewModel : ViewModelBase
         if (_settings is not null)
             _settings.ShowLyrics = value;
     }
+
+    partial void OnIsArtworkCompactChanged(bool value) => OnVisualizerChanged();
 
     partial void OnShowArtworkChanged(bool value)
     {

@@ -133,7 +133,7 @@ public sealed class LocalLibraryDownloadsTests : IDisposable
 
         await ShowAsync(LocalSource.Downloads);
         var gone = _vm.Tracks.Single(r => r.IsMissing);
-        Assert.Equal("Gone, A · X, file missing", gone.AccessibleName);
+        Assert.Equal("Gone, A, X, file missing", gone.AccessibleName);
 
         await _vm.PlayAllCommand.ExecuteAsync(null);
         Assert.Equal(["vid00000002"], _playQueue.Items.Select(t => t.VideoId));

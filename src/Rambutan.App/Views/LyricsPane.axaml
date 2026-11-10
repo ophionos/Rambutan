@@ -242,39 +242,59 @@
       </StackPanel>
     </Grid>
 
-    <StackPanel Classes="empty" IsVisible="{Binding IsInstrumental}">
-      <PathIcon Data="{StaticResource Icon.MusicNote}" />
-      <TextBlock Classes="title" Text="{l:T lyrics.instrumentalTitle}" />
-      <TextBlock Classes="hint" Text="{l:T lyrics.instrumentalHint}" />
-    </StackPanel>
+    <!-- The states that say what happened, some with actions: they scroll
+         when the pane is shorter than they are (the window's smallest size,
+         under the stacked header), so every button stays reachable; Tab
+         brings a button into view. Centred while they fit. -->
+    <ScrollViewer x:Name="StateScroller" HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <ScrollViewer.IsVisible>
+        <MultiBinding Converter="{x:Static BoolConverters.Or}">
+          <Binding Path="IsInstrumental" />
+          <Binding Path="IsNone" />
+          <Binding Path="IsNotLookedUp" />
+          <Binding Path="IsUnavailable" />
+        </MultiBinding>
+      </ScrollViewer.IsVisible>
+      <Panel VerticalAlignment="Center" Margin="12,8">
+        <StackPanel Classes="empty" IsVisible="{Binding IsInstrumental}">
+          <PathIcon Data="{StaticResource Icon.MusicNote}" />
+          <TextBlock Classes="title" Text="{l:T lyrics.instrumentalTitle}"
+                     TextWrapping="Wrap" TextAlignment="Center" />
+          <TextBlock Classes="hint" Text="{l:T lyrics.instrumentalHint}" />
+        </StackPanel>
 
-    <StackPanel Classes="empty" IsVisible="{Binding IsNone}">
-      <PathIcon Data="{StaticResource Icon.Lyrics}" />
-      <TextBlock Classes="title" Text="{l:T lyrics.noneTitle}" />
-      <TextBlock Classes="hint" Text="{Binding NoneHint}" />
-      <Button HorizontalAlignment="Center" Margin="0,8,0,0"
-              Content="{l:T lyrics.add}" Command="{Binding EditLyricsCommand}"
-              IsVisible="{Binding CanEditLyrics}" />
-    </StackPanel>
+        <StackPanel Classes="empty" IsVisible="{Binding IsNone}">
+          <PathIcon Data="{StaticResource Icon.Lyrics}" />
+          <TextBlock Classes="title" Text="{l:T lyrics.noneTitle}"
+                     TextWrapping="Wrap" TextAlignment="Center" />
+          <TextBlock Classes="hint" Text="{Binding NoneHint}" />
+          <Button HorizontalAlignment="Center" Margin="0,8,0,0"
+                  Content="{l:T lyrics.add}" Command="{Binding EditLyricsCommand}"
+                  IsVisible="{Binding CanEditLyrics}" />
+        </StackPanel>
 
-    <!-- Not looked up: nothing of the user's own, and online lookup is off.
-         Says what switching it on sends, and offers to. -->
-    <StackPanel Classes="empty" IsVisible="{Binding IsNotLookedUp}">
-      <PathIcon Data="{StaticResource Icon.Lyrics}" />
-      <TextBlock Classes="title" Text="{l:T lyrics.notLookedUp.title}" />
-      <TextBlock Classes="hint" Text="{Binding NotLookedUpHint}" />
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Margin="0,8,0,0">
-        <Button Classes="accent" Content="{l:T lyrics.notLookedUp.turnOn}"
-                Command="{Binding TurnOnLookUpCommand}" />
-        <Button Content="{l:T lyrics.add}" Command="{Binding EditLyricsCommand}"
-                IsVisible="{Binding CanEditLyrics}" />
-      </StackPanel>
-    </StackPanel>
+        <!-- Not looked up: nothing of the user's own, and online lookup is off.
+             Says what switching it on sends, and offers to. -->
+        <StackPanel Classes="empty" IsVisible="{Binding IsNotLookedUp}">
+          <PathIcon Data="{StaticResource Icon.Lyrics}" />
+          <TextBlock Classes="title" Text="{l:T lyrics.notLookedUp.title}"
+                     TextWrapping="Wrap" TextAlignment="Center" />
+          <TextBlock Classes="hint" Text="{Binding NotLookedUpHint}" />
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10" Margin="0,8,0,0">
+            <Button Classes="accent" Content="{l:T lyrics.notLookedUp.turnOn}"
+                    Command="{Binding TurnOnLookUpCommand}" />
+            <Button Content="{l:T lyrics.add}" Command="{Binding EditLyricsCommand}"
+                    IsVisible="{Binding CanEditLyrics}" />
+          </StackPanel>
+        </StackPanel>
 
-    <!-- Unavailable: the shared error-state block, with Try again. -->
-    <ContentControl Content="{Binding LoadError}"
-                    ContentTemplate="{StaticResource ErrorState.Full}"
-                    IsVisible="{Binding IsUnavailable}" />
+        <!-- Unavailable: the shared error-state block, with Try again. -->
+        <ContentControl Content="{Binding LoadError}"
+                        ContentTemplate="{StaticResource ErrorState.Full}"
+                        IsVisible="{Binding IsUnavailable}" />
+      </Panel>
+    </ScrollViewer>
   </Panel>
   </DockPanel>
 </UserControl>

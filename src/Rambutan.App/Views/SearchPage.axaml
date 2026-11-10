@@ -6,6 +6,7 @@
              xmlns:controls="using:Rambutan.App.Controls"
              xmlns:core="using:Rambutan.Core.Models"
              xmlns:conv="using:Rambutan.App.Converters"
+             xmlns:views="using:Rambutan.App.Views"
              x:Class="Rambutan.App.Views.SearchPage"
              x:Name="Root"
              x:DataType="vm:SearchPageViewModel">
@@ -24,8 +25,8 @@
       <Button Grid.Column="1" Content="{l:T search.button}" Classes="accent" Margin="8,0,0,0"
               Command="{Binding SearchCommand}" />
 
-      <!-- Recent queries with the box empty; while typing, matching recent ones,
-           YTM's completions and the entities it matched.
+      <!-- While typing: matching recent queries, YTM's completions and the
+           entities it matched. With the box empty the page lists the recent ones.
            Not light-dismissed: the box keeps focus while the list is open, and
            the view closes it when focus leaves both. -->
       <Popup x:Name="Suggestions" PlacementTarget="{Binding #SearchBox}" Placement="BottomEdgeAlignedLeft"
@@ -34,11 +35,6 @@
              IsOpen="{Binding IsDropdownOpen}">
         <Border x:Name="SuggestionsPanel" Classes="dropdown">
           <StackPanel>
-            <Grid ColumnDefinitions="*,Auto" Margin="12,6,6,2" IsVisible="{Binding ShowingRecent}">
-              <TextBlock Classes="topcaption" Text="{l:T search.recent}" VerticalAlignment="Center" />
-              <Button Grid.Column="1" Classes="textlink" Content="{l:T search.clearRecent}"
-                      Command="{Binding ClearRecentCommand}" />
-            </Grid>
             <ListBox x:Name="SuggestionList" Classes="dropdown" Background="Transparent"
                      AutomationProperties.Name="{l:T search.suggestionsName}"
                      ItemsSource="{Binding Dropdown}">
@@ -107,12 +103,67 @@
 
     </StackPanel>
 
-    <!-- Empty states live behind the (empty) results list. -->
-    <StackPanel Margin="0,0,12,0" Grid.Row="3" Classes="empty" IsVisible="{Binding !HasSearched}">
-      <PathIcon Data="{StaticResource Icon.Search}" />
-      <TextBlock Classes="title" Text="{l:T search.emptyTitle}" />
-      <TextBlock Classes="hint" Text="{l:T search.emptyHint}" />
-    </StackPanel>
+    <!-- Before a search: the recent searches, then Moods & genres. What can't
+         be shown is said (the sentence when there is nothing, the moods' failure
+         in the moods' place), so the pane is never blank. -->
+    <ScrollViewer Grid.Row="3" Classes="pagescroll" Margin="0,10,-4,0" Padding="0,0,16,0"
+                  IsVisible="{Binding !HasSearched}">
+      <StackPanel Spacing="20">
+        <StackPanel Spacing="10" IsVisible="{Binding HasRecent}">
+          <Grid ColumnDefinitions="*,Auto" Margin="4,0,0,0">
+            <TextBlock Classes="topcaption" Text="{l:T search.recent}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="textlink" Content="{l:T search.clearRecent}"
+                    Command="{Binding ClearRecentCommand}" />
+          </Grid>
+          <!-- One tab stop, arrows inside it: each chip is followed by its remove
+               button. Delete on a chip removes it. -->
+          <ItemsControl x:Name="RecentList" Margin="4,0,0,0"
+                        AutomationProperties.Name="{l:T search.recent}"
+                        ItemsSource="{Binding Recent}"
+                        controls:RovingFocus.IsEnabled="True">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel ItemSpacing="8" LineSpacing="8" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:RecentQueryItem">
+                <Border Classes="recentchip">
+                  <StackPanel Orientation="Horizontal">
+                    <Button Classes="recentrun" Content="{Binding Query}"
+                            AutomationProperties.HelpText="{l:T search.recentChipHelp}"
+                            Command="{Binding #Root.((vm:SearchPageViewModel)DataContext).PickCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Classes="icon subtle small recentremove"
+                            ToolTip.Tip="{l:T search.removeRecent}"
+                            AutomationProperties.Name="{Binding RemoveName}">
+                      <PathIcon Data="{StaticResource Icon.Close}" Width="12" Height="12" />
+                    </Button>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <StackPanel Classes="empty" IsVisible="{Binding ShowsEmptyHint}">
+          <PathIcon Data="{StaticResource Icon.Search}" />
+          <TextBlock Classes="title" Text="{l:T search.emptyTitle}" />
+          <TextBlock Classes="hint" Text="{l:T search.emptyHint}" />
+        </StackPanel>
+
+        <StackPanel Spacing="10" IsVisible="{Binding ShowsMoodsSection}">
+          <TextBlock Classes="topcaption" Text="{l:T moods.title}" Margin="4,0,0,0" />
+          <views:MoodsGrid DataContext="{Binding Moods}" Margin="4,0,0,0" />
+        </StackPanel>
+        <ContentControl Content="{Binding Moods.LoadError}"
+                        ContentTemplate="{StaticResource ErrorState.Compact}"
+                        HorizontalAlignment="Left" Margin="4,0"
+                        IsVisible="{Binding Moods.LoadError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- The other empty state lives behind the (empty) results list. -->
     <StackPanel Margin="0,0,12,0" Grid.Row="3" Classes="empty">
       <StackPanel.IsVisible>
         <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -133,12 +184,13 @@
          the list share one scroller; the row templates sit on the panel so the
          card's rows and the results look the same. It reaches through the
          page's 4 side margin so its bar lines up with the other pages'. -->
-    <ScrollViewer x:Name="ResultsScroller" Grid.Row="3" Classes="pagescroll" Margin="0,10,-4,0" Padding="0,0,16,0" controls:ScrollMemory.IsEnabled="True">
+    <ScrollViewer x:Name="ResultsScroller" Grid.Row="3" Classes="pagescroll" Margin="0,10,-4,0" Padding="0,0,16,0" controls:ScrollMemory.IsEnabled="True"
+                  IsVisible="{Binding HasSearched}">
       <StackPanel>
       <StackPanel.DataTemplates>
 
         <DataTemplate DataType="{x:Type core:SongEntry}">
-          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
                 Background="Transparent"
                 controls:TrackMenu.Track="{Binding Track}">
             <Border Classes="rowart">
@@ -173,14 +225,35 @@
                            IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
               </DockPanel>
             </StackPanel>
-            <TextBlock Grid.Column="4" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+            <!-- The album while the list has room for it (Controls/TrackColumns;
+                 the top result's rows never do). Not a tab stop: one per row
+                 would crowd the Tab order, and the track menu has Go to album. -->
+            <Panel Grid.Column="3" Classes="rowalbum"
+                   Width="{Binding $parent[ListBox].(controls:TrackColumns.AlbumWidth)}">
+              <Panel.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                  <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                  <Binding Path="Track.Album" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                </MultiBinding>
+              </Panel.IsVisible>
+              <Button Classes="textlink rowlink" IsTabStop="False"
+                      IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      ToolTip.Tip="{l:T common.goToAlbum}"
+                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
+                      CommandParameter="{Binding Track}">
+                <TextBlock Text="{Binding Track.Album}" />
+              </Button>
+              <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
+                         IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
+            </Panel>
+            <TextBlock Grid.Column="5" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                        MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
             <!-- Fixed width, so hiding the stack inside does not let the title
                  grow into the gap and snap back as the pointer crosses the row.
                  Sits before the duration, not after it: reserved-but-empty space
                  at the very end of a row reads as an unfinished column, while the
                  same gap between title and duration reads as an ordinary gutter. -->
-            <Panel Grid.Column="3" Width="112">
+            <Panel Grid.Column="4" Width="112">
               <StackPanel Classes="rowactions" Orientation="Horizontal"
                           HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
@@ -299,7 +372,8 @@
         <ListBox Classes="tracks" Background="Transparent"
                  AutomationProperties.Name="{l:T search.local.listName}"
                  ItemsSource="{Binding LocalResults}"
-                 controls:ItemActivation.Command="{Binding PlayLocalCommand}">
+                 controls:ItemActivation.Command="{Binding PlayLocalCommand}"
+                 controls:TrackColumns.FixedWidth="266">
           <ListBox.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel />
@@ -307,7 +381,7 @@
           </ListBox.ItemsPanel>
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:LocalTrackRow">
-              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
                     Background="Transparent"
                     controls:TrackMenu.Track="{Binding Track}">
                 <Border Classes="rowart">
@@ -331,13 +405,49 @@
                 </Panel>
                 <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
                   <TextBlock Classes="rowtitle" Text="{Binding Title}" />
-                  <TextBlock Classes="rowmeta" Text="{Binding Subtitle}"
-                             IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  <!-- The album moves to its column while that shows. -->
+                  <TextBlock Classes="rowmeta" Text="{Binding Subtitle}">
+                    <TextBlock.IsVisible>
+                      <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="!$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                        <Binding Path="Subtitle" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                      </MultiBinding>
+                    </TextBlock.IsVisible>
+                  </TextBlock>
+                  <TextBlock Classes="rowmeta" Text="{Binding Track.ArtistDisplay}">
+                    <TextBlock.IsVisible>
+                      <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                        <Binding Path="Track.ArtistDisplay" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                      </MultiBinding>
+                    </TextBlock.IsVisible>
+                  </TextBlock>
                 </StackPanel>
-                <TextBlock Grid.Column="4" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                <!-- The album while the list has room for it (Controls/TrackColumns):
+                     a file's own tag, as text, since a file has no album page; a
+                     download's links as its song's does. -->
+                <Panel Grid.Column="3" Classes="rowalbum"
+                       Width="{Binding $parent[ListBox].(controls:TrackColumns.AlbumWidth)}">
+                  <Panel.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                      <Binding Path="Track.Album" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                    </MultiBinding>
+                  </Panel.IsVisible>
+                  <Button Classes="textlink rowlink" IsTabStop="False"
+                          IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNotNull}}"
+                          ToolTip.Tip="{l:T common.goToAlbum}"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
+                          CommandParameter="{Binding Track}">
+                    <TextBlock Text="{Binding Track.Album}" />
+                  </Button>
+                  <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
+                             IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
+                </Panel>
+                <TextBlock Grid.Column="5" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                            MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                 <!-- Play and queue only: the rest acts on YouTube Music. -->
-                <Panel Grid.Column="3" Width="112">
+                <Panel Grid.Column="4" Width="112">
                   <StackPanel Classes="rowactions" Orientation="Horizontal"
                               HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
@@ -415,7 +525,8 @@
       <ListBox Classes="tracks" Background="Transparent"
                AutomationProperties.Name="{l:T search.resultsName}"
                ItemsSource="{Binding Results}"
-               controls:ItemActivation.Command="{Binding OpenCommand}">
+               controls:ItemActivation.Command="{Binding OpenCommand}"
+               controls:TrackColumns.FixedWidth="266">
         <ListBox.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel />

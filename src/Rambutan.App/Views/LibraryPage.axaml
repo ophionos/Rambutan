@@ -12,11 +12,11 @@
              x:DataType="vm:LibraryPageViewModel">
 
   <Grid RowDefinitions="Auto,Auto,*,Auto">
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="4,0,16,8">
-      <TextBlock Text="{l:T library.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold" VerticalAlignment="Center" />
+    <controls:ActionRow Grid.Row="0" Spacing="10" Margin="4,0,16,8" MoreClasses="icon subtle">
+      <TextBlock controls:ActionRow.Keep="True" Text="{l:T library.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold" VerticalAlignment="Center" />
       <!-- The two sources and the stats, all in view; shown signed out too, so
            the files and the stats stay reachable. -->
-      <ListBox Classes="segmented" VerticalAlignment="Center" HorizontalAlignment="Left"
+      <ListBox Classes="segmented" controls:ActionRow.Keep="True" VerticalAlignment="Center" HorizontalAlignment="Left"
                ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}"
                SelectionMode="AlwaysSelected"
                IsVisible="{Binding HasSources}"
@@ -32,7 +32,8 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-      <Button Classes="icon subtle" ToolTip.Tip="{l:T common.refresh}" Command="{Binding SelectedSection.RefreshCommand}">
+      <Button Classes="icon subtle" ToolTip.Tip="{l:T common.refresh}"
+              AutomationProperties.Name="{l:T common.refresh}" Command="{Binding SelectedSection.RefreshCommand}">
         <Button.IsVisible>
           <MultiBinding Converter="{x:Static BoolConverters.And}">
             <Binding Path="IsYouTubeMusic" />
@@ -42,6 +43,7 @@
         <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
       </Button>
       <Button VerticalAlignment="Center"
+              AutomationProperties.Name="{l:T library.newPlaylist}"
               Command="{Binding NewPlaylistCommand}">
         <Button.IsVisible>
           <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -75,18 +77,19 @@
                         IsVisible="{Binding !!SelectedSection.Items.Count}" />
       </StackPanel>
       <!-- On this computer: rescan, and where the scan is. -->
+      <Button Classes="icon subtle" ToolTip.Tip="{l:T settings.local.rescan}"
+              AutomationProperties.Name="{l:T settings.local.rescan}"
+              Command="{Binding Local.RescanCommand}">
+        <Button.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="IsThisComputer" />
+            <Binding Path="Local.HasFolders" />
+            <Binding Path="Local.ListsFiles" />
+          </MultiBinding>
+        </Button.IsVisible>
+        <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
+      </Button>
       <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsThisComputer}">
-        <Button Classes="icon subtle" ToolTip.Tip="{l:T settings.local.rescan}"
-                AutomationProperties.Name="{l:T settings.local.rescan}"
-                Command="{Binding Local.RescanCommand}">
-          <Button.IsVisible>
-            <MultiBinding Converter="{x:Static BoolConverters.And}">
-              <Binding Path="Local.HasFolders" />
-              <Binding Path="Local.ListsFiles" />
-            </MultiBinding>
-          </Button.IsVisible>
-          <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
-        </Button>
         <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{Binding Local.Status}">
           <ProgressBar.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -102,7 +105,7 @@
                    Foreground="{StaticResource Token.Brush.Text.Muted}"
                    IsVisible="{Binding Local.Problems, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
       </StackPanel>
-    </StackPanel>
+    </controls:ActionRow>
 
     <!-- One tab per kind of thing the library keeps, as Search has one per filter. -->
     <controls:ChipList Grid.Row="1" Classes="chips" Margin="4,0,16,12"
@@ -213,7 +216,10 @@
                  IsVisible="{Binding IsSongs}"
                  ItemsSource="{Binding Items}"
                  AutomationProperties.Name="{Binding Kind, Converter={x:Static vm:Converters.LibrarySectionName}}"
-                 controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlaySongCommand}">
+                 controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlaySongCommand}"
+                 controls:TrackColumns.FixedWidth="266">
+          <!-- FixedWidth: item padding 16, cover 52, playing marker 14, album
+               gap 16, actions 112, duration 56. -->
           <ListBox.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel />
@@ -223,7 +229,7 @@
                still shares that tab's items, which aren't songs. -->
           <ListBox.DataTemplates>
             <DataTemplate DataType="{x:Type core:SongEntry}">
-              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
                     Background="Transparent"
                     controls:TrackMenu.Track="{Binding Track}">
                 <Border Classes="rowart">
@@ -257,10 +263,31 @@
                                IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                   </DockPanel>
                 </StackPanel>
-                <TextBlock Grid.Column="4" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                <!-- The album while the list has room for it (Controls/TrackColumns).
+                     Not a tab stop: one per row would crowd the Tab order, and the
+                     track menu has Go to album. -->
+                <Panel Grid.Column="3" Classes="rowalbum"
+                       Width="{Binding $parent[ListBox].(controls:TrackColumns.AlbumWidth)}">
+                  <Panel.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                      <Binding Path="Track.Album" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                    </MultiBinding>
+                  </Panel.IsVisible>
+                  <Button Classes="textlink rowlink" IsTabStop="False"
+                          IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNotNull}}"
+                          ToolTip.Tip="{l:T common.goToAlbum}"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
+                          CommandParameter="{Binding Track}">
+                    <TextBlock Text="{Binding Track.Album}" />
+                  </Button>
+                  <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
+                             IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
+                </Panel>
+                <TextBlock Grid.Column="5" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                            MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                 <!-- Fixed width and before the duration, as on Search's rows. -->
-                <Panel Grid.Column="3" Width="112">
+                <Panel Grid.Column="4" Width="112">
                   <StackPanel Classes="rowactions" Orientation="Horizontal"
                               HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
@@ -303,7 +330,9 @@
                   <ListBox Classes="tracks" Background="Transparent"
                            ItemsSource="{Binding Entries}"
                            AutomationProperties.Name="{Binding Played}"
-                           controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlayHistoryEntryCommand}">
+                           controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlayHistoryEntryCommand}"
+                           controls:TrackColumns.FixedWidth="266">
+                    <!-- FixedWidth: as the Songs tab's rows. -->
                     <ListBox.ItemsPanel>
                       <ItemsPanelTemplate>
                         <StackPanel />
@@ -311,7 +340,7 @@
                     </ListBox.ItemsPanel>
                     <ListBox.ItemTemplate>
                       <DataTemplate x:DataType="core:HistoryEntry">
-                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
                               Background="Transparent"
                               controls:TrackMenu.Track="{Binding Track}"
                               controls:TrackMenu.Host="{Binding #Root.((vm:LibraryPageViewModel)DataContext)}">
@@ -345,9 +374,30 @@
                                          IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                             </DockPanel>
                           </StackPanel>
-                          <TextBlock Grid.Column="4" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                          <!-- The album while the list has room for it (Controls/TrackColumns).
+                               Not a tab stop: one per row would crowd the Tab order,
+                               and the track menu has Go to album. -->
+                          <Panel Grid.Column="3" Classes="rowalbum"
+                                 Width="{Binding $parent[ListBox].(controls:TrackColumns.AlbumWidth)}">
+                            <Panel.IsVisible>
+                              <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                                <Binding Path="Track.Album" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                              </MultiBinding>
+                            </Panel.IsVisible>
+                            <Button Classes="textlink rowlink" IsTabStop="False"
+                                    IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                    ToolTip.Tip="{l:T common.goToAlbum}"
+                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
+                                    CommandParameter="{Binding Track}">
+                              <TextBlock Text="{Binding Track.Album}" />
+                            </Button>
+                            <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
+                                       IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
+                          </Panel>
+                          <TextBlock Grid.Column="5" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                                      MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
-                          <Panel Grid.Column="3" Width="112">
+                          <Panel Grid.Column="4" Width="112">
                             <StackPanel Classes="rowactions" Orientation="Horizontal"
                                         HorizontalAlignment="Right" VerticalAlignment="Center">
                               <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
@@ -619,10 +669,15 @@
                  ItemsSource="{Binding Tracks}"
                  IsVisible="{Binding !!Tracks.Count}"
                  AutomationProperties.Name="{l:T library.local.listName}"
-                 controls:ItemActivation.Command="{Binding PlayCommand}">
+                 controls:ItemActivation.Command="{Binding PlayCommand}"
+                 controls:TrackColumns.FixedWidth="318">
+          <!-- FixedWidth: item padding 16, cover 52, playing marker 14, album
+               gap 16, actions 112, duration 56, and 52 for the size the
+               Downloads filter puts before the duration (or the missing note
+               in its place), so that filter's titles keep their room too. -->
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:LocalTrackRow">
-              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
                     Background="Transparent"
                     Classes.missing="{Binding IsMissing}"
                     controls:TrackMenu.Track="{Binding Track}">
@@ -648,11 +703,47 @@
                 </Panel>
                 <StackPanel Grid.Column="2" Classes="rowtext" Spacing="1" VerticalAlignment="Center">
                   <TextBlock Classes="rowtitle" Text="{Binding Title}" />
-                  <TextBlock Classes="rowmeta" Text="{Binding Subtitle}"
-                             IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  <!-- The album moves to its column while that shows. -->
+                  <TextBlock Classes="rowmeta" Text="{Binding Subtitle}">
+                    <TextBlock.IsVisible>
+                      <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="!$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                        <Binding Path="Subtitle" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                      </MultiBinding>
+                    </TextBlock.IsVisible>
+                  </TextBlock>
+                  <TextBlock Classes="rowmeta" Text="{Binding Track.ArtistDisplay}">
+                    <TextBlock.IsVisible>
+                      <MultiBinding Converter="{x:Static BoolConverters.And}">
+                        <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                        <Binding Path="Track.ArtistDisplay" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                      </MultiBinding>
+                    </TextBlock.IsVisible>
+                  </TextBlock>
                 </StackPanel>
+                <!-- The album while the list has room for it (Controls/TrackColumns):
+                     a file's own tag, as text, since a file has no album page; a
+                     download's links as its song's does. -->
+                <Panel Grid.Column="3" Classes="rowalbum"
+                       Width="{Binding $parent[ListBox].(controls:TrackColumns.AlbumWidth)}">
+                  <Panel.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                      <Binding Path="Track.Album" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                    </MultiBinding>
+                  </Panel.IsVisible>
+                  <Button Classes="textlink rowlink" IsTabStop="False"
+                          IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNotNull}}"
+                          ToolTip.Tip="{l:T common.goToAlbum}"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
+                          CommandParameter="{Binding Track}">
+                    <TextBlock Text="{Binding Track.Album}" />
+                  </Button>
+                  <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
+                             IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
+                </Panel>
                 <!-- Play and queue; a download adds its own actions. -->
-                <Panel Grid.Column="3" MinWidth="112">
+                <Panel Grid.Column="4" MinWidth="112">
                   <StackPanel Classes="rowactions" Orientation="Horizontal"
                               HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
@@ -698,7 +789,7 @@
                     </Button>
                   </StackPanel>
                 </Panel>
-                <Panel Grid.Column="4" Margin="8,0">
+                <Panel Grid.Column="5" Margin="8,0">
                   <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center"
                               IsVisible="{Binding IsMissing}" ToolTip.Tip="{l:T downloads.missingTip}">
                     <PathIcon Data="{StaticResource Icon.Warning}" Width="14" Height="14"
