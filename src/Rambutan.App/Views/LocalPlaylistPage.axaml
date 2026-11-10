@@ -85,10 +85,13 @@
              controls:ScrollMemory.IsEnabled="True"
              controls:RowNumber.IsEnabled="True"
              controls:DragReorder.Command="{Binding DragReorderCommand}"
-             controls:ItemActivation.Command="{Binding PlayFromCommand}">
+             controls:ItemActivation.Command="{Binding PlayFromCommand}"
+             controls:TrackColumns.FixedWidth="292">
+      <!-- FixedWidth: item padding 16, number 40, cover 52, album gap 16,
+           actions 112, duration 56. -->
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="vm:LocalPlaylistTrackRow">
-          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" Margin="0,2"
+          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
                 Background="Transparent"
                 Classes.missing="{Binding IsMissing}"
                 controls:TrackMenu.Track="{Binding Track}"
@@ -134,7 +137,28 @@
                 <TextBlock Classes="rowmeta" Text="{Binding Track.ArtistDisplay}" />
               </DockPanel>
             </StackPanel>
-            <Panel Grid.Column="3" Width="112">
+            <!-- The album while the list has room for it (Controls/TrackColumns):
+                 a song's links to its album; a file's is its own tag, as text,
+                 since a file has no album page. -->
+            <Panel Grid.Column="3" Classes="rowalbum"
+                   Width="{Binding $parent[ListBox].(controls:TrackColumns.AlbumWidth)}">
+              <Panel.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                  <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                  <Binding Path="Track.Album" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                </MultiBinding>
+              </Panel.IsVisible>
+              <Button Classes="textlink rowlink" IsTabStop="False"
+                      IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      ToolTip.Tip="{l:T common.goToAlbum}"
+                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
+                      CommandParameter="{Binding Track}">
+                <TextBlock Text="{Binding Track.Album}" />
+              </Button>
+              <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
+                         IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
+            </Panel>
+            <Panel Grid.Column="4" Width="112">
               <StackPanel Classes="rowactions" Orientation="Horizontal"
                           HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.playFromHere}"
@@ -160,7 +184,7 @@
                 </Button>
               </StackPanel>
             </Panel>
-            <Panel Grid.Column="4" Margin="8,0">
+            <Panel Grid.Column="5" Margin="8,0">
               <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right" VerticalAlignment="Center"
                           IsVisible="{Binding IsMissing}" ToolTip.Tip="{l:T localPlaylist.missingTip}">
                 <PathIcon Data="{StaticResource Icon.Warning}" Width="14" Height="14"

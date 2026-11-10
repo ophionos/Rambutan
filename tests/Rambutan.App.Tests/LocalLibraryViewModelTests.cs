@@ -67,7 +67,7 @@ public sealed class LocalLibraryViewModelTests : IDisposable
 
         Assert.Equal(["Only", "First", "Second"], _vm.Tracks.Select(r => r.Title));
         Assert.Equal("B · Album", _vm.Tracks[1].Subtitle);
-        Assert.Equal("First, B · Album", _vm.Tracks[1].AccessibleName);
+        Assert.Equal("First, B, Album", _vm.Tracks[1].AccessibleName);
         Assert.True(_vm.HasFolders);
         Assert.False(_vm.IsEmpty);
         Assert.False(_vm.IsScanning);

@@ -43,14 +43,17 @@ public sealed record LocalTrackRow(LocalFile? File, TrackInfo Track, DownloadedT
     public string Subtitle => string.Join(" · ", new[] { Track.ArtistDisplay, Track.Album }
         .Where(s => !string.IsNullOrWhiteSpace(s)));
 
-    /// <summary>The dimming is visual only, so a missing file goes into the name.</summary>
+    /// <summary>"Title, Artists, Album", as the lists' album column shows it; the
+    /// dimming is visual only, so a missing file goes into the name, last.</summary>
     public string AccessibleName
     {
         get
         {
-            var name = Subtitle.Length == 0
+            var detail = string.Join(", ", new[] { Track.ArtistDisplay, Track.Album }
+                .Where(s => !string.IsNullOrWhiteSpace(s)));
+            var name = detail.Length == 0
                 ? Title
-                : Strings.Format("queue.row.nameWithArtist", ("title", Title), ("artist", Subtitle));
+                : Strings.Format("queue.row.nameWithArtist", ("title", Title), ("artist", detail));
             return IsMissing ? Strings.Format("downloads.row.missing", ("name", name)) : name;
         }
     }

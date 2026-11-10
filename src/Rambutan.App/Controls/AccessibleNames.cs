@@ -40,8 +40,9 @@ public interface ITrackRow
 /// already written for people. A trailing shortcut in brackets, "Next (Ctrl+→)",
 /// becomes the accelerator key instead of part of the name. A tooltip that
 /// changes renames the button with it.</item>
-/// <item>A list row takes its item's name: "title, artists" for a track, "title,
-/// subtitle" for a card. Unnamed, a row read out its record's ToString().</item>
+/// <item>A list row takes its item's name: "title, artists" for a track ("title,
+/// artists, album" in a list with an album column), "title, subtitle" for a card.
+/// Unnamed, a row read out its record's ToString().</item>
 /// </list>
 /// A track row that has a download says so after its name: the mark is visual only.
 /// An explicit <c>AutomationProperties.Name</c> always wins: these rules write at
@@ -97,8 +98,22 @@ public static class AccessibleNames
         // label, read once its content is built and bound.
         Control.LoadedEvent.AddClassHandler<Button>((button, _) => NameFromTip(button));
         StyledElement.DataContextProperty.Changed.AddClassHandler<ListBoxItem>((item, _) => NameFromItem(item));
-        Control.LoadedEvent.AddClassHandler<ListBoxItem>((item, _) => Subscribe(item));
+        // A container can take its item before it has a list, so whether the
+        // list has an album column is known for certain only once it loads.
+        Control.LoadedEvent.AddClassHandler<ListBoxItem>((item, _) =>
+        {
+            Subscribe(item);
+            NameFromItem(item);
+        });
         Control.UnloadedEvent.AddClassHandler<ListBoxItem>((item, _) => Unsubscribe(item));
+        TrackColumns.FixedWidthProperty.Changed.AddClassHandler<ListBox>((list, _) =>
+        {
+            foreach (var container in list.GetRealizedContainers())
+            {
+                if (container is ListBoxItem item)
+                    NameFromItem(item);
+            }
+        });
     }
 
     private static void Subscribe(ListBoxItem item)
@@ -116,12 +131,16 @@ public static class AccessibleNames
         item.ClearValue(RefreshProperty);
     }
 
-    /// <summary>The item's name as its row says it: <see cref="For"/>, plus
-    /// "downloaded" for a track that has a download.</summary>
-    internal static string? RowName(object? item)
+    /// <summary>The item's name as its row says it: <see cref="For"/>, then the
+    /// album when <paramref name="withAlbum"/> (a list with an album column,
+    /// <see cref="TrackColumns"/>, whatever its width now), then "downloaded" for
+    /// a track that has a download.</summary>
+    internal static string? RowName(object? item, bool withAlbum = false)
     {
         if (For(item) is not { } name)
             return null;
+        if (withAlbum && AlbumOf(item) is { } album)
+            name = $"{name}, {album}";
         var track = item switch
         {
             TrackInfo t => t,
@@ -143,6 +162,22 @@ public static class AccessibleNames
         CatalogEntry entry => Join(entry.Title, entry.Subtitle),
         _ => null,
     };
+
+    /// <summary>The album an item's own name leaves out, or null. A row that
+    /// names itself (<see cref="IHasAccessibleName"/>) names its album too, so
+    /// that its suffixes ("file missing") stay last.</summary>
+    private static string? AlbumOf(object? item)
+    {
+        var album = item switch
+        {
+            IHasAccessibleName => null,
+            TrackInfo track => track.Album,
+            SongEntry song => song.Track.Album,
+            HistoryEntry entry => entry.Track.Album,
+            _ => null,
+        };
+        return string.IsNullOrWhiteSpace(album) ? null : album;
+    }
 
     /// <summary>Splits "Next (Ctrl+→)" into ("Next", "Ctrl+→"). A tip without a
     /// trailing bracket is all name.</summary>
@@ -201,7 +236,8 @@ public static class AccessibleNames
         item.ClearValue(WatchedProperty);
 
         var data = item.DataContext;
-        if (RowName(data) is { } name)
+        var withAlbum = item.FindLogicalAncestorOfType<ListBox>() is { } list && TrackColumns.IsOn(list);
+        if (RowName(data, withAlbum) is { } name)
             Set(item, name);
         else
             Clear(item);
