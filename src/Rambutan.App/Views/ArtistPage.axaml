@@ -25,8 +25,8 @@
         </Border>
         <StackPanel Grid.Column="1" Margin="24,0,0,0" Spacing="12" VerticalAlignment="Center">
           <TextBlock Classes="herotitle" Text="{Binding Name}" />
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <Button Classes="accent" Command="{Binding PlayTopSongsCommand}"
+          <controls:ActionRow Spacing="10">
+            <Button Classes="accent" controls:ActionRow.Keep="True" Command="{Binding PlayTopSongsCommand}"
                     IsEnabled="{Binding !!TopSongs.Count}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" VerticalAlignment="Center" />
@@ -68,7 +68,7 @@
               </StackPanel>
             </Button>
             <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
-          </StackPanel>
+          </controls:ActionRow>
 
         </StackPanel>
       </Grid>
