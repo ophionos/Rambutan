@@ -1,30 +1,37 @@
 using System.IO.Compression;
 using System.Net;
 using System.Runtime.InteropServices;
-using System.Text.Json;
-using Rambutan.Core.Diagnostics;
 
 namespace Rambutan.Streams;
 
 /// <summary>
 /// Manages the shared ffmpeg libraries used for decode (via FFmpeg.AutoGen in
-/// Rambutan.Audio), and the ffmpeg executable that export runs. Windows and Linux download the
-/// BtbN LGPL shared build pinned to the binding's major version (distro packages
-/// are typically several majors behind). macOS: system libraries for now.
+/// Rambutan.Audio), and the ffmpeg executable that export runs. Windows and Linux download one
+/// dated BtbN LGPL shared build of the binding's major version (distro packages
+/// are typically several majors behind) and check its SHA-256, since the
+/// libraries load into this process. macOS: system libraries for now.
 /// </summary>
 public sealed class FfmpegManager(string toolsDirectory, HttpClient? http = null)
 {
     // Pinned to n9.0 — must match the FFmpeg.AutoGen binding major in Rambutan.Audio.
     private const string BuildVersion = "9.0";
-    private const string WindowsAssetUrl =
-        $"https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-n{BuildVersion}-latest-win64-lgpl-shared-{BuildVersion}.zip";
-    private const string LinuxAssetUrl =
-        $"https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-n{BuildVersion}-latest-linux64-lgpl-shared-{BuildVersion}.tar.xz";
 
-    // The newest releases, dated ones included. BtbN publishes each build as a
-    // dated release first, then deletes and re-creates 'latest'; for those minutes
-    // the URLs above answer 404.
-    internal const string ReleasesApiUrl = "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases?per_page=5";
+    // One dated build, never 'latest': 'latest' is replaced each day, so no hash
+    // in source could name it. BtbN keeps the last build of each month for two
+    // years and the daily ones for two weeks, so pin a month's last build.
+    // Change the release, the build and both hashes together; the hashes are
+    // sha256sum of the two assets, which the release's checksums.sha256 lists.
+    internal const string Release = "autobuild-2026-10-31-12-59";
+    private const string Build = "n9.0.2-39-g7adfbe40dc";
+    private const string AssetBase =
+        $"https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/{Release}/ffmpeg-{Build}-";
+
+    /// <summary>The pinned build's archive for a platform, and its SHA-256.</summary>
+    internal static (string Url, string Sha256) Asset(bool isWindows) => isWindows
+        ? ($"{AssetBase}win64-lgpl-shared-{BuildVersion}.zip",
+            "e907b01fa4783913151237e37df2a10fa97d99a1598a021bf59d4ae62ffed4c0")
+        : ($"{AssetBase}linux64-lgpl-shared-{BuildVersion}.tar.xz",
+            "5a58e2dffad4835ee3418939f2676d6898489f8e047299f5f62ee0da3f8dd5dc");
 
     /// <summary>
     /// Everything FfmpegDecoder touches, with the library major the n9.0 build ships
@@ -171,24 +178,17 @@ public sealed class FfmpegManager(string toolsDirectory, HttpClient? http = null
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(DownloadTimeout);
 
-        var url = isWindows ? WindowsAssetUrl : LinuxAssetUrl;
+        var (url, expected) = Asset(isWindows);
         try
         {
-            try
-            {
-                await CopyToFileAsync(url, path, timeout.Token);
-            }
-            catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
-            {
-                var dated = await FindDatedAssetAsync(isWindows, timeout.Token)
-                    ?? throw new InvalidOperationException(
-                        $"ffmpeg build not found at '{url}', and none of BtbN's newest releases " +
-                        $"has an n{BuildVersion} {AssetSuffix(isWindows)} asset either. If that lasts " +
-                        $"past a day, BtbN has dropped the n{BuildVersion} builds: update the pin (and " +
-                        "the FFmpeg.AutoGen binding in Rambutan.Audio) to the current major.", e);
-                AppLog.Write("sidecar", $"ffmpeg 'latest' answered 404 (BtbN re-publishing?); using {dated}");
-                await CopyToFileAsync(dated, path, timeout.Token);
-            }
+            var actual = await VerifiedDownload.ToFileAsync(_http, url, path, timeout.Token);
+            VerifiedDownload.Require("ffmpeg", expected, actual, path);
+        }
+        catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            throw new InvalidOperationException(
+                $"ffmpeg build not found at '{url}'. BtbN has removed the pinned release: " +
+                "update the pin and its hashes to a newer month's last build.", e);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -196,82 +196,6 @@ public sealed class FfmpegManager(string toolsDirectory, HttpClient? http = null
                 $"ffmpeg download timed out after {DownloadTimeout.TotalMinutes:0} minutes.");
         }
     }
-
-    private async Task CopyToFileAsync(string url, string path, CancellationToken ct)
-    {
-        await using var source = await _http.GetStreamAsync(url, ct);
-        await using var target = File.Create(path);
-        await source.CopyToAsync(target, ct);
-    }
-
-    /// <summary>The newest fully uploaded build of the pin, from the release list;
-    /// null when the list can't be read or holds none.</summary>
-    private async Task<string?> FindDatedAssetAsync(bool isWindows, CancellationToken ct)
-    {
-        try
-        {
-            using var request = new HttpRequestMessage(HttpMethod.Get, ReleasesApiUrl);
-            request.Headers.UserAgent.ParseAdd("Rambutan"); // the API refuses requests without one
-            request.Headers.Accept.ParseAdd("application/vnd.github+json");
-            using var response = await _http.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-            await using var body = await response.Content.ReadAsStreamAsync(ct);
-            using var doc = await JsonDocument.ParseAsync(body, cancellationToken: ct);
-            return PickAsset(doc.RootElement, isWindows);
-        }
-        catch (Exception e) when (e is HttpRequestException or JsonException)
-        {
-            AppLog.Write("sidecar", $"ffmpeg release list unavailable: {e.Message}");
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// From GitHub's release list (newest first), the download URL of the first
-    /// uploaded asset of the pinned build for this platform. A 'latest' being
-    /// re-created has no assets or half of them, so it's passed over until its
-    /// file is up; the suffix keeps arm64, GPL and static builds out.
-    /// </summary>
-    internal static string? PickAsset(JsonElement releases, bool isWindows)
-    {
-        if (releases.ValueKind != JsonValueKind.Array)
-            return null;
-        var suffix = AssetSuffix(isWindows);
-        foreach (var release in releases.EnumerateArray())
-        {
-            if (release.TryGetProperty("draft", out var draft) && draft.ValueKind == JsonValueKind.True)
-                continue;
-            if (!release.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
-                continue;
-            foreach (var asset in assets.EnumerateArray())
-            {
-                var name = Text(asset, "name");
-                if (name is null
-                    || !(name.StartsWith($"ffmpeg-n{BuildVersion}-", StringComparison.Ordinal)
-                         || name.StartsWith($"ffmpeg-n{BuildVersion}.", StringComparison.Ordinal))
-                    || !name.EndsWith(suffix, StringComparison.Ordinal)
-                    || Text(asset, "state") != "uploaded"
-                    || Text(asset, "browser_download_url") is not { } url
-                    || !url.StartsWith("https://github.com/BtbN/FFmpeg-Builds/", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                return url;
-            }
-        }
-
-        return null;
-    }
-
-    private static string AssetSuffix(bool isWindows) => isWindows
-        ? $"-win64-lgpl-shared-{BuildVersion}.zip"
-        : $"-linux64-lgpl-shared-{BuildVersion}.tar.xz";
-
-    private static string? Text(JsonElement element, string property) =>
-        element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
 
     private static void TryDeleteFile(string path)
     {
