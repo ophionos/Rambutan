@@ -206,6 +206,8 @@ public class TrackColumnsTests
         var vm = new SearchPageViewModel();
         vm.LocalResults.Add(new LocalTrackRow(null, file));
         vm.HasLocalResults = true;
+        // The results show only after a search; before one the page rests.
+        vm.HasSearched = true;
         var view = new Rambutan.App.Views.SearchPage { DataContext = vm };
         var window = Show(view, width);
         var list = view.GetVisualDescendants().OfType<ListBox>()
