@@ -10,6 +10,7 @@ using Rambutan.App.Controls;
 using Rambutan.App.Services.Demo;
 using Rambutan.App.ViewModels;
 using Rambutan.App.Views;
+using Rambutan.Core.Layout;
 using Rambutan.Core.Models;
 using Rambutan.Lyrics.Models;
 using Rambutan.Lyrics.Providers;
@@ -73,11 +74,6 @@ public class LyricsPaneTests
     public void TargetOffset_PutsTheLineCentreFortyPercentDown(
         double top, double height, double viewport, double extent, double expected) =>
         Assert.Equal(expected, LyricsPane.TargetOffset(top, height, viewport, extent), precision: 6);
-
-    [Fact]
-    public void AFewLines_PutTheActiveOneInTheMiddle() =>
-        // Three 46-pixel lines: the third (centre 115) sits in the middle (69).
-        Assert.Equal(46, LyricsPane.TargetOffset(92, 46, 138, 2000, LyricsPane.FewLinesAnchor), precision: 6);
 
     [Fact]
     public void FollowingPlayback_KeepsTheActiveLineFortyPercentDown() => Headless.Run(() =>
@@ -181,17 +177,19 @@ public class LyricsPaneTests
     });
 
     private static (Window Window, NowPlayingView View, NowPlayingViewModel Vm) NowPlaying(
-        double width, bool artwork = false, double height = 700)
+        double width, bool artwork = false, double height = 700, bool showLyrics = true,
+        LyricsViewModel? lyricsVm = null, Services.AppearanceSettings? appearance = null)
     {
         AccessibleNames.Install();
         ShellResources.Ensure();
-        var (lyrics, _) = Loaded(lines: 8);
+        var lyrics = lyricsVm ?? Loaded(lines: 8).Vm;
         var player = new PlayerBarViewModel
         {
-            NowPlaying = Crush, ShownTrack = Crush, ArtworkUrl = "https://example.com/crush.jpg",
+            NowPlaying = Crush, ShownTrack = Crush, DisplayedTrack = Crush,
+            ArtworkUrl = "https://example.com/crush.jpg",
         };
         var vm = new NowPlayingViewModel(player, lyrics,
-            new Services.AppSettings { ShowLyrics = true, ShowArtwork = artwork });
+            new Services.AppSettings { ShowLyrics = showLyrics, ShowArtwork = artwork }, appearance);
         var view = new NowPlayingView { DataContext = vm };
         var window = new Window
         {
@@ -221,7 +219,7 @@ public class LyricsPaneTests
         // scroller reaches past the stage into the margin, near the pane's edge.
         var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
         var stage = view.FindControl<Grid>("Stage")!;
-        var identity = view.FindControl<StackPanel>("Identity")!;
+        var identity = view.FindControl<Grid>("Identity")!;
         var column = pane.FindControl<Panel>("Column")!;
         var scroller = pane.FindControl<ScrollViewer>("Scroller")!;
         Assert.Equal(LyricsPane.ColumnMaxWidth, column.Bounds.Width, 0.5);
@@ -252,7 +250,7 @@ public class LyricsPaneTests
     [Fact]
     public void ArtworkAndLyrics_SitSideBySide_WhenWide() => Headless.Run(() =>
     {
-        var (window, view, _) = NowPlaying(width: 1400, artwork: true);
+        var (window, view, vm) = NowPlaying(width: 1400, artwork: true);
         Assert.Equal(NowPlayingView.StageLayout.SideBySide, view.CurrentLayout);
 
         var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
@@ -262,63 +260,222 @@ public class LyricsPaneTests
         Assert.True(art.Bounds.Height > 0);
         Assert.True(artRight <= paneLeft, $"artwork ends at {artRight}, lyrics start at {paneLeft}");
         Assert.True(artRight < view.Bounds.Width / 2);
-        Assert.Null(pane.LinesShown);
+        Assert.False(vm.IsArtworkCompact);
         window.Close();
     });
 
+    /// <summary>Resizes the window so the stage is <paramref name="width"/> by
+    /// <paramref name="height"/>, whatever the margins and notes around it.</summary>
+    private static Grid SizeStage(Window window, NowPlayingView view, double width, double height)
+    {
+        var stage = view.FindControl<Grid>("Stage")!;
+        for (var i = 0; i < 3; i++)
+        {
+            window.Width += width - stage.Bounds.Width;
+            window.Height += height - stage.Bounds.Height;
+            Relayout(window);
+        }
+        Assert.Equal(width, stage.Bounds.Width, 0.5);
+        Assert.Equal(height, stage.Bounds.Height, 0.5);
+        return stage;
+    }
+
+    private static Rect BoundsIn(Control control, Visual relativeTo) =>
+        new(control.TranslatePoint(default, relativeTo)!.Value, control.Bounds.Size);
+
     [Fact]
-    public void ArtworkAndLyrics_Stack_WhenNarrow_WithAFewLinesUnderTheArtwork() => Headless.Run(() =>
+    public void Stacked_TheLyricsTakeThePane_UnderAHeaderOfCoverTitleAndArtist() => Headless.Run(() =>
     {
         var (window, view, vm) = NowPlaying(width: 700, artwork: true);
         Assert.Equal(NowPlayingView.StageLayout.Stacked, view.CurrentLayout);
+        Assert.True(vm.IsArtworkCompact);
 
-        var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
-        var identity = view.FindControl<StackPanel>("Identity")!;
+        var stage = view.FindControl<Grid>("Stage")!;
+        var identity = view.FindControl<Grid>("Identity")!;
+        var pane = view.FindControl<LyricsPane>("LyricsHost")!;
+        var art = view.FindControl<Border>("Art")!;
+        var title = view.FindControl<Button>("TitleLink")!;
+        var credits = view.FindControl<WrapPanel>("Credits")!;
         var scroller = pane.FindControl<ScrollViewer>("Scroller")!;
-        Assert.Equal(NowPlayingView.StackedLines, pane.LinesShown);
-        Assert.True(scroller.Bounds.Height <= NowPlayingView.StackedLines * LyricsPane.LineHeight + 0.5);
-        Assert.True(pane.Bounds.Top >= identity.Bounds.Bottom);
-        Assert.True(view.FindControl<Border>("Art")!.Bounds.Height > 0);
 
-        // Wider, they go side by side; a stale column index would throw.
+        // The header in the first row, the lyrics under it to the stage's foot,
+        // with no limit on their lines.
+        Assert.Equal(0, Grid.GetRow(identity));
+        Assert.Equal(1, Grid.GetRow(pane));
+        Assert.True(pane.Bounds.Top >= identity.Bounds.Bottom);
+        Assert.Equal(stage.Bounds.Height, pane.Bounds.Bottom, 0.5);
+        Assert.True(scroller.Bounds.Height > stage.Bounds.Height / 2,
+            $"lines get {scroller.Bounds.Height} of {stage.Bounds.Height}");
+
+        // The small cover on the left, the title over the artist to its right,
+        // the two centred on the cover.
+        Assert.Equal(NowPlayingLayout.HeaderArt, art.Bounds.Width, 0.5);
+        Assert.Equal(NowPlayingLayout.HeaderArt, art.Bounds.Height, 0.5);
+        var cover = BoundsIn(art, stage);
+        var titleBox = BoundsIn(title, stage);
+        var creditsBox = BoundsIn(credits, stage);
+        Assert.True(titleBox.Left >= cover.Right && creditsBox.Left >= cover.Right,
+            $"cover ends at {cover.Right}, title starts at {titleBox.Left}, artist at {creditsBox.Left}");
+        Assert.Equal(titleBox.Left, creditsBox.Left, 0.5);
+        Assert.True(titleBox.Bottom <= creditsBox.Top + 0.5);
+        var textMiddle = (titleBox.Top + creditsBox.Bottom) / 2;
+        Assert.True(Math.Abs(cover.Center.Y - textMiddle) <= 2,
+            $"cover centre {cover.Center.Y}, text {titleBox.Top}..{creditsBox.Bottom}");
+        Assert.Equal(NowPlayingLayout.CompactTitleSize, title.FontSize);
+        Assert.Equal(1, view.FindControl<TextBlock>("TitleText")!.MaxLines);
+
+        // Wider, they go side by side and the cover draws full size again.
         window.Width = 1400;
         Relayout(window);
         Assert.Equal(NowPlayingView.StageLayout.SideBySide, view.CurrentLayout);
-        vm.ToggleArtworkCommand.Execute(null);
-        Relayout(window);
-        Assert.Equal(NowPlayingView.StageLayout.LyricsOnly, view.CurrentLayout);
-        Assert.Null(pane.LinesShown);
+        Assert.False(vm.IsArtworkCompact);
+        Assert.True(art.Bounds.Width > NowPlayingLayout.HeaderArt);
+        window.Close();
+    });
+
+    private static LyricsViewModel InState(LyricsStatus status)
+    {
+        var custom = new CustomLyricsAccess(_ => null, (_, _) => { }, _ => { },
+            (_, _) => Task.FromResult(LyricsLookup.NotFound));
+        var vm = new LyricsViewModel(
+            (_, _) => Task.FromResult(status is LyricsStatus.NotLookedUp
+                ? LyricsLookup.NotLookedUp
+                : new LyricsLookup(status, LyricsDocument.Empty("lrclib"))),
+            _ => Task.CompletedTask, custom: custom);
+        vm.OnTrackChanged(Crush);
+        return vm;
+    }
+
+    private static string? Label(Button button) => button.Content switch
+    {
+        string text => text,
+        _ => button.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault()?.Text,
+    };
+
+    [Theory]
+    [InlineData(LyricsStatus.NotLookedUp, new[] { "Look up lyrics online", "Add your own lyrics" })]
+    [InlineData(LyricsStatus.NotFound, new[] { "Add your own lyrics" })]
+    [InlineData(LyricsStatus.Unavailable, new[] { "Try again" })]
+    public void AtTheSmallestStage_AStatesButtons_ScrollIntoReach(LyricsStatus status, string[] labels) =>
+        Headless.Run(() =>
+        {
+            var (window, view, _) = NowPlaying(width: 700, artwork: true, lyricsVm: InState(status));
+            SizeStage(window, view, 560, 280);
+            Assert.Equal(NowPlayingView.StageLayout.Stacked, view.CurrentLayout);
+
+            var pane = view.FindControl<LyricsPane>("LyricsHost")!;
+            var states = pane.FindControl<ScrollViewer>("StateScroller")!;
+            Assert.True(states.IsEffectivelyVisible);
+            var viewport = BoundsIn(states, pane);
+            Assert.True(viewport.Top >= -0.5 && viewport.Bottom <= pane.Bounds.Height + 0.5,
+                $"the states' scroller spans {viewport.Top}..{viewport.Bottom} of a pane {pane.Bounds.Height} high");
+
+            foreach (var label in labels)
+            {
+                var button = states.GetVisualDescendants().OfType<Button>()
+                    .Single(b => b.IsEffectivelyVisible && Label(b) == label);
+                Assert.Same(states, button.FindAncestorOfType<ScrollViewer>());
+
+                // Focus brings it into the viewport, as Tab does.
+                button.Focus(NavigationMethod.Tab);
+                Relayout(window);
+                var at = BoundsIn(button, states);
+                Assert.True(at.Top >= -0.5 && at.Bottom <= states.Viewport.Height + 0.5,
+                    $"'{label}' sits at {at.Top}..{at.Bottom} of a viewport {states.Viewport.Height} high");
+            }
+            window.Close();
+        });
+
+    [Fact]
+    public void ArtOnly_AtTheDefaultSize_TheArtworkGrows_AndTheArtistStaysInTheStage() => Headless.Run(() =>
+    {
+        var (window, view, _) = NowPlaying(width: 1188, artwork: true, showLyrics: false);
+        var stage = SizeStage(window, view, 1092, 590);
+        Assert.Equal(NowPlayingView.StageLayout.ArtOnly, view.CurrentLayout);
+
+        var art = view.FindControl<Border>("Art")!;
+        var title = view.FindControl<Button>("TitleLink")!;
+        var credits = view.FindControl<WrapPanel>("Credits")!;
+        Assert.True(art.Bounds.Width > 300, $"artwork is {art.Bounds.Width}");
+        Assert.True(title.FontSize > NowPlayingLayout.MinTitleSize, $"title is {title.FontSize}");
+        // The links laid out with their text, so the line measured is a real one.
+        var links = credits.Children.OfType<Button>().ToArray();
+        Assert.All(links, link => Assert.True(link.Bounds.Width > 0, $"a link is {link.Bounds}"));
+        var bottom = BoundsIn(credits, stage).Bottom;
+        Assert.True(bottom <= stage.Bounds.Height + 0.5, $"artist line ends at {bottom} of {stage.Bounds.Height}");
         window.Close();
     });
 
     [Fact]
-    public void Stacked_AtTheFirstLine_ShowsThreeWholeLines() => Headless.Run(() =>
+    public void ArtOnly_WithTheRing_AtTheDefaultAndAShortStage_TheRingAndTheArtistStayInTheStage() => Headless.Run(() =>
     {
-        var (window, view, vm) = NowPlaying(width: 700, artwork: true);
-        vm.Lyrics.OnPosition(TimeSpan.FromSeconds(4.5)); // line 0
-        Relayout(window);
+        var appearance = new Services.AppearanceSettings
+        {
+            VisualizerStyle = Services.VisualizerStyle.Radial,
+            Motion = Services.MotionPreference.Full,
+        };
+        // A shorter stage puts the artwork at its floor, and with the ring's
+        // reach that no longer fits (as before this layout).
+        foreach (var (width, height) in new[] { (1092.0, 590.0), (560.0, 400.0) })
+        {
+            var (window, view, vm) = NowPlaying(width: 1188, artwork: true, showLyrics: false, appearance: appearance);
+            var stage = SizeStage(window, view, width, height);
+            Assert.True(vm.ShowsRing);
 
-        var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
-        var scroller = pane.FindControl<ScrollViewer>("Scroller")!;
-        var list = pane.FindControl<ItemsControl>("LinesList")!;
-        Assert.Equal(0, scroller.Offset.Y, 0.5);
-        var third = (Control)list.ContainerFromIndex(2)!;
-        var bottom = third.TranslatePoint(new(0, third.Bounds.Height), scroller)!.Value.Y;
-        Assert.True(bottom <= scroller.Viewport.Height + 0.5, $"third line ends at {bottom} of {scroller.Viewport.Height}");
-        window.Close();
+            var artSlot = view.FindControl<Panel>("ArtSlot")!;
+            var slot = BoundsIn(artSlot, stage);
+            var credits = BoundsIn(view.FindControl<WrapPanel>("Credits")!, stage);
+            // The slot keeps the ring's reach clear on every side.
+            Assert.Equal(RadialRenderer.Margin, artSlot.Margin.Left, 0.5);
+            Assert.Equal(RadialRenderer.Margin, artSlot.Margin.Top, 0.5);
+            var ringTop = slot.Top - artSlot.Margin.Top;
+            Assert.True(ringTop >= -0.5, $"{width}x{height}: ring starts at {ringTop}");
+            Assert.True(credits.Bottom <= stage.Bounds.Height + 0.5,
+                $"{width}x{height}: artist line ends at {credits.Bottom} of {stage.Bounds.Height}");
+            window.Close();
+        }
     });
 
     [Fact]
-    public void AShortStage_ShrinksTheStackedArtwork_SoTheLinesStayInView() => Headless.Run(() =>
+    public void EachLayout_AfterTheOthers_IsAsAFreshViewWouldHaveIt() => Headless.Run(() =>
     {
-        var (window, view, _) = NowPlaying(width: 700, artwork: true, height: 560);
-        Assert.Equal(NowPlayingView.StageLayout.Stacked, view.CurrentLayout);
+        // Stacked, side by side, the artwork alone, the lyrics alone, stacked.
+        var steps = new (double Width, bool Artwork, bool Lyrics, NowPlayingView.StageLayout Layout)[]
+        {
+            (700, true, true, NowPlayingView.StageLayout.Stacked),
+            (1400, true, true, NowPlayingView.StageLayout.SideBySide),
+            (1400, true, false, NowPlayingView.StageLayout.ArtOnly),
+            (1400, false, true, NowPlayingView.StageLayout.LyricsOnly),
+            (700, true, true, NowPlayingView.StageLayout.Stacked),
+        };
 
-        var pane = view.GetVisualDescendants().OfType<LyricsPane>().Single();
-        var stage = view.FindControl<Grid>("Stage")!;
-        Assert.True(view.FindControl<Border>("Art")!.Bounds.Height < 300);
-        Assert.True(pane.Bounds.Bottom <= stage.Bounds.Height + 0.5,
-            $"lyrics end at {pane.Bounds.Bottom}, stage is {stage.Bounds.Height} high");
+        var (window, view, vm) = NowPlaying(width: steps[0].Width, artwork: steps[0].Artwork);
+        foreach (var step in steps)
+        {
+            window.Width = step.Width;
+            vm.ShowArtwork = step.Artwork;
+            vm.ShowLyrics = step.Lyrics;
+            Relayout(window);
+            Assert.Equal(step.Layout, view.CurrentLayout);
+
+            var (freshWindow, fresh, _) = NowPlaying(width: step.Width, artwork: step.Artwork, showLyrics: step.Lyrics);
+            Assert.Equal(step.Layout, fresh.CurrentLayout);
+            foreach (var name in new[] { "Art", "TitleLink", "Credits", "LyricsHost" })
+            {
+                var moved = view.FindControl<Control>(name)!;
+                var made = fresh.FindControl<Control>(name)!;
+                Assert.Equal(made.IsEffectivelyVisible, moved.IsEffectivelyVisible);
+                if (!made.IsEffectivelyVisible)
+                    continue;
+                var a = BoundsIn(moved, view);
+                var b = BoundsIn(made, fresh);
+                Assert.True(Math.Abs(a.X - b.X) < 0.5 && Math.Abs(a.Y - b.Y) < 0.5
+                    && Math.Abs(a.Width - b.Width) < 0.5 && Math.Abs(a.Height - b.Height) < 0.5,
+                    $"{step.Layout}: {name} is {a}, fresh {b}");
+            }
+            Assert.Equal(fresh.FindControl<Button>("TitleLink")!.FontSize, view.FindControl<Button>("TitleLink")!.FontSize);
+            freshWindow.Close();
+        }
         window.Close();
     });
 

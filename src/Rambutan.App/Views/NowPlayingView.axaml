@@ -4,6 +4,7 @@
              xmlns:vm="using:Rambutan.App.ViewModels"
              xmlns:controls="using:Rambutan.App.Controls"
              xmlns:views="using:Rambutan.App.Views"
+             xmlns:layout="using:Rambutan.Core.Layout"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="640"
@@ -81,15 +82,16 @@
       </StackPanel>
 
       <!-- Over the stage: the artwork and title, the lyrics, both (side by
-           side, or stacked with a few lines when narrow), or neither. The
-           arrangement is set in code-behind (ApplyLayout), since grid
+           side, or the lyrics under a small header when narrow), or neither.
+           The arrangement is set in code-behind (ApplyLayout), since grid
            definitions can't be styled. -->
       <Grid x:Name="Stage" Grid.Row="0"
             IsVisible="{Binding Player.ShownTrack, Converter={x:Static ObjectConverters.IsNotNull}}">
 
-      <!-- Track identity: the artwork when it shows, and the title. -->
-      <StackPanel x:Name="Identity" VerticalAlignment="Center" HorizontalAlignment="Center"
-                  Spacing="0" MaxWidth="560" IsVisible="{Binding IsIdentityShown}">
+      <!-- Track identity: the artwork when it shows, and the title; a column,
+           or a header row above the lyrics (code-behind places the parts). -->
+      <Grid x:Name="Identity" VerticalAlignment="Center" HorizontalAlignment="Center"
+            IsVisible="{Binding IsIdentityShown}">
         <!-- The radial style draws around the artwork, behind it: its control
              reaches RadialRenderer.Margin past the artwork on every side
              (code-behind), and takes no input from it. -->
@@ -100,23 +102,25 @@
                                       BarColor="{Binding Colors.Color}"
                                       MaxFrameRate="{Binding Appearance.VisualizerFrameRate}" />
           <Border x:Name="Art" CornerRadius="12" ClipToBounds="True" Width="300" Height="300">
-            <controls:RemoteImage Url="{Binding Player.ArtworkUrl}" DecodeWidth="640"
+            <controls:RemoteImage Url="{Binding Player.ArtworkUrl}"
+                                  DecodeWidth="{x:Static layout:NowPlayingLayout.DecodeWidth}"
                                   Stretch="UniformToFill" />
           </Border>
         </Panel>
         <!-- Links as in the player bar; following one closes
              this overlay, since any navigation does. -->
-        <Button x:Name="TitleLink" Classes="link" HorizontalAlignment="Center" FontSize="24" FontWeight="SemiBold"
+        <Button x:Name="TitleLink" Classes="link" HorizontalAlignment="Center" MaxWidth="560"
+                FontSize="24" FontWeight="SemiBold"
                 Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
                 CommandParameter="{Binding Player.ShownTrack}"
                 Classes.inert="{Binding Player.ShownTrack.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}"
                 ToolTip.Tip="{l:T common.goTo, Arg={Binding Player.DisplayedTrack.Album}}">
-          <TextBlock Text="{Binding Player.Title}"
+          <TextBlock x:Name="TitleText" Text="{Binding Player.Title}"
                      TextAlignment="Center" TextWrapping="Wrap" MaxLines="2"
                      TextTrimming="CharacterEllipsis" />
         </Button>
         <!-- Wraps rather than overflowing a narrow stage: the album drops to its own line. -->
-        <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center"
+        <WrapPanel x:Name="Credits" Orientation="Horizontal" HorizontalAlignment="Center" MaxWidth="560"
                     Margin="0,6,0,0" Opacity="0.65">
           <Button Classes="link" FontSize="15" MaxWidth="300"
                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToArtistCommand}"
@@ -136,7 +140,7 @@
             <TextBlock Text="{Binding Player.DisplayedTrack.Album}" TextTrimming="CharacterEllipsis" />
           </Button>
         </WrapPanel>
-      </StackPanel>
+      </Grid>
 
       <views:LyricsPane x:Name="LyricsHost" DataContext="{Binding Lyrics}"
                         IsVisible="{Binding $parent[UserControl].((vm:NowPlayingViewModel)DataContext).IsLyricsPaneVisible}" />

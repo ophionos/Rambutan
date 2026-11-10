@@ -203,11 +203,14 @@ file sink), never to files directly.
   The visualizer always fills the Now Playing pane (the stage), dimmed under
   the artwork and more under the lyrics. Two header toggles (`ShowArtwork`,
   `ShowLyrics`) put the artwork and the lyrics over it: side by side from
-  `NowPlayingView.SideBySideWidth`, else stacked with a few lines under the
-  artwork. Fullscreen follows the same toggles. Changing the style
+  `NowPlayingView.SideBySideWidth`, else the lyrics take the pane under a
+  header of a small cover, the title and the artist. The artwork and its
+  title take their sizes from the stage (`Core/Layout/NowPlayingLayout`).
+  Fullscreen follows the same toggles. Changing the style
   automatically (`VisualizerCycler`) picks among the styles the picker offers.
   The radial style draws around the artwork in place of the stage, and the
-  stage draws bars where there is no artwork (hidden, or no cover).
+  stage draws bars where there is no artwork to draw around (hidden, no
+  cover, or only the header's small cover).
   `NowPlayingViewModel` decides which one shows and polls. The
   "artwork" colour is `Core/Visualizer/ArtworkColor`, read from a small
   decode of the cover by `Services/ThemeColors`. The compact meter and
