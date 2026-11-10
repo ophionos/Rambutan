@@ -16,6 +16,10 @@
       <!-- The grid fits the width it is given rather than scroll past it. -->
       <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
       <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+      <!-- A chart never scrolls itself; bringing its selected bar or hour
+           into view would scroll the page to it when the page opens. Arrow
+           keys still bring the focused one into view. -->
+      <Setter Property="AutoScrollToSelectedItem" Value="False" />
     </Style>
     <Style Selector="ListBox.chart ListBoxItem">
       <Setter Property="Padding" Value="0" />

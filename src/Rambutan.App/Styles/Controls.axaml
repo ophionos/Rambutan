@@ -780,6 +780,10 @@
     <Setter Property="Padding" Value="3" />
     <Setter Property="HorizontalAlignment" Value="Right" />
     <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+    <!-- Every option is in view, so there is nothing to scroll to; a list
+         that brings its selection into view moves the page around it instead,
+         and Settings opened scrolled down to this control. -->
+    <Setter Property="AutoScrollToSelectedItem" Value="False" />
   </Style>
   <Style Selector="ListBox.segmented ListBoxItem">
     <Setter Property="Padding" Value="14,5" />
