@@ -34,10 +34,39 @@
     </Style>
   </UserControl.Styles>
 
-  <ScrollViewer Classes="pagescroll">
-    <StackPanel Classes="settings" Margin="4,0,4,24" MaxWidth="720" HorizontalAlignment="Left">
+  <!-- The title and the filter stay above the scroller, so the filter is in
+       reach wherever the page is scrolled. The section list lies over the
+       scroller to the right of the column, so the column never moves when the
+       list shows and the scrollbar stays at the pane's edge. The code-behind
+       sizes the header and the empty state to the column, and shows the list
+       only from SectionListMinWidth. Rows and sections the filter hides keep
+       their own IsVisible bindings: see SettingsPage.SetFilteredOut. -->
+  <Grid RowDefinitions="Auto,*">
+    <Grid x:Name="Header" Margin="4,0,0,16" HorizontalAlignment="Left" ColumnDefinitions="*,Auto">
       <TextBlock Text="{l:T settings.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold"
-                 Margin="0,0,0,4" />
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                 AutomationProperties.HeadingLevel="1" />
+      <TextBox x:Name="FilterBox" Grid.Column="1" Classes="searchfield" Width="280" Margin="16,0,0,0"
+               VerticalAlignment="Center"
+               PlaceholderText="{l:T settings.filter.placeholder}"
+               AutomationProperties.Name="{l:T settings.filter.placeholder}">
+        <TextBox.InnerLeftContent>
+          <PathIcon Data="{StaticResource Icon.Search}" Width="16" Height="16" Margin="14,0,0,0"
+                    Foreground="{StaticResource Token.Brush.Text.Muted}" />
+        </TextBox.InnerLeftContent>
+        <TextBox.InnerRightContent>
+          <Button x:Name="ClearFilterButton" Classes="icon subtle small" Margin="0,0,6,0"
+                  ToolTip.Tip="{l:T settings.filter.clear}" AutomationProperties.Name="{l:T settings.filter.clear}"
+                  IsVisible="{Binding #FilterBox.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <PathIcon Data="{StaticResource Icon.Close}" Width="12" Height="12" />
+          </Button>
+        </TextBox.InnerRightContent>
+      </TextBox>
+    </Grid>
+
+  <ScrollViewer x:Name="Scroller" Grid.Row="1" Classes="pagescroll">
+   <Panel>
+    <StackPanel x:Name="Column" Classes="settings" Margin="4,0,4,24" MaxWidth="720" HorizontalAlignment="Left">
 
       <!-- The sign-in, what state it's in, and when it was last checked. -->
       <StackPanel Spacing="8">
@@ -918,5 +947,22 @@
         </Border>
       </StackPanel>
     </StackPanel>
+
+    <!-- A filter that matches nothing: said, in the column's place. -->
+    <Panel x:Name="NoMatch" IsVisible="False" HorizontalAlignment="Left" Margin="4,48,4,24">
+      <StackPanel Classes="empty" VerticalAlignment="Top">
+        <PathIcon Data="{StaticResource Icon.Search}" />
+        <TextBlock Classes="title" Text="{l:T settings.filter.noMatchTitle}" />
+        <TextBlock x:Name="NoMatchHint" Classes="hint" />
+      </StackPanel>
+    </Panel>
+   </Panel>
   </ScrollViewer>
+
+    <!-- Left margin: the column's 4 + 720, and a 32 gap. -->
+    <ListBox x:Name="SectionList" Grid.Row="1" Classes="sections" IsVisible="False"
+             HorizontalAlignment="Left" VerticalAlignment="Top" Width="200" Margin="756,0,0,0"
+             Background="Transparent" SelectionMode="Single" AutoScrollToSelectedItem="False"
+             AutomationProperties.Name="{l:T settings.sections}" />
+  </Grid>
 </UserControl>
