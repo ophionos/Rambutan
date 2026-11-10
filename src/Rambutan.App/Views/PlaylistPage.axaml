@@ -66,8 +66,8 @@
         <!-- One filled action, then outlined icons: Play all carries the
              hierarchy by shape and colour, so the rest can drop their labels.
              Each keeps its name as a tooltip and an accessible name. -->
-        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
-          <Button Classes="cardplay hero" Command="{Binding PlayAllCommand}"
+        <controls:ActionRow Spacing="12" Margin="0,12,0,0">
+          <Button Classes="cardplay hero" controls:ActionRow.Keep="True" Command="{Binding PlayAllCommand}"
                   IsEnabled="{Binding !!Tracks.Count}"
                   ToolTip.Tip="{l:T common.playAll}" AutomationProperties.Name="{l:T common.playAll}">
             <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24" />
@@ -107,7 +107,7 @@
             <PathIcon Data="{StaticResource Icon.Delete}" Width="18" Height="18" />
           </Button>
           <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsBusy}" />
-        </StackPanel>
+        </controls:ActionRow>
         <ContentControl Content="{Binding LoadError}"
                       ContentTemplate="{StaticResource ErrorState.Compact}"
                       VerticalAlignment="Center" HorizontalAlignment="Left"

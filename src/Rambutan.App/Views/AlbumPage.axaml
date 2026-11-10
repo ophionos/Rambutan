@@ -58,8 +58,8 @@
         </Grid>
         <!-- Same header actions as a playlist: a filled Play all, then an
              outlined icon, each named by its tooltip and accessible name. -->
-        <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,12,0,0">
-          <Button Classes="cardplay hero" Command="{Binding PlayAllCommand}"
+        <controls:ActionRow Spacing="12" Margin="0,12,0,0">
+          <Button Classes="cardplay hero" controls:ActionRow.Keep="True" Command="{Binding PlayAllCommand}"
                   IsEnabled="{Binding !!Tracks.Count}"
                   ToolTip.Tip="{l:T common.playAll}" AutomationProperties.Name="{l:T common.playAll}">
             <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24" />
@@ -96,7 +96,7 @@
             </Panel>
           </Button>
           <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
-        </StackPanel>
+        </controls:ActionRow>
 
       </StackPanel>
     </Grid>

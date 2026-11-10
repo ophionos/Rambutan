@@ -12,11 +12,11 @@
              x:DataType="vm:LibraryPageViewModel">
 
   <Grid RowDefinitions="Auto,Auto,*,Auto">
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="10" Margin="4,0,16,8">
-      <TextBlock Text="{l:T library.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold" VerticalAlignment="Center" />
+    <controls:ActionRow Grid.Row="0" Spacing="10" Margin="4,0,16,8" MoreClasses="icon subtle">
+      <TextBlock controls:ActionRow.Keep="True" Text="{l:T library.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold" VerticalAlignment="Center" />
       <!-- The two sources and the stats, all in view; shown signed out too, so
            the files and the stats stay reachable. -->
-      <ListBox Classes="segmented" VerticalAlignment="Center" HorizontalAlignment="Left"
+      <ListBox Classes="segmented" controls:ActionRow.Keep="True" VerticalAlignment="Center" HorizontalAlignment="Left"
                ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}"
                SelectionMode="AlwaysSelected"
                IsVisible="{Binding HasSources}"
@@ -32,7 +32,8 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-      <Button Classes="icon subtle" ToolTip.Tip="{l:T common.refresh}" Command="{Binding SelectedSection.RefreshCommand}">
+      <Button Classes="icon subtle" ToolTip.Tip="{l:T common.refresh}"
+              AutomationProperties.Name="{l:T common.refresh}" Command="{Binding SelectedSection.RefreshCommand}">
         <Button.IsVisible>
           <MultiBinding Converter="{x:Static BoolConverters.And}">
             <Binding Path="IsYouTubeMusic" />
@@ -42,6 +43,7 @@
         <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
       </Button>
       <Button VerticalAlignment="Center"
+              AutomationProperties.Name="{l:T library.newPlaylist}"
               Command="{Binding NewPlaylistCommand}">
         <Button.IsVisible>
           <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -75,18 +77,19 @@
                         IsVisible="{Binding !!SelectedSection.Items.Count}" />
       </StackPanel>
       <!-- On this computer: rescan, and where the scan is. -->
+      <Button Classes="icon subtle" ToolTip.Tip="{l:T settings.local.rescan}"
+              AutomationProperties.Name="{l:T settings.local.rescan}"
+              Command="{Binding Local.RescanCommand}">
+        <Button.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="IsThisComputer" />
+            <Binding Path="Local.HasFolders" />
+            <Binding Path="Local.ListsFiles" />
+          </MultiBinding>
+        </Button.IsVisible>
+        <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
+      </Button>
       <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding IsThisComputer}">
-        <Button Classes="icon subtle" ToolTip.Tip="{l:T settings.local.rescan}"
-                AutomationProperties.Name="{l:T settings.local.rescan}"
-                Command="{Binding Local.RescanCommand}">
-          <Button.IsVisible>
-            <MultiBinding Converter="{x:Static BoolConverters.And}">
-              <Binding Path="Local.HasFolders" />
-              <Binding Path="Local.ListsFiles" />
-            </MultiBinding>
-          </Button.IsVisible>
-          <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
-        </Button>
         <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{Binding Local.Status}">
           <ProgressBar.IsVisible>
             <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -102,7 +105,7 @@
                    Foreground="{StaticResource Token.Brush.Text.Muted}"
                    IsVisible="{Binding Local.Problems, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
       </StackPanel>
-    </StackPanel>
+    </controls:ActionRow>
 
     <!-- One tab per kind of thing the library keeps, as Search has one per filter. -->
     <controls:ChipList Grid.Row="1" Classes="chips" Margin="4,0,16,12"
