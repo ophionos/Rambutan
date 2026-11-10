@@ -51,6 +51,37 @@ public sealed class LocalPaths(bool ignoreCase, char separator, char? altSeparat
         return next == separator || next == altSeparator;
     }
 
+    /// <summary>True when <paramref name="path"/> (full) names a host: a
+    /// Windows UNC path. Looking at one, even to see whether it is there, makes
+    /// Windows connect to that host and offer it the signed-in user's
+    /// credentials. Never true elsewhere, where a share is a mount the user
+    /// made. A drive letter behind <c>\\?\</c> is not a host.</summary>
+    public bool IsNetwork(string path)
+    {
+        if (altSeparator is null)
+            return false;
+        path = Unify(path);
+        if (path.Length < 3 || path[0] != separator || path[1] != separator)
+            return false;
+        return !(IsDevice(path) && path.Length >= 7 && char.IsAsciiLetter(path[4]) && path[5] == ':' &&
+                 path[6] == separator);
+    }
+
+    /// <summary>The share a network path is on (<c>\\server\share\</c>); null
+    /// for a path that isn't one, and for a device path, whose host comes
+    /// later in it.</summary>
+    public string? ShareOf(string path)
+    {
+        if (!IsNetwork(path))
+            return null;
+        path = Unify(path);
+        return IsDevice(path) ? null : Root(path);
+    }
+
+    // \\?\ and \\.\, on a path already known to start with two separators.
+    private bool IsDevice(string path) =>
+        path.Length > 3 && path[2] is '?' or '.' && path[3] == separator;
+
     /// <summary>
     /// The full path <paramref name="path"/> names, a relative one taken from
     /// <paramref name="folder"/> (a full path): one separator throughout, and

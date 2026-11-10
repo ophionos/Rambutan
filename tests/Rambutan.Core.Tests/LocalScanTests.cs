@@ -184,6 +184,32 @@ public class LocalScanTests
         Assert.Equal(under, Linux.IsUnder(path, root));
 
     [Theory]
+    [InlineData(@"\\nas\share\a.mp3", true)]
+    [InlineData(@"//nas/share/a.mp3", true)]
+    [InlineData(@"\\10.0.0.5\c$\a.mp3", true)]
+    [InlineData(@"\\?\UNC\nas\share\a.mp3", true)]
+    [InlineData(@"\\.\pipe\x", true)]
+    [InlineData(@"\\?\C:\Music\a.mp3", false)]
+    [InlineData(@"C:\Music\a.mp3", false)]
+    [InlineData(@"\Music\a.mp3", false)]
+    public void IsNetwork_OnWindows_IsAnyPathThatNamesAHost(string path, bool network) =>
+        Assert.Equal(network, Windows.IsNetwork(path));
+
+    [Theory]
+    [InlineData("//nas/share/a.mp3")]
+    [InlineData("/mnt/nas/a.mp3")]
+    public void IsNetwork_IsNeverTrueOnLinux(string path) =>
+        Assert.False(Linux.IsNetwork(path));
+
+    [Theory]
+    [InlineData(@"\\nas\share\Music\a.mp3", @"\\nas\share\")]
+    [InlineData(@"\\nas\share", @"\\nas\share\")]
+    [InlineData(@"\\?\UNC\nas\share\a.mp3", null)]
+    [InlineData(@"C:\Music\a.mp3", null)]
+    public void ShareOf_IsTheHostAndShare(string path, string? share) =>
+        Assert.Equal(share, Windows.ShareOf(path));
+
+    [Theory]
     [InlineData(1, 1)]
     [InlineData(2, 1)]
     [InlineData(6, 3)]

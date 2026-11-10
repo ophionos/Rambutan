@@ -332,15 +332,19 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
         try
         {
             var read = await M3uPlaylistFiles.ReadAsync(local.Scans.Index, path);
+            var elsewhere = read.OnOtherComputers > 0
+                ? " " + Strings.Format("toast.localPlaylist.importOtherComputers", ("count", read.OnOtherComputers))
+                : "";
             if (read.Items.Count == 0)
             {
-                _actions.Report(Strings.Format("toast.localPlaylist.nothingToImport", ("name", read.Name)));
+                _actions.Report(Strings.Format("toast.localPlaylist.nothingToImport", ("name", read.Name)) + elsewhere);
                 return;
             }
             var imported = library.Import(read.Name, read.Items);
             var message = Strings.Format("toast.localPlaylist.imported", ("count", imported.Items.Count), ("name", imported.Name));
             if (read.Skipped > 0)
                 message += " " + Strings.Format("toast.localPlaylist.importSkipped", ("count", read.Skipped));
+            message += elsewhere;
             _actions.Toasts.Offer(message, Strings.Get("common.open"), () =>
             {
                 _navigation.OpenLocalPlaylist(imported.Id);

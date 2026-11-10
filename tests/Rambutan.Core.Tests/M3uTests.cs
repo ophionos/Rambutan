@@ -51,6 +51,22 @@ public class M3uTests
         Assert.Equal(expected, M3u.Locate(location, folder, Unix));
 
     [Theory]
+    // A local path is always looked for.
+    [InlineData(@"C:\Music\a.mp3", @"C:\Lists", true)]
+    // Another computer, named by whoever wrote the playlist.
+    [InlineData(@"\\evil\share\a.mp3", @"C:\Lists", false)]
+    [InlineData(@"\\?\UNC\evil\share\a.mp3", @"C:\Lists", false)]
+    // Under a watched folder: the user chose that share.
+    [InlineData(@"\\nas\music\Albums\a.mp3", @"C:\Lists", true)]
+    [InlineData(@"\\nas\music2\a.mp3", @"C:\Lists", false)]
+    [InlineData(@"\\nas\other\a.mp3", @"C:\Lists", false)]
+    // The share the playlist itself was picked from.
+    [InlineData(@"\\box\lists\Songs\a.mp3", @"\\box\lists\Mine", true)]
+    [InlineData(@"\\box\private\a.mp3", @"\\box\lists\Mine", false)]
+    public void MayLookFor_ANetworkPath_OnlyWhereTheUserChoseItsHost(string path, string folder, bool may) =>
+        Assert.Equal(may, M3u.MayLookFor(path, folder, [@"\\nas\music", @"D:\Music"], Windows));
+
+    [Theory]
     [InlineData("https://music.youtube.com/watch?v=abc")]
     [InlineData("http://radio.example/stream.mp3")]
     [InlineData("rtsp://cam/feed")]

@@ -440,7 +440,10 @@ file sink), never to files directly.
   playlist exports as an `.m3u8` (`Core/Playlists/M3u`,
   `LocalLibrary/M3uPlaylistFiles`). Import keeps the entries' order and
   duplicates, skips URLs (not `file:` ones) and files that aren't playable
-  audio, and reads a plain `.m3u` as an `.lrc` is read. A path that isn't
+  audio, and reads a plain `.m3u` as an `.lrc` is read. A path on another
+  computer (a UNC path, which Windows contacts with the user's credentials)
+  is never looked for, only counted, unless it is under a watched folder or
+  on the playlist file's own share (`M3u.MayLookFor`). A path that isn't
   there gets an index entry that is never seen (`LocalFile.IsNeverSeen`):
   unlisted, kept only while a playlist holds it, and read under its id by
   the scan or open that finds the file. Export writes paths relative to the

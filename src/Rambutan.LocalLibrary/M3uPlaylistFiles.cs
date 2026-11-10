@@ -9,7 +9,11 @@ namespace Rambutan.LocalLibrary;
 /// <param name="Name">The file's name without its extension.</param>
 /// <param name="Skipped">Entries left out: URLs, and files that are there but
 /// aren't audio that can be read.</param>
-public sealed record M3uImport(string Name, IReadOnlyList<LocalPlaylistItem> Items, int Skipped);
+/// <param name="OnOtherComputers">Entries left out, and never looked for,
+/// because they name another computer that the user didn't choose
+/// (<see cref="M3u.MayLookFor"/>). Not counted in <paramref name="Skipped"/>.</param>
+public sealed record M3uImport(
+    string Name, IReadOnlyList<LocalPlaylistItem> Items, int Skipped, int OnOtherComputers = 0);
 
 /// <summary>Reads and writes M3U playlist files (<see cref="M3u"/>), with the
 /// local index giving each file its id.</summary>
@@ -27,12 +31,24 @@ public static class M3uPlaylistFiles
     /// <see cref="InvalidDataException"/> when it is too large to be one.
     /// </summary>
     /// <param name="listed">Told how many files are there to read, before any is.</param>
-    public static async Task<M3uImport> ReadAsync(
+    public static Task<M3uImport> ReadAsync(
         LocalFileIndex index, string file, Action<int>? listed = null, LocalPaths? paths = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        ReadAsync(index, file, listed, paths, IsThere, ct);
+
+    // A folder named in the list is never opened: its files would come too.
+    private static bool? IsThere(string path) =>
+        File.Exists(path) ? true : Directory.Exists(path) ? null : false;
+
+    /// <param name="isThere">True for a file, null for a folder, false for
+    /// neither; asked only of paths the import may look for.</param>
+    internal static async Task<M3uImport> ReadAsync(
+        LocalFileIndex index, string file, Action<int>? listed, LocalPaths? paths,
+        Func<string, bool?> isThere, CancellationToken ct = default)
     {
         paths ??= LocalPaths.Platform;
         file = Path.GetFullPath(file);
+        var watched = index.WatchedRoots();
         var (entries, located, there) = await Task.Run(() =>
         {
             if (new FileInfo(file).Length > MaxBytes)
@@ -44,9 +60,9 @@ public static class M3uPlaylistFiles
             var entries = M3u.Parse(text);
             var folder = Path.GetDirectoryName(file)!;
             var located = entries.Select(e => M3u.Locate(e.Location, folder, paths)).ToList();
-            // A folder named in the list is never opened: its files would come too.
             var there = located.OfType<string>().Distinct(paths.Comparer)
-                .ToDictionary(p => p, p => File.Exists(p) ? true : Directory.Exists(p) ? (bool?)null : false, paths.Comparer);
+                .Where(p => M3u.MayLookFor(p, folder, watched, paths))
+                .ToDictionary(p => p, isThere, paths.Comparer);
             return (entries, located, there);
         }, ct);
 
@@ -56,15 +72,17 @@ public static class M3uPlaylistFiles
             .ToDictionary(f => f.Path, paths.Comparer);
 
         var items = new List<LocalPlaylistItem>(entries.Count);
-        var skipped = 0;
+        var (skipped, elsewhere) = (0, 0);
         foreach (var path in located)
         {
             if (path is not null && (opened.GetValueOrDefault(path) ?? remembered.GetValueOrDefault(path)) is { } found)
                 items.Add(LocalPlaylistItem.Of(found));
+            else if (path is not null && !there.ContainsKey(path))
+                elsewhere++;
             else
                 skipped++;
         }
-        return new M3uImport(Path.GetFileNameWithoutExtension(file), items, skipped);
+        return new M3uImport(Path.GetFileNameWithoutExtension(file), items, skipped, elsewhere);
     }
 
     /// <summary>

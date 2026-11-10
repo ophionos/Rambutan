@@ -80,6 +80,19 @@ public static class M3u
         return paths.Full(location, folder);
     }
 
+    /// <summary>
+    /// Whether an import may look for <paramref name="path"/> (full) on disk.
+    /// The paths come from whoever wrote the playlist, and looking at a network
+    /// path contacts its host (<see cref="LocalPaths.IsNetwork"/>). So one is
+    /// looked at only where the user already chose its host: under a watched
+    /// folder, or on the share the playlist file itself was picked from.
+    /// </summary>
+    /// <param name="folder">The playlist file's folder.</param>
+    public static bool MayLookFor(string path, string folder, IReadOnlyList<string> watched, LocalPaths paths) =>
+        !paths.IsNetwork(path)
+        || watched.Any(root => paths.IsUnder(path, root))
+        || (paths.ShareOf(folder) is { } share && paths.IsUnder(path, share));
+
     // A scheme of two letters or more, so "C:\" is a path.
     private static bool IsUrl(string location)
     {
