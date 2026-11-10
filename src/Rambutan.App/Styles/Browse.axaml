@@ -308,6 +308,30 @@
     <Setter Property="Foreground" Value="{StaticResource Token.Brush.Ground}" />
   </Style>
 
+  <!-- A recent search on the Search page: one pill holding the button that runs
+       it and, beside it, the one that removes it. -->
+  <Style Selector="Border.recentchip">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+  </Style>
+  <Style Selector="Border.recentchip:pointerover">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.2B}" />
+  </Style>
+  <Style Selector="Button.recentrun">
+    <Setter Property="Padding" Value="14,6,4,6" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.recentrun /template/ ContentPresenter#PART_ContentPresenter,
+                   Button.recentrun:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
   <!-- A Moods & genres tile: a soft block with YouTube Music's colour as a
        stripe down its left edge, as its own grid draws them. -->
   <Style Selector="Button.moodtile">

@@ -39,16 +39,16 @@ public class SearchDropdownTests
     }
 
     [Fact]
-    public void FocusOnAnEmptyBox_ListsRecentQueries()
+    public void FocusOnAnEmptyBox_OpensNothing_BecauseThePageListsTheRecentQueries()
     {
         Inline(() =>
         {
             var vm = CreateVm("justice", "daft punk");
             vm.SetFieldActive(true);
 
-            Assert.True(vm.IsDropdownOpen);
-            Assert.True(vm.ShowingRecent);
-            Assert.Equal([new RecentQueryItem("justice"), new RecentQueryItem("daft punk")], vm.Dropdown);
+            Assert.False(vm.IsDropdownOpen);
+            Assert.Empty(vm.Dropdown);
+            Assert.Equal([new RecentQueryItem("justice"), new RecentQueryItem("daft punk")], vm.Recent);
             Assert.Empty(_catalog.Suggestions);
         });
     }
@@ -93,7 +93,6 @@ public class SearchDropdownTests
             Assert.Equal("da", Assert.Single(_catalog.Suggestions).Query);
             _catalog.Suggestions[0].Complete(["daft punk", "daft punk live"], album);
 
-            Assert.False(vm.ShowingRecent);
             Assert.Equal<object>(
                 [new RecentQueryItem("daft punk"), new QuerySuggestionItem("daft punk live", false), album],
                 vm.Dropdown);
@@ -175,13 +174,16 @@ public class SearchDropdownTests
     {
         Inline(() =>
         {
-            var vm = CreateVm("justice", "daft punk");
+            var vm = CreateVm("daft punk", "daft punk live");
             vm.SetFieldActive(true);
+            vm.Query = "daft";
+            _catalog.Suggestions[0].Complete([]);
+            Assert.Equal(2, vm.Dropdown.Count);
 
-            vm.RemoveRecentCommand.Execute("justice");
+            vm.RemoveRecentCommand.Execute("daft punk");
 
-            Assert.Equal([new RecentQueryItem("daft punk")], vm.Dropdown);
-            Assert.Equal(["daft punk"], _history.Queries);
+            Assert.Equal([new RecentQueryItem("daft punk live")], vm.Dropdown);
+            Assert.Equal(["daft punk live"], _history.Queries);
         });
     }
 
@@ -190,8 +192,11 @@ public class SearchDropdownTests
     {
         Inline(() =>
         {
-            var vm = CreateVm("justice", "daft punk");
+            var vm = CreateVm("daft punk", "daft punk live");
             vm.SetFieldActive(true);
+            vm.Query = "daft";
+            _catalog.Suggestions[0].Complete([]);
+            Assert.True(vm.IsDropdownOpen);
 
             vm.ClearRecentCommand.Execute(null);
 

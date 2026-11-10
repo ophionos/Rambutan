@@ -63,6 +63,17 @@ public class DeepLinkHandlerTests
         Assert.Empty(_history.Queries);
     }
 
+    [Fact]
+    public async Task ASearchLink_LeavesThePagesRecentSearchesAsTheyWere()
+    {
+        _history.Add("justice");
+
+        await _handler.HandleAsync("rambutan://search?q=daft+punk");
+
+        var search = Assert.IsType<SearchPageViewModel>(_navigation.Current);
+        Assert.Equal(["justice"], search.Recent.Select(r => r.Query));
+    }
+
     [Theory]
     [InlineData("rambutan://play/../../x", "Rambutan can't open this link. It isn't in a form Rambutan knows.")]
     [InlineData("rambutan://delete/PLabc", "Rambutan can't open “delete” links. A newer version may.")]
