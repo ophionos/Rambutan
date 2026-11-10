@@ -88,6 +88,36 @@ so say which checks were impossible.
    (e.g. "build -warnaserror clean; 143 tests pass"). Work goes on a branch and
    merges through a PR to `main`.
 
+## Delegation
+
+A session that has subagents and the gate script (`~/.claude/tools/gate.ps1`,
+which reads `.claude/gate.json`) uses them as below. A session without them
+runs the commands of the definition of done directly.
+
+- **Items 1 and 2 are the gate.** Run `gate.ps1` as a background command and
+  keep working: no arguments for build and tests, `aot` for the win-x64 AOT
+  publish (after a package change or a serializer change), `full` for all
+  three. `.claude/gate.json` holds the same commands as this file; change both
+  together. Run a single test directly while writing it.
+- **Finding code:** the Architecture section below answers most "where does it
+  live" questions. For a flow that crosses projects, send a read-only search
+  agent one question and read only the lines it reports.
+- **Implementation agents** get a written spec: the files, the tests to write
+  first, and the paragraphs of this file that apply (give them by their bold
+  lead words). They do not commit and do not touch GitHub. The session reads
+  the diff, then runs the gate.
+- **Never delegated:** the playback coordinator and state machine in Core;
+  cookies, credential vaults and Google sign-in; a new or updated NuGet
+  package (the AOT and licence vetting under Hard constraints); a change to a
+  versioned format or a settings migration; recording or scrubbing fixtures;
+  anything an open decision in an issue covers.
+- **Looking at the UI stays in the session on the maintainer's machine.** The
+  app there may be the maintainer's own running window, and an agent does not
+  know the rules for it. In a cloud session the `demo` skill can run in a
+  subagent, which returns screenshots and what it saw.
+- A subagent does not have the session's GitHub sign-in or memory. Paste the
+  issue text it needs into its prompt.
+
 ## Architecture
 
 Nine projects under `src/`. **Feature libraries reference `Rambutan.Core` only;

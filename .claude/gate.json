@@ -1,0 +1,26 @@
+{
+  "default": ["build", "test"],
+  "groups": {
+    "full": ["build", "test", "aot"]
+  },
+  "steps": {
+    "build": {
+      "run": "dotnet build Rambutan.slnx -warnaserror",
+      "timeoutMinutes": 20,
+      "summary": "Build succeeded|Build FAILED|Build failed|^\\s*\\d+ (Warning|Error)\\(s\\)",
+      "errors": "(error|warning) [A-Z]+\\d+"
+    },
+    "test": {
+      "run": "dotnet test --solution Rambutan.slnx",
+      "timeoutMinutes": 30,
+      "summary": "^\\s*(total|failed|succeeded|skipped): \\d+",
+      "errors": "^\\s*failed |\\[FAIL\\]|error [A-Z]+\\d+|Zero tests ran"
+    },
+    "aot": {
+      "run": "dotnet publish src/Rambutan.App -c Release -r win-x64",
+      "timeoutMinutes": 40,
+      "summary": "Rambutan\\.App -> |^\\s*\\d+ (Warning|Error)\\(s\\)|Build succeeded|Build FAILED|Build failed",
+      "errors": "(error|warning) [A-Z]+\\d+"
+    }
+  }
+}
