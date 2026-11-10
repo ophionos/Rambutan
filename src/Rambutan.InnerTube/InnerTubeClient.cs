@@ -65,14 +65,12 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
     public InnerTubeClient(HttpClient? http = null)
     {
         _ownsHttp = http is null;
-        // UseCookies must be off: SocketsHttpHandler silently drops a manual
-        // per-request Cookie header when its own cookie container is active.
-        _http = http ?? new HttpClient(new SocketsHttpHandler { UseCookies = false });
+        _http = http ?? new HttpClient(NewTransport());
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         _http.DefaultRequestHeaders.Add("Origin", "https://music.youtube.com");
         if (_ownsHttp)
         {
-            _navigation = new HttpClient(new SocketsHttpHandler { UseCookies = false, AllowAutoRedirect = false });
+            _navigation = new HttpClient(NewTransport());
             _navigation.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         }
         else
@@ -80,6 +78,15 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
             _navigation = _http;
         }
     }
+
+    /// <summary>The transport of a client that was given none. It keeps no
+    /// cookie container, because SocketsHttpHandler silently drops a manual
+    /// per-request Cookie header while its own container is active. It follows
+    /// no redirect, because .NET would send that manual Cookie header on to
+    /// whatever host the redirect names: an API call answered with a redirect
+    /// fails, and the sign-in's redirects are followed by hand against a list
+    /// of hosts.</summary>
+    public static SocketsHttpHandler NewTransport() => new() { UseCookies = false, AllowAutoRedirect = false };
 
     public InnerTubeSession? Session => _session;
 
