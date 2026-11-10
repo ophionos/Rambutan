@@ -93,6 +93,33 @@ public class VisualizerStyleSettingTests
     }
 
     [Fact]
+    public void Radial_WithTheHeadersSmallCover_DrawsBarsOnTheStage()
+    {
+        var (vm, _) = NowPlaying(VisualizerStyle.Radial, lyrics: true);
+        vm.Lyrics.OnTrackChanged(Track);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        vm.IsArtworkCompact = true;
+
+        Assert.True(vm.IsArtworkShown);
+        Assert.False(vm.ShowsRing);
+        Assert.False(vm.IsRingActive);
+        Assert.True(vm.IsStageVisualizerShown);
+        Assert.True(vm.IsStageActive);
+        Assert.Equal(VisualizerStyle.Bars, vm.StageStyle);
+        Assert.Contains(nameof(NowPlayingViewModel.ShowsRing), changed);
+        Assert.Contains(nameof(NowPlayingViewModel.IsRingActive), changed);
+        Assert.Contains(nameof(NowPlayingViewModel.IsStageVisualizerShown), changed);
+        Assert.Contains(nameof(NowPlayingViewModel.IsStageActive), changed);
+
+        // Back to the full artwork, the ring draws around it again.
+        vm.IsArtworkCompact = false;
+        Assert.True(vm.ShowsRing);
+        Assert.False(vm.IsStageActive);
+    }
+
+    [Fact]
     public void Radial_WithoutArtwork_FallsBackToBarsOnTheStage()
     {
         var (vm, _) = NowPlaying(VisualizerStyle.Radial, artwork: false);
