@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Rambutan.App.Controls">
 
   <!-- Shared surface styles: catalog cards, sidebar nav, hoverable track rows.
        All hover/pressed feedback animates over ~120 ms — long enough to read as
@@ -825,5 +826,20 @@
     <Setter Property="Background" Value="{StaticResource Token.Brush.Text}" />
     <Setter Property="Foreground" Value="{StaticResource Token.Brush.Ground}" />
     <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <!-- The page host: a page crossfades into the next, or cuts under reduced
+       motion. The null is explicit, since the theme may give the control a
+       transition of its own. -->
+  <Style Selector="TransitioningContentControl.pagehost">
+    <Setter Property="controls:PageTransitions.IgnoresOutgoing" Value="True" />
+  </Style>
+  <Style Selector="Window:not(.reducedmotion) TransitioningContentControl.pagehost">
+    <Setter Property="PageTransition">
+      <CrossFade Duration="{x:Static controls:PageTransitions.Fade}" />
+    </Setter>
+  </Style>
+  <Style Selector="Window.reducedmotion TransitioningContentControl.pagehost">
+    <Setter Property="PageTransition" Value="{x:Null}" />
   </Style>
 </Styles>

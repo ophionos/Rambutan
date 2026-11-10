@@ -102,9 +102,10 @@
                                       BarColor="{Binding Colors.Color}"
                                       MaxFrameRate="{Binding Appearance.VisualizerFrameRate}" />
           <Border x:Name="Art" CornerRadius="12" ClipToBounds="True" Width="300" Height="300">
-            <controls:RemoteImage Url="{Binding Player.ArtworkUrl}"
-                                  DecodeWidth="{x:Static layout:NowPlayingLayout.DecodeWidth}"
-                                  Stretch="UniformToFill" />
+            <controls:CoverImage Url="{Binding Player.ArtworkUrl}"
+                                 DecodeWidth="{x:Static layout:NowPlayingLayout.DecodeWidth}"
+                                 Stretch="UniformToFill"
+                                 ReduceMotion="{Binding $parent[Window].((vm:MainViewModel)DataContext).Appearance.ReduceMotion}" />
           </Border>
         </Panel>
         <!-- Links as in the player bar; following one closes
