@@ -27,6 +27,16 @@ public class DurationFormatTests
     public void Total_ReadsAsARunningTime(int seconds, string expected) =>
         Assert.Equal(expected, DurationFormat.Total(TimeSpan.FromSeconds(seconds)));
 
+    [Theory]
+    [InlineData(1_800_000_000L, "1.8B plays")]
+    [InlineData(831_000_000L, "831M plays")]
+    [InlineData(368_000L, "368K plays")]
+    [InlineData(812L, "812 plays")]
+    [InlineData(1L, "1 play")]
+    [InlineData(0L, "0 plays")]
+    public void PlayCount_ReadsAsYouTubeMusicShortensIt(long count, string expected) =>
+        Assert.Equal(expected, PlayCountFormat.Text(count));
+
     private static TrackInfo Track(int? seconds) => new()
     {
         VideoId = Guid.NewGuid().ToString(),

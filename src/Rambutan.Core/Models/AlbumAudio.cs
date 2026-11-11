@@ -25,7 +25,7 @@ public static class AlbumAudio
             return row;
         if (hasDownload is not null && hasDownload(row.VideoId) && !hasDownload(row.SongId))
             return row;
-        return row with { VideoId = row.SongId, ListedVideoId = row.VideoId };
+        return row with { VideoId = row.SongId, ListedVideoId = row.VideoId, Kind = TrackKind.Song };
     }
 
     /// <summary>
@@ -36,5 +36,5 @@ public static class AlbumAudio
     public static TrackInfo? Fallback(TrackInfo track) =>
         string.IsNullOrEmpty(track.ListedVideoId) || track.ListedVideoId == track.VideoId
             ? null
-            : track with { VideoId = track.ListedVideoId, ListedVideoId = null };
+            : track with { VideoId = track.ListedVideoId, ListedVideoId = null, Kind = TrackKind.Video };
 }

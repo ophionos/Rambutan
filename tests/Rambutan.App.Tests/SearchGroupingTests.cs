@@ -90,8 +90,11 @@ public class SearchGroupingTests
         var client = new InnerTubeClient(new HttpClient(new DemoInnerTubeHandler(
             new DemoOptions(false, FindFixtures(), TimeSpan.Zero, new HashSet<string>()))));
         var overview = await client.SearchAllAsync("anything");
-        var kinds = overview.Results.Select(e => e.GetType()).Distinct().ToList();
+        static object KindOf(CatalogEntry e) => e is SongEntry song ? (object?)song.Track.Kind ?? e.GetType() : e.GetType();
+        var kinds = overview.Results.Select(KindOf).Distinct().ToList();
         Assert.True(kinds.Count >= 2, "the recorded answer has one kind only; the grouping would show nothing");
+        Assert.Contains(TrackKind.Song, kinds);
+        Assert.Contains(TrackKind.Video, kinds);
 
         var vm = Searched(overview.Results, overview.TopResult);
 
@@ -99,7 +102,7 @@ public class SearchGroupingTests
         var expected = new List<string>();
         foreach (var kind in kinds)
         {
-            var rows = overview.Results.Where(e => e.GetType() == kind).ToList();
+            var rows = overview.Results.Where(e => KindOf(e).Equals(kind)).ToList();
             var heading = vm.Rows.OfType<SearchResultHeading>().Single(h =>
                 vm.Rows.IndexOf(h) + 1 < vm.Rows.Count && ReferenceEquals(vm.Rows[vm.Rows.IndexOf(h) + 1], rows[0]));
             expected.Add($"# {heading.Title}");
@@ -109,6 +112,26 @@ public class SearchGroupingTests
         Assert.Equal(overview.Results.Count, vm.Rows.OfType<CatalogEntry>().Count());
         Assert.Equal(kinds.Count, vm.Rows.OfType<SearchResultHeading>().Count());
         Assert.NotNull(vm.TopResult);
+    }
+
+    [Fact]
+    public void SongsAndVideos_GoByTheirKind_EachWithItsTab_AndAnUnknownOneApart()
+    {
+        static SongEntry Of(string title, TrackKind? kind) => new()
+        {
+            Title = title,
+            Track = new TrackInfo { VideoId = title, Title = title, Artists = [], Kind = kind },
+        };
+
+        var vm = Searched([Of("a", TrackKind.Song), Of("b", TrackKind.Video), Of("c", TrackKind.Song), Of("d", null)]);
+
+        Assert.Equal(
+            ["# Songs", "a", "c", "# Videos", "b", "# Songs and videos", "d"],
+            vm.Rows.Select(Describe));
+        var headings = vm.Rows.OfType<SearchResultHeading>().ToDictionary(h => h.Group);
+        Assert.Equal(SearchFilter.Songs, headings[SearchResultGroup.Songs].SeeAll?.Filter);
+        Assert.Equal(SearchFilter.Videos, headings[SearchResultGroup.Videos].SeeAll?.Filter);
+        Assert.Null(headings[SearchResultGroup.SongsAndVideos].SeeAll);
     }
 
     [Fact]

@@ -199,7 +199,7 @@ public sealed class TrackRowLayoutTests : IDisposable
             BrowseId = "UCdaft", Name = "Daft Punk",
             TopSongs =
             [
-                Track("a", "One", 320, DaftPunk),
+                Track("a", "One", 320, DaftPunk) with { PlayCount = 1_800_000_000 },
                 Track("b", "A much longer top song title than the one above", 212, DaftPunk),
             ],
             Shelves = [],
@@ -217,8 +217,16 @@ public sealed class TrackRowLayoutTests : IDisposable
         Assert.All(albums, a => Assert.True(a.IsEffectivelyVisible));
         Assert.Equal(LeftEdge(albums[0], list), LeftEdge(albums[1], list), 0.5);
         Assert.Equal(RightEdge(DurationOf(rows[0]), list), RightEdge(DurationOf(rows[1]), list), 0.5);
-        Assert.Equal(234 + 520 + 24 + 16 + 320, TrackColumns.GetRowWidth(list), 0.5);
+        Assert.Equal(234 + 520 + 24 + 16 + 320 + 104, TrackColumns.GetRowWidth(list), 0.5);
         Assert.Equal(TrackColumns.GetRowWidth(list), rows[0].Bounds.Width, 0.5);
+
+        // The plays have their own column; a row without a count keeps the slot.
+        Assert.True(TrackColumns.GetShowsPlays(list));
+        var plays = rows.Select(r => r.GetVisualDescendants().OfType<TextBlock>()
+            .Single(t => t.Parent is Panel { Width: 104 })).ToArray();
+        Assert.Equal(["1.8B plays", ""], plays.Select(p => p.Text));
+        Assert.Equal(LeftEdge(plays[0], list), LeftEdge(plays[1], list), 0.5);
+        Assert.True(LeftEdge(plays[0], list) > RightEdge(albums[0], list));
         window.Close();
     });
 

@@ -23,7 +23,8 @@ namespace Rambutan.App.Controls;
 /// each row's grid takes as its width (left aligned, title column <c>*</c>), so a
 /// list's durations share one edge however long its titles are. There
 /// <see cref="FixedWidthProperty"/> leaves out the item's padding
-/// (<see cref="ItemInsetProperty"/>), the liked mark and the album with its gap.
+/// (<see cref="ItemInsetProperty"/>), the liked mark, the album with its gap and
+/// the plays (<see cref="HasPlaysProperty"/>).
 /// </summary>
 public static class TrackColumns
 {
@@ -49,6 +50,14 @@ public static class TrackColumns
     public static readonly AttachedProperty<bool> HasLikedProperty =
         AvaloniaProperty.RegisterAttached<ItemsControl, bool>("HasLiked", typeof(TrackColumns));
 
+    /// <summary>The rows have a plays column, laid out by <see cref="TrackRowColumns.Fit"/>.</summary>
+    public static readonly AttachedProperty<bool> HasPlaysProperty =
+        AvaloniaProperty.RegisterAttached<ItemsControl, bool>("HasPlays", typeof(TrackColumns));
+
+    /// <summary>Written by this class only: whether the plays column shows.</summary>
+    public static readonly AttachedProperty<bool> ShowsPlaysProperty =
+        AvaloniaProperty.RegisterAttached<ItemsControl, bool>("ShowsPlays", typeof(TrackColumns));
+
     /// <summary>The padding around each row's grid, both sides together (the
     /// item's, or the row border's in an ItemsControl).</summary>
     public static readonly AttachedProperty<double> ItemInsetProperty =
@@ -68,6 +77,7 @@ public static class TrackColumns
         FixedWidthProperty.Changed.AddClassHandler<ItemsControl>((list, _) => OnSettingChanged(list));
         HasAlbumProperty.Changed.AddClassHandler<ItemsControl>((list, _) => OnSettingChanged(list));
         HasLikedProperty.Changed.AddClassHandler<ItemsControl>((list, _) => OnSettingChanged(list));
+        HasPlaysProperty.Changed.AddClassHandler<ItemsControl>((list, _) => OnSettingChanged(list));
         ItemInsetProperty.Changed.AddClassHandler<ItemsControl>((list, _) => OnSettingChanged(list));
         TemplatedControl.PaddingProperty.Changed.AddClassHandler<ItemsControl>((list, _) =>
         {
@@ -91,6 +101,12 @@ public static class TrackColumns
     public static bool GetHasLiked(ItemsControl list) => list.GetValue(HasLikedProperty);
 
     public static void SetHasLiked(ItemsControl list, bool value) => list.SetValue(HasLikedProperty, value);
+
+    public static bool GetHasPlays(ItemsControl list) => list.GetValue(HasPlaysProperty);
+
+    public static void SetHasPlays(ItemsControl list, bool value) => list.SetValue(HasPlaysProperty, value);
+
+    public static bool GetShowsPlays(ItemsControl list) => list.GetValue(ShowsPlaysProperty);
 
     public static double GetItemInset(ItemsControl list) => list.GetValue(ItemInsetProperty);
 
@@ -126,6 +142,7 @@ public static class TrackColumns
     {
         var width = 0.0;
         var liked = false;
+        var plays = false;
         var row = double.NaN;
         if (IsActive(list))
         {
@@ -135,9 +152,10 @@ public static class TrackColumns
             if (IsFitted(list))
             {
                 var fit = TrackRowColumns.Fit(rows - GetItemInset(list), GetFixedWidth(list),
-                    GetHasAlbum(list), GetHasLiked(list));
+                    GetHasAlbum(list), GetHasLiked(list), GetHasPlays(list));
                 width = fit.Album;
                 liked = fit.ShowsLiked;
+                plays = fit.ShowsPlays;
                 row = fit.Content;
             }
             else
@@ -154,6 +172,8 @@ public static class TrackColumns
             list.SetValue(ShowsAlbumProperty, width > 0);
         if (liked != list.GetValue(ShowsLikedProperty))
             list.SetValue(ShowsLikedProperty, liked);
+        if (plays != list.GetValue(ShowsPlaysProperty))
+            list.SetValue(ShowsPlaysProperty, plays);
         if (!row.Equals(list.GetValue(RowWidthProperty)))
             list.SetValue(RowWidthProperty, row);
     }

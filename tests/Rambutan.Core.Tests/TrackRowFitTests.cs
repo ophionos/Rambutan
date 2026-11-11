@@ -140,6 +140,53 @@ public class TrackRowFitTests
     }
 
     [Fact]
+    public void ThePlays_ComeLast_OnlyOnceTheAlbumHasItsMinimum()
+    {
+        var withAlbumOnly = SongsFixed + TrackRowColumns.MinTitle + TrackRowColumns.Liked
+            + TrackRowColumns.AlbumGap + TrackRowColumns.MinAlbum;
+
+        var before = TrackRowColumns.Fit(withAlbumOnly + TrackRowColumns.Plays - 1, SongsFixed, true, true, hasPlays: true);
+        Assert.True(before.ShowsAlbum);
+        Assert.False(before.ShowsPlays);
+
+        var at = TrackRowColumns.Fit(withAlbumOnly + TrackRowColumns.Plays, SongsFixed, true, true, hasPlays: true);
+        Assert.True(at.ShowsAlbum);
+        Assert.True(at.ShowsPlays);
+        Assert.Equal(TrackRowColumns.MinTitle, at.Title, 6);
+        Assert.Equal(TrackRowColumns.MinAlbum, at.Album, 6);
+        Assert.Equal(withAlbumOnly + TrackRowColumns.Plays, at.Content, 6);
+    }
+
+    [Fact]
+    public void ThePlays_WidenTheRowPastItsOtherMaximums()
+    {
+        var fit = TrackRowColumns.Fit(3000, SongsFixed, hasAlbum: true, hasLiked: true, hasPlays: true);
+
+        Assert.True(fit.ShowsPlays);
+        Assert.Equal(TrackRowColumns.MaxTitle, fit.Title, 6);
+        Assert.Equal(TrackRowColumns.MaxAlbum, fit.Album, 6);
+        Assert.Equal(MaxContent + TrackRowColumns.Plays, fit.Content, 6);
+    }
+
+    [Fact]
+    public void Widening_NeverRemovesThePlays_NorShowsThemWithoutTheAlbum()
+    {
+        var shown = false;
+        for (var width = 100.0; width <= 2400; width += 1)
+        {
+            var fit = TrackRowColumns.Fit(width, SongsFixed, hasAlbum: true, hasLiked: true, hasPlays: true);
+            if (fit.ShowsPlays)
+            {
+                Assert.True(fit.ShowsAlbum && fit.ShowsLiked, $"{width}: plays without the columns before them");
+                Assert.True(fit.Title >= TrackRowColumns.MinTitle, $"{width}: the title gave up room");
+            }
+            Assert.False(shown && !fit.ShowsPlays, $"{width}: the plays went away");
+            shown = fit.ShowsPlays;
+        }
+        Assert.True(shown);
+    }
+
+    [Fact]
     public void AListWithoutTheColumns_NeverShowsThem()
     {
         var fit = TrackRowColumns.Fit(3000, SongsFixed, hasAlbum: false, hasLiked: false);

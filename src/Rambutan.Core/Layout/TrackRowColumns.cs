@@ -48,20 +48,26 @@ public static class TrackRowColumns
     /// taken only while the column shows.</summary>
     public const double AlbumGap = 16;
 
+    /// <summary>The plays column with the room before it: "1.8B plays" in the
+    /// meta size, and 16 px.</summary>
+    public const double Plays = 104;
+
     /// <summary>
     /// A row whose columns sit at fixed positions: the liked mark, then the album,
-    /// each only while the title keeps <see cref="MinTitle"/>, so widening never
-    /// removes one. Above the minimums, the title and the album share the spare
+    /// then the plays, each only while the title keeps <see cref="MinTitle"/> and
+    /// the ones before it show, so widening never removes one. Above the minimums, the title and the album share the spare
     /// width in proportion to what each lacks of its maximum, so both reach it
     /// together; past that the row ends, and what follows the title (the actions,
     /// the duration) stays at a fixed distance from it instead of at the far edge.
     /// </summary>
     /// <param name="rowWidth">The room a row has: the list less its padding and the item's.</param>
     /// <param name="fixedWidth">What the row's other parts take (number or cover,
-    /// marker, actions, duration and their gaps), without the liked mark and the album.</param>
+    /// marker, actions, duration and their gaps), without the liked mark, the album
+    /// and the plays.</param>
     /// <returns>The row's widths; <see cref="TrackRowFit.Content"/> is NaN (unsized)
     /// for a width that isn't a finite positive number.</returns>
-    public static TrackRowFit Fit(double rowWidth, double fixedWidth, bool hasAlbum, bool hasLiked)
+    public static TrackRowFit Fit(
+        double rowWidth, double fixedWidth, bool hasAlbum, bool hasLiked, bool hasPlays = false)
     {
         if (!double.IsFinite(rowWidth) || !double.IsFinite(fixedWidth) || rowWidth <= 0)
             return new TrackRowFit(0, 0, false, double.NaN);
@@ -71,9 +77,16 @@ public static class TrackRowColumns
         if (liked)
             room -= Liked;
 
+        // The plays come last: only once every column before them has its minimum.
+        var albumFits = hasAlbum && (liked || !hasLiked) && room - AlbumGap - MinAlbum >= MinTitle;
+        var plays = hasPlays && (liked || !hasLiked) && (albumFits || !hasAlbum) &&
+            room - Plays - (hasAlbum ? AlbumGap + MinAlbum : 0) >= MinTitle;
+        if (plays)
+            room -= Plays;
+
         double title;
         var album = 0.0;
-        if (hasAlbum && (liked || !hasLiked) && room - AlbumGap - MinAlbum >= MinTitle)
+        if (albumFits)
         {
             const double titleLack = MaxTitle - MinTitle;
             const double albumLack = MaxAlbum - MinAlbum;
@@ -86,8 +99,9 @@ public static class TrackRowColumns
             title = Math.Min(room, MaxTitle);
         }
 
-        var content = fixedWidth + title + (liked ? Liked : 0) + (album > 0 ? AlbumGap + album : 0);
-        return new TrackRowFit(title, album, liked, Math.Min(content, rowWidth));
+        var content = fixedWidth + title + (liked ? Liked : 0) + (album > 0 ? AlbumGap + album : 0) +
+            (plays ? Plays : 0);
+        return new TrackRowFit(title, album, liked, Math.Min(content, rowWidth), plays);
     }
 }
 
@@ -97,7 +111,9 @@ public static class TrackRowColumns
 /// <param name="ShowsLiked">Whether the liked mark's slot shows.</param>
 /// <param name="Content">The whole row's width, at most the room it was given;
 /// NaN when unsized.</param>
-public readonly record struct TrackRowFit(double Title, double Album, bool ShowsLiked, double Content)
+/// <param name="ShowsPlays">Whether the plays column shows.</param>
+public readonly record struct TrackRowFit(
+    double Title, double Album, bool ShowsLiked, double Content, bool ShowsPlays = false)
 {
     public bool ShowsAlbum => Album > 0;
 }

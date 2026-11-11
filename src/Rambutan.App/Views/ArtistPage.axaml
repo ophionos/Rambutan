@@ -94,6 +94,7 @@
                     controls:ItemActivation.Command="{Binding PlayFromCommand}"
                     controls:TrackColumns.HasAlbum="True"
                     controls:TrackColumns.HasLiked="True"
+                    controls:TrackColumns.HasPlays="True"
                     controls:TrackColumns.ItemInset="16"
                     controls:TrackColumns.FixedWidth="234">
         <!-- Columns at fixed positions (Controls/TrackColumns). FixedWidth: cover
@@ -106,7 +107,7 @@
                  the row's focus stop, so its actions can stay hidden at rest
                  (Controls.axaml) and the menu key still reaches its menu. -->
             <Border Classes="trackrow">
-            <controls:FocusRow ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Background="Transparent"
+            <controls:FocusRow ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto" Background="Transparent"
                   HorizontalAlignment="Left"
                   Width="{Binding $parent[ItemsControl].(controls:TrackColumns.RowWidth)}"
                   AutomationProperties.Name="{Binding Converter={x:Static controls:AccessibleNames.ItemConverter}}"
@@ -163,15 +164,23 @@
                 <TextBlock Classes="rowmeta" Text="{Binding Album}"
                            IsVisible="{Binding AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
               </Panel>
+              <!-- The plays, once the album has its room. The slot stays for a
+                   row without a count, so the columns after it don't move.
+                   Width is TrackRowColumns.Plays: the text and 16 px before it. -->
+              <Panel Grid.Column="4" Width="104"
+                     IsVisible="{Binding $parent[ItemsControl].(controls:TrackColumns.ShowsPlays)}">
+                <TextBlock Classes="rowmeta" Margin="16,0,0,0" VerticalAlignment="Center"
+                           Text="{Binding PlayCount, Converter={x:Static conv:PlayCountFormat.Converter}}" />
+              </Panel>
               <!-- Visual only: the Like button in the actions says the state. -->
-              <Panel Grid.Column="4" Width="24"
+              <Panel Grid.Column="5" Width="24"
                      IsVisible="{Binding $parent[ItemsControl].(controls:TrackColumns.ShowsLiked)}">
                 <controls:LikedMark Classes="likedmark" Track="{Binding}" />
               </Panel>
-              <TextBlock Grid.Column="6" Classes="rowmeta"
+              <TextBlock Grid.Column="7" Classes="rowmeta"
                          Text="{Binding Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                          MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
-              <Panel Grid.Column="5" Width="112">
+              <Panel Grid.Column="6" Width="112">
                 <StackPanel Classes="rowactions" Orientation="Horizontal"
                             HorizontalAlignment="Right" VerticalAlignment="Center">
                   <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.playFromHere}"
