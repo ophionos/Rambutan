@@ -407,6 +407,9 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void GoLibrary() => Navigation.GoLibrary();
 
+    [RelayCommand]
+    private void GoStats() => Navigation.GoStats();
+
     // A fresh VM each visit re-seeds from the live settings objects.
     [RelayCommand]
     private void GoSettings()

@@ -1,5 +1,8 @@
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.VisualTree;
+using Rambutan.App.Views;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Rambutan.App.Controls;
@@ -11,7 +14,7 @@ using Rambutan.Core.Stats;
 namespace Rambutan.App.Tests;
 
 /// <summary>
-/// Library → Stats: a state for every way the log can be, the period's words and
+/// The Stats page: a state for every way the log can be, the period's words and
 /// the charts' names, and the heatmap moving by row with the arrow keys.
 /// </summary>
 public class ListeningStatsViewTests
@@ -178,15 +181,112 @@ public class ListeningStatsViewTests
     });
 
     [Fact]
-    public void Library_offers_the_stats_beside_its_sources()
+    public void Library_keeps_only_its_two_sources()
     {
-        var library = new LibraryPageViewModel(null!, null!, null!, null!, stats: Stats());
+        Assert.Equal([LibrarySource.YouTubeMusic, LibrarySource.ThisComputer], Enum.GetValues<LibrarySource>());
+    }
 
-        Assert.Equal([LibrarySource.YouTubeMusic, LibrarySource.Stats], library.Sources);
-        Assert.True(library.HasSources);
+    private static async Task<ListeningStatsViewModel> BusyWeekAsync()
+    {
+        var vm = Stats(
+            Play(Now.AddDays(-1), 90, "Busy"),
+            Play(Now.AddDays(-3), 0.5, "Short"));
+        await vm.LoadAsync();
+        return vm;
+    }
 
-        library.Source = LibrarySource.Stats;
-        Assert.True(library.IsStats);
-        Assert.False(library.IsYouTubeMusic);
+    private static (Window Window, ListeningStatsView View) Show(ListeningStatsViewModel vm, double width)
+    {
+        ShellResources.Ensure();
+        var view = new ListeningStatsView { DataContext = vm };
+        var window = new Window { Width = width, Height = 900, Content = view };
+        window.Show();
+        window.UpdateLayout();
+        window.UpdateLayout();
+        return (window, view);
+    }
+
+    [Fact]
+    public async Task A_day_with_a_little_listening_still_draws_a_visible_bar()
+    {
+        var vm = await BusyWeekAsync();
+
+        Assert.Equal(ListeningStatsViewModel.MinBarHeight, vm.Days[3].Height);
+        Assert.Equal(0, vm.Days[2].Height);
+        Assert.Equal(ListeningStatsViewModel.BarAreaHeight, vm.Days[5].Height);
+    }
+
+    [Fact]
+    public async Task The_chart_names_its_busiest_day_as_the_scale()
+    {
+        var vm = await BusyWeekAsync();
+
+        Assert.Equal("Busiest day: 1 h 30 min", vm.ScaleText);
+        Headless.Run(() =>
+        {
+            var (window, view) = Show(vm, 1200);
+            Assert.Contains(view.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == vm.ScaleText && t.IsEffectivelyVisible);
+            window.Close();
+        });
+    }
+
+    [Fact]
+    public async Task A_week_names_its_weekdays_a_month_every_fifth_day_and_a_year_its_months()
+    {
+        var vm = await BusyWeekAsync();
+        Assert.Equal(["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"], vm.AxisLabels.Select(l => l.Text));
+
+        vm.SelectedPeriod = vm.Periods[1];
+        await vm.LoadAsync();
+        Assert.Equal(30, vm.AxisLabels.Count);
+        Assert.Equal(["5", "10", "15", "20", "25", "30"], vm.AxisLabels.Select(l => l.Text).Where(t => t != ""));
+
+        vm.SelectedPeriod = vm.Periods[2];
+        await vm.LoadAsync();
+        Assert.Equal(365, vm.AxisLabels.Count);
+        var months = vm.AxisLabels.Where(l => l.Text != "").ToList();
+        Assert.Equal(["Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"], months.Select(l => l.Text));
+        Assert.All(months, l => Assert.True(l.Overflows));
+    }
+
+    [Fact]
+    public async Task Bars_are_at_most_48_wide_and_the_labels_are_not_tab_stops()
+    {
+        var vm = await BusyWeekAsync();
+
+        Headless.Run(() =>
+        {
+            var (window, view) = Show(vm, 1200);
+            var bars = view.GetVisualDescendants().OfType<Border>().Where(b => b.Classes.Contains("bar")).ToList();
+            Assert.Equal(7, bars.Count);
+            Assert.All(bars, b => Assert.InRange(b.Bounds.Width, 0, 48));
+            Assert.Contains(bars, b => b.Bounds.Width > 40);
+
+            var labels = view.FindControl<ItemsControl>("DayLabels")!;
+            Assert.False(labels.Focusable);
+            Assert.False(labels.IsTabStop);
+            Assert.Equal(AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(labels));
+            window.Close();
+        });
+    }
+
+    [Theory]
+    [InlineData(1200, 4)]
+    [InlineData(700, 2)]
+    [InlineData(380, 1)]
+    public async Task The_four_summary_tiles_have_equal_widths_and_wrap_on_a_narrow_pane(double width, int columns)
+    {
+        var vm = await BusyWeekAsync();
+
+        Headless.Run(() =>
+        {
+            var (window, view) = Show(vm, width);
+            var tiles = view.FindControl<StatTileGrid>("Tiles")!;
+            Assert.Equal(4, tiles.Children.Count);
+            Assert.Equal(columns, tiles.Columns);
+            Assert.Single(tiles.Children.Select(c => c.Bounds.Width).Distinct());
+            Assert.All(tiles.Children, c => Assert.True(c.Bounds.Width >= 180));
+            window.Close();
+        });
     }
 }

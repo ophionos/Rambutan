@@ -14,8 +14,7 @@
   <Grid RowDefinitions="Auto,Auto,*,Auto">
     <controls:ActionRow Grid.Row="0" Spacing="10" Margin="4,0,16,8" MoreClasses="icon subtle">
       <TextBlock controls:ActionRow.Keep="True" Text="{l:T library.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold" VerticalAlignment="Center" />
-      <!-- The two sources and the stats, all in view; shown signed out too, so
-           the files and the stats stay reachable. -->
+      <!-- The two sources, in view; shown signed out too, so the files stay reachable. -->
       <ListBox Classes="segmented" controls:ActionRow.Keep="True" VerticalAlignment="Center" HorizontalAlignment="Left"
                ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}"
                SelectionMode="AlwaysSelected"
@@ -57,7 +56,9 @@
           <TextBlock Text="{l:T library.newPlaylist}" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
       </Button>
+      <!-- Always in the More menu: a rare action, not one of the row's buttons. -->
       <Button VerticalAlignment="Center" Command="{Binding ImportFromSpotifyCommand}"
+              controls:ActionRow.InMenu="True"
               IsVisible="{Binding ShowsSpotifyImport}"
               AutomationProperties.Name="{l:T library.importSpotify}">
         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -453,12 +454,6 @@
                       HorizontalAlignment="Center" VerticalAlignment="Center"
                       IsVisible="{Binding !Items.Count}" />
     </Panel>
-
-
-    <!-- Stats: from the play log, its own scroller. -->
-    <views:ListeningStatsView Grid.Row="1" Grid.RowSpan="3"
-                              IsVisible="{Binding #Root.((vm:LibraryPageViewModel)DataContext).IsStats}"
-                              DataContext="{Binding Stats}" />
 
     <!-- On this computer. Its own list with its own scroller, so a library of
          thousands of files is virtualized. -->

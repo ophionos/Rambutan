@@ -14,7 +14,7 @@ using Rambutan.App.Localization;
 namespace Rambutan.App.ViewModels;
 
 /// <summary>Where Library's music comes from.</summary>
-public enum LibrarySource { YouTubeMusic, ThisComputer, Stats }
+public enum LibrarySource { YouTubeMusic, ThisComputer }
 
 /// <summary>
 /// The Library, from two sources. YouTube Music's: saved playlists, saved songs,
@@ -79,9 +79,6 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
 
     public bool HasLocal => Local is not null;
 
-    /// <summary>Listening stats from the play log; null where it isn't composed.</summary>
-    public ListeningStatsViewModel? Stats { get; }
-
     /// <summary>The switch shows while there is more than YouTube Music to switch to.</summary>
     public bool HasSources => Sources.Count > 1;
 
@@ -100,17 +97,13 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
                 return;
             OnPropertyChanged(nameof(IsYouTubeMusic));
             OnPropertyChanged(nameof(IsThisComputer));
-            OnPropertyChanged(nameof(IsStats));
-            OnPropertyChanged(nameof(ShowsSpotifyImport));
             if (!_shown)
                 return;
             if (IsThisComputer)
                 _ = Local?.ShowAsync();
             else
                 Local?.Hide();
-            if (IsStats)
-                _ = Stats!.LoadAsync();
-            else if (IsYouTubeMusic && _catalog is not null)
+            if (IsYouTubeMusic && _catalog is not null)
                 _ = SelectedSection.EnsureLoadedAsync();
         }
     }
@@ -119,11 +112,9 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
 
     public bool IsThisComputer => Source == LibrarySource.ThisComputer && Local is not null;
 
-    public bool IsStats => Source == LibrarySource.Stats && Stats is not null;
-
-    /// <summary>Import from Spotify, beside both sources: signed out, it
-    /// imports to this computer.</summary>
-    public bool ShowsSpotifyImport => !IsStats && _navigation?.CanImportFromSpotify == true;
+    /// <summary>Import from Spotify, in the header's More menu for both sources:
+    /// signed out, it imports to this computer.</summary>
+    public bool ShowsSpotifyImport => _navigation?.CanImportFromSpotify == true;
 
     [RelayCommand]
     private void ImportFromSpotify() => _navigation.OpenSpotifyImport();
@@ -136,18 +127,16 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
     public LibraryPageViewModel(
         ICatalog catalog, NavigationService navigation, TrackActionsViewModel actions,
         PlaybackCoordinator coordinator, LocalLibraryViewModel? local = null,
-        LibrarySource source = LibrarySource.YouTubeMusic, ListeningStatsViewModel? stats = null)
+        LibrarySource source = LibrarySource.YouTubeMusic)
     {
         _catalog = catalog;
         _navigation = navigation;
         _actions = actions;
         _coordinator = coordinator;
         Local = local;
-        Stats = stats;
         Sources = [.. Enum.GetValues<LibrarySource>().Where(s => s switch
         {
             LibrarySource.ThisComputer => local is not null,
-            LibrarySource.Stats => stats is not null,
             _ => true,
         })];
         _source = Sources.Contains(source) ? source : LibrarySource.YouTubeMusic;
@@ -195,8 +184,6 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
         _shown = true;
         if (IsThisComputer)
             await Local!.ShowAsync();
-        else if (IsStats)
-            await Stats!.LoadAsync();
         else
             await SelectedSection.EnsureLoadedAsync();
     }

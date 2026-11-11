@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.VisualTree;
 using Rambutan.App.Controls;
 using Rambutan.App.Localization;
+using Rambutan.App.ViewModels;
 
 namespace Rambutan.App.Tests;
 
@@ -257,5 +258,79 @@ public class ActionRowTests
 
         Assert.Empty(rig.Row.Overflowed);
         Assert.False(rig.Row.ShowsMore);
+    });
+
+    [Fact]
+    public void AButtonMarkedForTheMenu_IsInItAtAnyWidth_AndTheRowStillFitsBesideMore() => Headless.Run(() =>
+    {
+        var rig = new Rig(400);
+        var only = Fixed(40, "only");
+        ActionRow.SetInMenu(only, true);
+        rig.Row.Items.Add(only);
+        rig.Window.UpdateLayout();
+
+        Assert.True(rig.Row.ShowsMore);
+        Assert.Equal([only], rig.Row.Overflowed);
+        Assert.False(only.IsEffectivelyVisible);
+        Assert.All(rig.Moving, button => Assert.True(button.IsEffectivelyVisible));
+        Assert.Equal(["only"], rig.Row.BuildMenu().Select(entry => (string)entry.Header!));
+
+        rig.Resize(rig.WidthKeeping(2));
+
+        Assert.Equal([rig.Moving[2], rig.Moving[3], only], rig.Row.Overflowed);
+    });
+
+    [Fact]
+    public void AHiddenButtonMarkedForTheMenu_ShowsNoMore() => Headless.Run(() =>
+    {
+        var rig = new Rig(400);
+        var only = Fixed(40, "only");
+        ActionRow.SetInMenu(only, true);
+        only.IsVisible = false;
+        rig.Row.Items.Add(only);
+        rig.Window.UpdateLayout();
+
+        Assert.False(rig.Row.ShowsMore);
+        Assert.Empty(rig.Row.Overflowed);
+    });
+
+    [Fact]
+    public void TheLibraryHeader_KeepsImportFromSpotifyInTheMoreMenuAndNamesTheButton() => Headless.Run(() =>
+    {
+        var navigation = new NavigationService(new FakeCatalog(), null!, new TrackActionsViewModel())
+        {
+            SpotifyImports = () => null!,
+        };
+        ShellResources.Ensure();
+        var library = new LibraryPageViewModel(new FakeCatalog(), navigation, new TrackActionsViewModel(), null!);
+        var page = new Rambutan.App.Views.LibraryPage { DataContext = library };
+        var window = new Window { Width = 1200, Height = 700, Content = page };
+        window.Show();
+        window.UpdateLayout();
+        window.UpdateLayout();
+
+        var row = page.GetVisualDescendants().OfType<ActionRow>().First();
+        Assert.True(row.ShowsMore);
+        Assert.True(row.MoreButton.IsEffectivelyVisible);
+        Assert.Equal(Strings.Get("common.moreActions"), AutomationProperties.GetName(row.MoreButton));
+        var entry = Assert.Single(row.BuildMenu());
+        Assert.Equal(Strings.Get("library.importSpotify"), entry.Header);
+        Assert.Same(library.ImportFromSpotifyCommand, entry.Command);
+        window.Close();
+    });
+
+    [Fact]
+    public void TheLibraryHeader_HasNoMoreMenuWhereImportIsNotComposed() => Headless.Run(() =>
+    {
+        ShellResources.Ensure();
+        var navigation = new NavigationService(new FakeCatalog(), null!, new TrackActionsViewModel());
+        var library = new LibraryPageViewModel(new FakeCatalog(), navigation, new TrackActionsViewModel(), null!);
+        var page = new Rambutan.App.Views.LibraryPage { DataContext = library };
+        var window = new Window { Width = 1200, Height = 700, Content = page };
+        window.Show();
+        window.UpdateLayout();
+
+        Assert.False(page.GetVisualDescendants().OfType<ActionRow>().First().ShowsMore);
+        window.Close();
     });
 }

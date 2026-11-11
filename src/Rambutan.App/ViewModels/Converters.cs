@@ -68,7 +68,6 @@ public static class Converters
         new FuncValueConverter<LibrarySource, string>(source => Strings.Get(source switch
         {
             LibrarySource.ThisComputer => "library.source.thisComputer",
-            LibrarySource.Stats => "library.source.stats",
             _ => "library.source.youTubeMusic",
         }));
 

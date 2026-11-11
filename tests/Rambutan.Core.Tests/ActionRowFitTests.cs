@@ -73,6 +73,16 @@ public class ActionRowFitTests
         Assert.Equal(0, ActionRowFit.Kept(10, 200, 2, [], 10, 36));
 
     [Fact]
+    public void WithMoreAlwaysThere_EveryActionNeedsRoomBesideIt()
+    {
+        // 56 + 4 * 36 + More 36 + 5 gaps of 12 = 296.
+        Assert.Equal(4, ActionRowFit.Kept(296, Play, 1, Icons, Gap, More, alwaysMore: true));
+        Assert.Equal(3, ActionRowFit.Kept(295, Play, 1, Icons, Gap, More, alwaysMore: true));
+        Assert.Equal(0, ActionRowFit.Kept(10, Play, 1, Icons, Gap, More, alwaysMore: true));
+        Assert.Equal(0, ActionRowFit.Kept(10, Play, 1, [], Gap, More, alwaysMore: true));
+    }
+
+    [Fact]
     public void LayoutRounding_DoesNotMoveAnAction() =>
         Assert.Equal(4, Kept(247.6));
 }

@@ -35,6 +35,9 @@
     <DataTemplate DataType="{x:Type vm:LibraryPageViewModel}">
       <views:LibraryPage />
     </DataTemplate>
+    <DataTemplate DataType="{x:Type vm:ListeningStatsViewModel}">
+      <views:StatsPage />
+    </DataTemplate>
     <DataTemplate DataType="{x:Type vm:SettingsPageViewModel}">
       <views:SettingsPage />
     </DataTemplate>
@@ -688,6 +691,13 @@
               <StackPanel Orientation="Horizontal" Spacing="12">
                 <PathIcon Data="{StaticResource Icon.Library}" Width="20" Height="20" VerticalAlignment="Center" />
                 <TextBlock Text="{l:T nav.library}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="nav" Command="{Binding GoStatsCommand}" ToolTip.Tip="{l:T nav.stats}"
+                    Classes.active="{Binding Navigation.Section, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:NavSection.Stats}}">
+              <StackPanel Orientation="Horizontal" Spacing="12">
+                <PathIcon Data="{StaticResource Icon.Stats}" Width="20" Height="20" VerticalAlignment="Center" />
+                <TextBlock Text="{l:T nav.stats}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
             <Button Classes="nav" Command="{Binding GoSettingsCommand}" ToolTip.Tip="{l:T nav.settings}"

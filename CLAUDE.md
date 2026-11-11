@@ -237,6 +237,14 @@ file sink), never to files directly.
   paused or stopped; play and resume start it again. A shorter delay makes
   quick resumes slow (a Bluetooth output can lose the start of a track), so
   don't shorten it without the maintainer.
+- Page history: `ViewModels/NavigationService` keeps one back and forward
+  history for every page, sidebar roots included: a sidebar click puts the
+  page it leaves on the back stack and drops the forward stack, and each
+  entry remembers its sidebar section, so Back lights the entry it returns
+  to. The root already showing adds nothing, and a root made anew (Settings,
+  a rebuilt Library) takes its place. The history is cleared when requests
+  go out as someone else (`OnSignInChanged`), and a `rambutan://search`
+  link starts without one.
 - Mini player: the main window itself, not a second window.
   `MainWindow.ApplyMiniPlayer` changes its shape, the `mini` class hides what
   it has no room for (`fullOnly` / `miniOnly` in `Controls.axaml`), and
@@ -296,14 +304,20 @@ file sink), never to files directly.
   and album (`Core/Stats/PlayRecord`), never a file's path, and no link or
   artwork for a local file. On by default (`AppSettings.RecordPlays`; it
   never leaves the machine); Settings turns it off or clears it, after a
-  confirmation. Library's third view, Stats (`ListeningStatsViewModel`),
+  confirmation. Stats is a sidebar page of its own
+  (`ListeningStatsViewModel`, a root page of `NavSection.Stats`); it
   reads the whole log on each visit and calculates off the UI thread
   (`Core/Stats/ListeningStats`): the last 7, 30 or 365 days ending today
   against as many days before; a play counts in the top lists after 30 s or
   half the track, and a YouTube play over 20 minutes counts as time only
   (`PlayRules`). The charts are lists (the heatmap's panel is
   `Controls/GridNavigationPanel`), so the arrow keys move through them and
-  each bar or hour has a name.
+  each bar or hour has a name. The per-day chart's labels
+  (`Core/Stats/DayAxis`: weekdays for a week, every fifth day's number for a
+  month, a month's name under its first day for a year) are for sight only
+  and not in the bars' names; its top line is the busiest day, and a bar is
+  at most 48 px wide and at least 3 px high. The four summary tiles are one
+  width (`Controls/StatTileGrid`).
 - Home's leading block: two rows of tiles above the shelves
   (`Core/Home/LeadingBlock`, columns by `Core/Layout/TileGridFit`), on plain
   Home signed in only. Their source is YouTube Music's own Listen again or
@@ -498,7 +512,8 @@ file sink), never to files directly.
   of their own, never the account's, so they stay out of its search history.
   Bump `TrackMatcher.RulesVersion` when a rule change could change a pick; it
   invalidates the saved matches (`App/Services/StationStores`).
-- Spotify import: Library's Import from Spotify (`SpotifyImportViewModel`,
+- Spotify import: Library's Import from Spotify, always in its header's More
+  menu (`ActionRow.InMenu`; `SpotifyImportViewModel`,
   one for the app's lifetime) reads Spotify's data export (the zip or its
   JSON files, `Core/Import/SpotifyExport`) or a CSV of songs (`TrackCsv`),
   or public playlists' and albums' share links (`Core/Import/SpotifyLinks`,
