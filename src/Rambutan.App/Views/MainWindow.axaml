@@ -790,7 +790,7 @@
               <!-- The row's selection and hover are painted on this border, not
                    the whole item, so the caption above stays outside them. -->
               <Border Classes="queuerow">
-              <Grid ColumnDefinitions="Auto,*,Auto" Classes.history="{Binding IsHistory}"
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto" Classes.history="{Binding IsHistory}"
                     Classes.needsconnection="{Binding NeedsConnection}"
                     Classes.filemissing="{Binding IsFileMissing}">
                 <!-- Cover. A note on a quiet tile shows until the art loads, and
@@ -859,6 +859,13 @@
                     <PathIcon Data="{StaticResource Icon.Close}" Width="14" Height="14" />
                   </Button>
                 </StackPanel>
+                <!-- Last, so the actions appearing on hover take room from the
+                     title and the lengths keep one right edge. -->
+                <TextBlock Grid.Column="3" Text="{Binding Duration}"
+                           IsVisible="{Binding Duration, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                           FontSize="{StaticResource Token.Font.Caption}"
+                           Foreground="{StaticResource Token.Brush.Text.Muted}"
+                           VerticalAlignment="Center" Margin="8,0,4,0" />
               </Grid>
               </Border>
               </StackPanel>

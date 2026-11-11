@@ -46,16 +46,7 @@ public partial class MainWindow : Window
                     Clipboard?.SetTextAsync(text) ?? System.Threading.Tasks.Task.CompletedTask;
                 vm.OpenFilesRequested += () => _ = PickFilesToOpenAsync(vm);
 
-                // A new track brings its row into view. Posted: the row
-                // the VM just placed isn't laid out yet in the same turn.
-                vm.QueuePanel.CurrentChanged += item =>
-                    Avalonia.Threading.Dispatcher.UIThread.Post(
-                        () => QueueList.ScrollIntoView(item),
-                        Avalonia.Threading.DispatcherPriority.Loaded);
-                if (vm.QueuePanel.Items.FirstOrDefault(i => i.IsCurrent) is { } restored)
-                    Avalonia.Threading.Dispatcher.UIThread.Post(
-                        () => QueueList.ScrollIntoView(restored),
-                        Avalonia.Threading.DispatcherPriority.Loaded);
+                QueueFollow.Attach(QueueList, QueuePane, vm.QueuePanel);
                 HistoryButtons.Attach(this, vm.Navigation);
                 // The Search page has its own field: the title bar's hides there.
                 vm.Navigation.PropertyChanged += (_, e) =>

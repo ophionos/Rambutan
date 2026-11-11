@@ -128,11 +128,17 @@
     <ListBox x:Name="TrackList" Grid.Row="1" Classes="tracks pagescroll" Background="Transparent" ItemsSource="{Binding Tracks}"
              AutomationProperties.Name="{l:T common.tracks}"
              controls:ScrollMemory.IsEnabled="True"
-             controls:ItemActivation.Command="{Binding PlayFromCommand}">
+             controls:ItemActivation.Command="{Binding PlayFromCommand}"
+             controls:TrackColumns.HasLiked="True"
+             controls:TrackColumns.ItemInset="16"
+             controls:TrackColumns.FixedWidth="208">
+      <!-- Columns at fixed positions (Controls/TrackColumns): FixedWidth is the
+           number 40, actions 112 and duration 56; ItemInset the item's padding. -->
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="core:TrackInfo">
-          <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,2"
-                Background="Transparent"
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Margin="0,2"
+                Background="Transparent" HorizontalAlignment="Left"
+                Width="{Binding $parent[ListBox].(controls:TrackColumns.RowWidth)}"
                 controls:TrackMenu.Track="{Binding}">
             <!-- Track number, or the playing marker in its place.
                  The slot is always present so titles keep a common left edge. -->
@@ -168,13 +174,27 @@
                     </MultiBinding>
                   </PathIcon.IsVisible>
                 </PathIcon>
-                <TextBlock Classes="rowmeta" Text="{Binding ArtistDisplay}" />
+                <!-- Left out when it only repeats the album's artist, which the
+                     header names; the row's spoken name keeps it. -->
+                <TextBlock Classes="rowmeta" Text="{Binding ArtistDisplay}">
+                  <TextBlock.IsVisible>
+                    <MultiBinding Converter="{x:Static conv:AlbumArtistLineConverter.Shows}">
+                      <Binding Path="Artists" />
+                      <Binding Path="#Root.((vm:AlbumPageViewModel)DataContext).Artist" />
+                    </MultiBinding>
+                  </TextBlock.IsVisible>
+                </TextBlock>
               </DockPanel>
             </StackPanel>
-            <TextBlock Grid.Column="3" Classes="rowmeta"
+            <!-- Visual only: the Like button in the actions says the state. -->
+            <Panel Grid.Column="2" Width="24"
+                   IsVisible="{Binding $parent[ListBox].(controls:TrackColumns.ShowsLiked)}">
+              <controls:LikedMark Classes="likedmark" Track="{Binding}" />
+            </Panel>
+            <TextBlock Grid.Column="4" Classes="rowmeta"
                        Text="{Binding Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                        MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
-            <Panel Grid.Column="2" Width="112">
+            <Panel Grid.Column="3" Width="112">
               <StackPanel Classes="rowactions" Orientation="Horizontal"
                           HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.playFromHere}"

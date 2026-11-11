@@ -21,6 +21,19 @@ public class QueueViewModelTests
     private static string[] Ids(QueueViewModel vm) => vm.Items.Select(i => i.Track.VideoId).ToArray();
 
     [Fact]
+    public void ARow_ShowsItsTracksLength_AsTheTrackListsDo()
+    {
+        static QueueItemViewModel Row(TimeSpan? duration) =>
+            new(new TrackInfo { VideoId = "a", Title = "A", Artists = [new("Artist")], Duration = duration });
+
+        Assert.Equal("3:45", Row(TimeSpan.FromSeconds(225)).Duration);
+        Assert.Equal("1:02:05", Row(new TimeSpan(1, 2, 5)).Duration);
+        // Unknown is blank, not "0:00".
+        Assert.Equal("", Row(null).Duration);
+        Assert.Equal("", Row(TimeSpan.Zero).Duration);
+    }
+
+    [Fact]
     public void AdvancingTheSong_KeepsEveryRowInstance() => Headless.Run(() =>
     {
         var (queue, vm) = Create("a", "b", "c");
