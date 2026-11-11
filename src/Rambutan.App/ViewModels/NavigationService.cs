@@ -110,7 +110,11 @@ public partial class NavigationService : ViewModelBase
 
     public void GoHome()
     {
-        _home ??= new HomePageViewModel(_catalog, this, _stations, (tracks, start) => _coordinator.PlayQueueAsync(tracks, start));
+        _home ??= new HomePageViewModel(_catalog, this, _stations, (tracks, start) => _coordinator.PlayQueueAsync(tracks, start))
+        {
+            IsSignedIn = () => HasSession?.Invoke() ?? _actions?.IsSignedIn?.Invoke() == true,
+            RecentPlays = () => RecentPlays?.Invoke(),
+        };
         NavigateRoot(_home, NavSection.Home);
         _ = _home.EnsureLoadedAsync();
     }
@@ -210,6 +214,16 @@ public partial class NavigationService : ViewModelBase
 
     /// <summary>The signed-in account's id, for the imports it made; set by App.</summary>
     public Func<string?>? Account { get; set; }
+
+    /// <summary>Whether requests go out with the account's session; set by App.
+    /// Home asks this, not the checked sign-in state: at startup Home loads as
+    /// soon as the stored cookies are read, before their check has answered.</summary>
+    public Func<bool>? HasSession { get; set; }
+
+    /// <summary>Reads the play log for Home's tiles, or returns null while
+    /// recording is off; set by App. Unset, Home's tiles come only from
+    /// YouTube Music's own shelf.</summary>
+    public Func<Task<PlayLogContents>?>? RecentPlays { get; set; }
 
     public bool CanImportFromSpotify => SpotifyImports is not null;
 

@@ -117,6 +117,9 @@ internal sealed class FakeCatalog : ICatalog
                 Chips = chips,
             });
 
+        /// <summary>Answers with <paramref name="page"/> as it is.</summary>
+        public void CompletePage(HomePage page) => Result.TrySetResult(page);
+
         public void Fail(string message) => Result.TrySetException(new HttpRequestException(message));
     }
 

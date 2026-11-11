@@ -58,6 +58,17 @@ public sealed record Shelf(string Title, IReadOnlyList<CatalogEntry> Entries)
 {
     /// <summary>The mood or genre page behind the shelf's "More", where YTM links one.</summary>
     public MoodCategory? More { get; init; }
+
+    public ShelfKind Kind { get; init; }
+}
+
+public enum ShelfKind
+{
+    Default,
+
+    /// <summary>YouTube Music's own "Listen again" or "Quick picks"
+    /// (<see cref="Home.LeadingBlock.IsRevisitTitle"/>): what to go back to.</summary>
+    Revisit,
 }
 
 /// <summary>

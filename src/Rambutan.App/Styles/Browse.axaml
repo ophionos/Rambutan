@@ -15,6 +15,12 @@
   <Style Selector="Border.cardart.artist">
     <Setter Property="CornerRadius" Value="80" />
   </Style>
+  <Style Selector="Border.tileart">
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Small}" />
+  </Style>
+  <Style Selector="Border.tileart.artist">
+    <Setter Property="CornerRadius" Value="26" />
+  </Style>
 
   <Style Selector="Panel.cardhost Button.cardplay">
     <Setter Property="IsVisible" Value="False" />

@@ -304,6 +304,15 @@ file sink), never to files directly.
   (`PlayRules`). The charts are lists (the heatmap's panel is
   `Controls/GridNavigationPanel`), so the arrow keys move through them and
   each bar or hour has a name.
+- Home's leading block: two rows of tiles above the shelves
+  (`Core/Home/LeadingBlock`, columns by `Core/Layout/TileGridFit`), on plain
+  Home signed in only. Their source is YouTube Music's own Listen again or
+  Quick picks shelf when Home's first page has one (`ShelfKind.Revisit`,
+  known by its title, since InnerTube always asks in English), taken out of
+  the shelves; else the play log's latest albums (it keeps no playlist, and
+  no link for a local file). Tiles from the log come after the shelves, so
+  they show only while the page is at rest at the top
+  (`HomePageViewModel.IsAtRest`).
 - YouTube Music history: plays go to the account's history only while
   `AppSettings.AddPlaysToYouTubeHistory` is on (off by default) and signed
   in, once a play counts (`Core/Playback/HistoryReportGate`, the stats' 30 s

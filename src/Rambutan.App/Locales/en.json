@@ -158,6 +158,7 @@
     "error.load.unreadable.title": "Couldn't read {what, select, home {Home} album {this album} artist {this artist} playlist {this playlist} moreTracks {more tracks} library {your library} morePlaylists {more playlists} moreShelves {more of Home} moreResults {more results} moreAlbums {more albums} moreArtists {more artists} moreSongs {more songs} station {this Last.fm list} moods {moods & genres} moodCategory {this page} other {search results}}",
     "home.chip.selected": "{title}, selected",
     "home.chipsName": "Moods",
+    "home.leading.recent": "Recently played",
     "home.moods": "Moods & genres",
     "home.station.empty": "Nothing in this list could be found on YouTube Music.",
     "home.station.library": "Your Last.fm library",
