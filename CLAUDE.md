@@ -170,11 +170,18 @@ file sink), never to files directly.
   Figtree, bundled under `Assets/Fonts` (OFL); it is Latin-only, so Inter comes
   first in the fallback chain (`Program.cs`). Album art is blurred **once** into a
   page-background layer with translucent panels above it (Avalonia has no
-  backdrop blur).
+  backdrop blur). `Controls/PageBackground` measures each cover once as it
+  arrives (`Core/Appearance/CoverBackdrop`): the weaker its colour, the greyer
+  and dimmer it is drawn (from a greyed copy of its small decode, never a
+  second pass per frame), so a pastel reads as neutral dark, not brown; a
+  vivid cover is drawn as it is.
 - Accent: the user's choice (Rambutan red, the cover's colour, or custom).
   `Services/ThemeColors` resolves it, `Core/Appearance/AccentPalette` makes it
   readable and derives the rest (the Fluent ramp, button states, white or dark
-  text on it; the default red stays a fixed table equal to `Tokens.axaml`), and
+  text on it; the default red stays a fixed table equal to `Tokens.axaml`;
+  a cover's colour first goes through `AccentPalette.ForCover`, which gives
+  the default red for a grey and raises a weak colour to a chroma floor in
+  OKLCH (`Core/Appearance/Oklch`), hue kept; a custom colour never does), and
   `Services/AccentResources` writes it into the app's resources, changing the
   accent brushes in place. So reach the accent only through those brushes or
   DynamicResource, and draw on it with `Token.Brush.OnAccent`, never with a hex
