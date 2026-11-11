@@ -106,7 +106,8 @@
                  free: the trackrow border supplies both by hand. The grid is
                  the row's focus stop, so its actions can stay hidden at rest
                  (Controls.axaml) and the menu key still reaches its menu. -->
-            <Border Classes="trackrow">
+            <Border Classes="trackrow" HorizontalAlignment="Left"
+                    Width="{Binding $parent[ItemsControl].(controls:TrackColumns.ItemWidth)}">
             <controls:FocusRow ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto,Auto" Background="Transparent"
                   HorizontalAlignment="Left"
                   Width="{Binding $parent[ItemsControl].(controls:TrackColumns.RowWidth)}"

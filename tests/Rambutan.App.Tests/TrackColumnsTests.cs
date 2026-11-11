@@ -15,8 +15,11 @@ namespace Rambutan.App.Tests;
 /// in the lists that have it.</summary>
 public class TrackColumnsTests
 {
-    /// <summary>The playlist page's fixed parts (its template's FixedWidth).</summary>
-    private const double PlaylistFixed = 318;
+    /// <summary>The playlist page's fixed parts (its template's FixedWidth), and the
+    /// item padding (ItemInset) that comes off the list's rows before the fit.</summary>
+    private const double PlaylistFixed = 286;
+
+    private const double PlaylistInset = 16;
 
     /// <summary>The playlist list's padding (pagescroll: 12 on the right).</summary>
     private const double PlaylistPadding = 12;
@@ -136,10 +139,10 @@ public class TrackColumnsTests
         var first = list.ContainerFromIndex(0)!;
 
         Assert.False(AlbumCell(first).IsVisible);
-        // Without the column the row is as it was: the title takes all that the
-        // number, cover, actions and duration leave.
+        // Without the column the title takes all that the number, cover, actions,
+        // duration and the liked mark's slot leave.
         var grid = (Grid)TitleBlock(first).Parent!;
-        Assert.Equal(grid.Bounds.Width - 40 - 52 - 138 - 56, TitleBlock(first).Bounds.Width, 0.5);
+        Assert.Equal(grid.Bounds.Width - 40 - 52 - 138 - 56 - TrackRowColumns.Liked, TitleBlock(first).Bounds.Width, 0.5);
         window.Close();
     });
 
@@ -147,7 +150,8 @@ public class TrackColumnsTests
     public void JustWideEnoughForTheColumn_TheTitleStillHasItsMinimum() => Headless.Run(() =>
     {
         // The first width that shows the column, on the list's own rows.
-        var width = PlaylistFixed + TrackRowColumns.MinTitle + TrackRowColumns.MinAlbum + PlaylistPadding;
+        var width = PlaylistFixed + TrackRowColumns.Liked + TrackRowColumns.MinTitle + TrackRowColumns.AlbumGap
+                    + TrackRowColumns.MinAlbum + PlaylistInset + PlaylistPadding;
         var (window, list) = PlaylistPage(width);
         var first = list.ContainerFromIndex(0)!;
 

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Rambutan.App.Controls;
@@ -227,6 +228,125 @@ public sealed class TrackRowLayoutTests : IDisposable
         Assert.Equal(["1.8B plays", ""], plays.Select(p => p.Text));
         Assert.Equal(LeftEdge(plays[0], list), LeftEdge(plays[1], list), 0.5);
         Assert.True(LeftEdge(plays[0], list) > RightEdge(albums[0], list));
+        window.Close();
+    });
+
+    private (Window Window, ListBox List) PlaylistPage(double width, params TrackInfo[] tracks)
+    {
+        _catalog.Playlist = new PlaylistPage { PlaylistId = "PL1", Title = "Road trip", Tracks = tracks };
+        var page = new PlaylistPageViewModel(_catalog, null!, null!, null!, "PL1");
+        page.LoadAsync().GetAwaiter().GetResult();
+        var view = new Rambutan.App.Views.PlaylistPage { DataContext = page };
+        var window = Show(view, width);
+        return (window, view.GetVisualDescendants().OfType<ListBox>().Single(l => l.Name == "TrackList"));
+    }
+
+    [Fact]
+    public void OnAWidePlaylistPage_AlbumsAndDurationsLineUp_AndTheRowEnds() => Headless.Run(() =>
+    {
+        var (window, list) = PlaylistPage(1720,
+            Track("a", "Short", 320, DaftPunk),
+            Track("b", "A considerably longer title than the first, to push the others around", 212, DaftPunk),
+            Track("c", "Mid title", 301, DaftPunk));
+        var rows = Enumerable.Range(0, 3).Select(i => list.ContainerFromIndex(i)!).ToArray();
+
+        var albums = rows.Select(r => LeftEdge(r.GetVisualDescendants().OfType<Panel>().Single(p => p.Classes.Contains("rowalbum")), list)).ToArray();
+        var durations = rows.Select(r => RightEdge(DurationOf(r), list)).ToArray();
+
+        Assert.All(albums, x => Assert.Equal(albums[0], x, 0.5));
+        Assert.All(durations, x => Assert.Equal(durations[0], x, 0.5));
+        Assert.True(TrackColumns.GetShowsLiked(list));
+        Assert.Equal(286 + 520 + 24 + 16 + 320, TrackColumns.GetRowWidth(list), 0.5);
+        window.Close();
+    });
+
+    private static SongEntry Song(string id, string title, int seconds) => new()
+    {
+        Title = title,
+        Track = new TrackInfo
+        {
+            VideoId = id, Title = title, Artists = [new ArtistRef("Artist")], Duration = TimeSpan.FromSeconds(seconds),
+            Album = "Album " + id, AlbumBrowseId = "MPREb_" + id,
+        },
+    };
+
+    [Fact]
+    public void OnAWideSearchAnswer_SongRowsShareADurationEdge_AndAlbumRowsAndHeadingsAreAsWide() => Headless.Run(() =>
+    {
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+        var vm = new SearchPageViewModel(_catalog, null!, null!);
+        var previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        try
+        {
+            vm.Query = "daft punk";
+            vm.SearchCommand.Execute(null);
+            _catalog.Searches[^1].Result.TrySetResult(
+            [
+                Song("1", "Short", 200),
+                Song("2", "A considerably longer song title than the first one", 301),
+                new AlbumEntry { Title = "Discovery", BrowseId = "MPREb_disc" },
+            ]);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(previous);
+        }
+
+        var view = new Rambutan.App.Views.SearchPage { DataContext = vm };
+        var window = Show(view, 1720);
+        var list = view.GetVisualDescendants().OfType<ListBox>().Single(l => l.Name == "ResultsList");
+        var containers = list.GetRealizedContainers().OfType<ListBoxItem>().ToArray();
+        var songs = containers.Where(c => c.DataContext is SongEntry).ToArray();
+        var album = containers.Single(c => c.DataContext is AlbumEntry);
+        var heading = containers.First(c => c.DataContext is SearchResultHeading);
+
+        var edges = songs.Select(s => RightEdge(DurationOf(s), list)).ToArray();
+        Assert.Equal(2, edges.Length);
+        Assert.Equal(edges[0], edges[1], 0.5);
+
+        var rowWidth = TrackColumns.GetRowWidth(list);
+        Assert.Equal(234 + 520 + 24 + 16 + 320, rowWidth, 0.5);
+        Assert.Equal(rowWidth, ((Control)songs[0].GetVisualDescendants().OfType<ContentPresenter>().First().Child!).Bounds.Width, 0.5);
+        Assert.Equal(rowWidth, ((Control)album.GetVisualDescendants().OfType<ContentPresenter>().First().Child!).Bounds.Width, 0.5);
+        Assert.Equal(rowWidth, ((Control)heading.GetVisualDescendants().OfType<ContentPresenter>().First().Child!).Bounds.Width, 0.5);
+        window.Close();
+    });
+
+    [Fact]
+    public void InAWideFittedList_TheItemEndsWithTheRow_ButInAnUnfittedListItSpansTheList() => Headless.Run(() =>
+    {
+        var (window, list) = AlbumPage(1720, Track("a", "One More Time", 320, DaftPunk));
+        var item = (ListBoxItem)list.ContainerFromIndex(0)!;
+
+        Assert.Equal(TrackColumns.GetRowWidth(list) + 16, item.Bounds.Width, 0.5);
+        Assert.Equal(item.Bounds.Width, TrackColumns.GetItemWidth(list), 0.5);
+        Assert.True(item.Bounds.Width < list.Bounds.Width / 2, $"item {item.Bounds.Width} of {list.Bounds.Width}");
+        window.Close();
+
+        var plain = new ListBox { Classes = { "tracks" }, ItemsSource = new[] { "one", "two" }, Width = 1720 };
+        var plainWindow = Show(plain, 1720);
+        var plainItem = (ListBoxItem)plain.ContainerFromIndex(0)!;
+
+        Assert.True(double.IsNaN(TrackColumns.GetItemWidth(plain)));
+        Assert.InRange(plainItem.Bounds.Width, plain.Bounds.Width - 20, plain.Bounds.Width);
+        Assert.True(plainItem.Bounds.Width > 1000, $"item {plainItem.Bounds.Width}");
+        plainWindow.Close();
+    });
+
+    [Fact]
+    public void InANarrowFittedList_TheItemAndTheRowFillTheList() => Headless.Run(() =>
+    {
+        var (window, list) = AlbumPage(700, Track("a", "One More Time", 320, DaftPunk));
+        var item = (ListBoxItem)list.ContainerFromIndex(0)!;
+        var row = item.GetVisualDescendants().OfType<Grid>().First(g => TrackMenu.GetTrack(g) is not null);
+
+        Assert.True(TrackColumns.GetRowWidth(list) <= list.Bounds.Width - 16 + 0.5);
+        Assert.True(item.Bounds.Width <= list.Bounds.Width + 0.5);
+        Assert.Equal(item.Bounds.Width - 16, row.Bounds.Width, 0.5);
+        Assert.Equal(TrackColumns.GetRowWidth(list), row.Bounds.Width, 0.5);
+        Assert.True(item.Bounds.Width > list.Bounds.Width - 40, $"item {item.Bounds.Width} of {list.Bounds.Width}");
         window.Close();
     });
 

@@ -193,21 +193,28 @@
              margin is the gap between groups. See all is not a tab stop: the
              filter chips above reach the same tabs from the keyboard. -->
         <DataTemplate DataType="{x:Type vm:SearchResultHeading}">
-          <Grid ColumnDefinitions="*,Auto" Margin="-8,12,0,2">
-            <TextBlock Classes="sectiontitle" Text="{Binding Title}" VerticalAlignment="Center" />
-            <Button Grid.Column="1" Classes="textlink seeall" IsTabStop="False" VerticalAlignment="Center"
-                    Content="{l:T shelf.seeAll}"
-                    ToolTip.Tip="{Binding Title, Converter={x:Static vm:Converters.SeeAllName}}"
-                    AutomationProperties.Name="{Binding Title, Converter={x:Static vm:Converters.SeeAllName}}"
-                    Command="{Binding #Root.((vm:SearchPageViewModel)DataContext).ShowTabCommand}"
-                    CommandParameter="{Binding SeeAll}"
-                    IsVisible="{Binding SeeAll, Converter={x:Static ObjectConverters.IsNotNull}}" />
-          </Grid>
+          <!-- The panel is as wide as the rows' content, so See all ends where
+               the song rows' durations do; the grid's negative margin widens it
+               back to the list's edge inside. -->
+          <Panel HorizontalAlignment="Left"
+                 Width="{Binding $parent[ListBox].(controls:TrackColumns.RowWidth)}">
+            <Grid ColumnDefinitions="*,Auto" Margin="-8,12,0,2">
+              <TextBlock Classes="sectiontitle" Text="{Binding Title}" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="textlink seeall" IsTabStop="False" VerticalAlignment="Center"
+                      Content="{l:T shelf.seeAll}"
+                      ToolTip.Tip="{Binding Title, Converter={x:Static vm:Converters.SeeAllName}}"
+                      AutomationProperties.Name="{Binding Title, Converter={x:Static vm:Converters.SeeAllName}}"
+                      Command="{Binding #Root.((vm:SearchPageViewModel)DataContext).ShowTabCommand}"
+                      CommandParameter="{Binding SeeAll}"
+                      IsVisible="{Binding SeeAll, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </Grid>
+          </Panel>
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type core:SongEntry}">
-          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
-                Background="Transparent"
+          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="0,2"
+                Background="Transparent" HorizontalAlignment="Left"
+                Width="{Binding $parent[ListBox].(controls:TrackColumns.RowWidth)}"
                 controls:TrackMenu.Track="{Binding Track}">
             <Border Classes="rowart">
               <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="96" />
@@ -262,14 +269,19 @@
               <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
                          IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
             </Panel>
-            <TextBlock Grid.Column="5" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+            <!-- Visual only: the Like button in the actions says the state. -->
+            <Panel Grid.Column="4" Width="24"
+                   IsVisible="{Binding $parent[ListBox].(controls:TrackColumns.ShowsLiked)}">
+              <controls:LikedMark Classes="likedmark" Track="{Binding Track}" />
+            </Panel>
+            <TextBlock Grid.Column="6" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                        MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
             <!-- Fixed width, so hiding the stack inside does not let the title
                  grow into the gap and snap back as the pointer crosses the row.
                  Sits before the duration, not after it: reserved-but-empty space
                  at the very end of a row reads as an unfinished column, while the
                  same gap between title and duration reads as an ordinary gutter. -->
-            <Panel Grid.Column="4" Width="112">
+            <Panel Grid.Column="5" Width="112">
               <StackPanel Classes="rowactions" Orientation="Horizontal"
                           HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
@@ -297,7 +309,8 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type core:AlbumEntry}">
-          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2" HorizontalAlignment="Left"
+                Width="{Binding $parent[ListBox].(controls:TrackColumns.RowWidth)}">
             <Border Classes="rowart">
               <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="96" />
             </Border>
@@ -323,7 +336,8 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type core:ArtistEntry}">
-          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2" HorizontalAlignment="Left"
+                Width="{Binding $parent[ListBox].(controls:TrackColumns.RowWidth)}">
             <Border Classes="rowart" CornerRadius="20">
               <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="96" />
             </Border>
@@ -349,7 +363,8 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type core:PlaylistEntry}">
-          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+          <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2" HorizontalAlignment="Left"
+                Width="{Binding $parent[ListBox].(controls:TrackColumns.RowWidth)}">
             <Border Classes="rowart">
               <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="96" />
             </Border>
@@ -389,7 +404,12 @@
                  AutomationProperties.Name="{l:T search.local.listName}"
                  ItemsSource="{Binding LocalResults}"
                  controls:ItemActivation.Command="{Binding PlayLocalCommand}"
-                 controls:TrackColumns.FixedWidth="266">
+                 controls:TrackColumns.HasAlbum="True"
+                 controls:TrackColumns.HasLiked="True"
+                 controls:TrackColumns.ItemInset="16"
+                 controls:TrackColumns.FixedWidth="234">
+          <!-- The same columns as the results below, so the two lists line up. A
+               file has no liked state: its slot stays empty. -->
           <ListBox.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel />
@@ -397,8 +417,9 @@
           </ListBox.ItemsPanel>
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:LocalTrackRow">
-              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
-                    Background="Transparent"
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="0,2"
+                    Background="Transparent" HorizontalAlignment="Left"
+                    Width="{Binding $parent[ListBox].(controls:TrackColumns.RowWidth)}"
                     controls:TrackMenu.Track="{Binding Track}">
                 <Border Classes="rowart">
                   <Panel>
@@ -460,10 +481,12 @@
                   <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
                              IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
                 </Panel>
-                <TextBlock Grid.Column="5" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                <Panel Grid.Column="4" Width="24"
+                       IsVisible="{Binding $parent[ListBox].(controls:TrackColumns.ShowsLiked)}" />
+                <TextBlock Grid.Column="6" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                            MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                 <!-- Play and queue only: the rest acts on YouTube Music. -->
-                <Panel Grid.Column="4" Width="112">
+                <Panel Grid.Column="5" Width="112">
                   <StackPanel Classes="rowactions" Orientation="Horizontal"
                               HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
@@ -526,7 +549,12 @@
                    AutomationProperties.Name="{l:T search.topResult}"
                    IsVisible="{Binding !!TopResult.Related.Count}"
                    ItemsSource="{Binding TopResult.Related}"
-                   controls:ItemActivation.Command="{Binding OpenCommand}">
+                   controls:ItemActivation.Command="{Binding OpenCommand}"
+                   controls:TrackColumns.HasLiked="True"
+                   controls:TrackColumns.ItemInset="16"
+                   controls:TrackColumns.FixedWidth="234">
+            <!-- No album column in the card (HasAlbum off); the liked mark and
+                 the title's maximum are the results' (Controls/TrackColumns). -->
             <ListBox.ItemsPanel>
               <ItemsPanelTemplate>
                 <StackPanel />
@@ -544,7 +572,13 @@
                AutomationProperties.Name="{l:T search.resultsName}"
                ItemsSource="{Binding Rows}"
                controls:ItemActivation.Command="{Binding OpenCommand}"
-               controls:TrackColumns.FixedWidth="266">
+               controls:TrackColumns.HasAlbum="True"
+               controls:TrackColumns.HasLiked="True"
+               controls:TrackColumns.ItemInset="16"
+               controls:TrackColumns.FixedWidth="234">
+        <!-- Columns at fixed positions (Controls/TrackColumns). FixedWidth: cover
+             52, playing marker 14, actions 112, duration 56; ItemInset the
+             item's padding. -->
         <ListBox.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel />
