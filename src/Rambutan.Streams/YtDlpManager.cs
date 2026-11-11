@@ -9,6 +9,7 @@ namespace Rambutan.Streams;
 public sealed class YtDlpManager(string toolsDirectory, HttpClient? http = null)
 {
     private const string ReleaseBase = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/";
+    internal const string ChecksumsName = "SHA2-256SUMS";
     private static readonly TimeSpan DownloadTimeout = TimeSpan.FromMinutes(10);
 
     private readonly HttpClient _http = http ?? new HttpClient();
@@ -71,9 +72,15 @@ public sealed class YtDlpManager(string toolsDirectory, HttpClient? http = null)
 
         try
         {
-            await using var source = await _http.GetStreamAsync(url, timeout.Token);
-            await using var target = File.Create(temp);
-            await source.CopyToAsync(target, timeout.Token);
+            // The release's own list, from the same host: it catches a damaged
+            // download and a swapped file, not a release that is itself bad.
+            // yt-dlp checks its later updates against the same list by itself.
+            var checksums = await _http.GetStringAsync(ReleaseBase + ChecksumsName, timeout.Token);
+            var expected = VerifiedDownload.HashFor(checksums, BinaryName())
+                ?? throw new InvalidOperationException(
+                    $"yt-dlp was not installed: its release's {ChecksumsName} has no line for {BinaryName()}.");
+            var actual = await VerifiedDownload.ToFileAsync(_http, url, temp, timeout.Token);
+            VerifiedDownload.Require("yt-dlp", expected, actual, temp);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {

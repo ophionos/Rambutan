@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 
 namespace Rambutan.Streams.Tests;
 
@@ -111,83 +110,53 @@ public sealed class FfmpegManagerTests : IDisposable
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => new FfmpegManager(_toolsDir, new HttpClient(handler)).EnsureAsync());
 
-        Assert.Contains("ffmpeg-n9.0-latest-", handler.Requests[0].ToString());
-    }
-
-    // Cut from GitHub's release list during BtbN's re-publish window: 'latest'
-    // re-created with half its files, newest dated release complete.
-    private const string ReleasesDuringRepublish = """
-        [
-          {"tag_name": "latest", "draft": false, "assets": [
-            {"name": "ffmpeg-n9.0-latest-linuxarm64-lgpl-shared-9.0.tar.xz", "state": "uploaded",
-             "browser_download_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-linuxarm64-lgpl-shared-9.0.tar.xz"},
-            {"name": "ffmpeg-n9.0-latest-win64-lgpl-shared-9.0.zip", "state": "starter",
-             "browser_download_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-win64-lgpl-shared-9.0.zip"}
-          ]},
-          {"tag_name": "autobuild-2026-10-03-18-14", "draft": false, "assets": [
-            {"name": "ffmpeg-n9.0.2-22-g46d8f462ee-winarm64-lgpl-shared-9.0.zip", "state": "uploaded",
-             "browser_download_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-03-18-14/ffmpeg-n9.0.2-22-g46d8f462ee-winarm64-lgpl-shared-9.0.zip"},
-            {"name": "ffmpeg-n9.0.2-22-g46d8f462ee-win64-gpl-shared-9.0.zip", "state": "uploaded",
-             "browser_download_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-03-18-14/ffmpeg-n9.0.2-22-g46d8f462ee-win64-gpl-shared-9.0.zip"},
-            {"name": "ffmpeg-n9.0.2-22-g46d8f462ee-win64-lgpl-shared-9.0.zip", "state": "uploaded",
-             "browser_download_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-03-18-14/ffmpeg-n9.0.2-22-g46d8f462ee-win64-lgpl-shared-9.0.zip"},
-            {"name": "ffmpeg-n9.0.2-22-g46d8f462ee-linux64-lgpl-shared-9.0.tar.xz", "state": "uploaded",
-             "browser_download_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-03-18-14/ffmpeg-n9.0.2-22-g46d8f462ee-linux64-lgpl-shared-9.0.tar.xz"}
-          ]},
-          {"tag_name": "autobuild-2026-10-01-13-06", "draft": false, "assets": [
-            {"name": "ffmpeg-n9.0.2-22-g46d8f462ee-win64-lgpl-shared-9.0.zip", "state": "uploaded",
-             "browser_download_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-01-13-06/ffmpeg-n9.0.2-22-g46d8f462ee-win64-lgpl-shared-9.0.zip"}
-          ]}
-        ]
-        """;
-
-    [Theory]
-    [InlineData(true, "autobuild-2026-10-03-18-14/ffmpeg-n9.0.2-22-g46d8f462ee-win64-lgpl-shared-9.0.zip")]
-    [InlineData(false, "autobuild-2026-10-03-18-14/ffmpeg-n9.0.2-22-g46d8f462ee-linux64-lgpl-shared-9.0.tar.xz")]
-    public void PickAsset_SkipsAHalfUploadedLatest_AndTakesTheNewestDatedBuildForThePlatform(bool isWindows, string expected)
-    {
-        using var doc = JsonDocument.Parse(ReleasesDuringRepublish);
-
-        Assert.Equal(
-            "https://github.com/BtbN/FFmpeg-Builds/releases/download/" + expected,
-            FfmpegManager.PickAsset(doc.RootElement, isWindows));
+        Assert.Equal(FfmpegManager.Asset(OperatingSystem.IsWindows()).Url, Assert.Single(handler.Requests).ToString());
     }
 
     [Theory]
-    [InlineData("""[]""")]
-    [InlineData("""{"message": "API rate limit exceeded"}""")]
-    [InlineData("""[{"tag_name": "latest", "assets": []}]""")]
-    [InlineData("""[{"tag_name": "x", "assets": [{"name": "ffmpeg-n10.0-latest-win64-lgpl-shared-10.0.zip", "state": "uploaded", "browser_download_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/x/ffmpeg-n10.0-latest-win64-lgpl-shared-10.0.zip"}]}]""")]
-    public void PickAsset_FindsNothing_WhenNoReleaseHasThePinnedBuild(string json)
+    [InlineData(true, ".zip")]
+    [InlineData(false, ".tar.xz")]
+    public void The_pin_is_one_dated_build_with_a_hash_never_latest(bool isWindows, string extension)
     {
-        using var doc = JsonDocument.Parse(json);
+        var (url, sha256) = FfmpegManager.Asset(isWindows);
 
-        Assert.Null(FfmpegManager.PickAsset(doc.RootElement, isWindows: true));
+        Assert.StartsWith(
+            $"https://github.com/FFmpeg-Builds/FFmpeg-Builds/releases/download/{FfmpegManager.Release}/ffmpeg-n9.0.", url);
+        Assert.StartsWith("autobuild-", FfmpegManager.Release);
+        Assert.DoesNotContain("latest", url);
+        Assert.EndsWith($"-lgpl-shared-9.0{extension}", url);
+        Assert.Matches("^[0-9a-f]{64}$", sha256);
     }
 
     [Fact]
-    public async Task A_404_on_latest_falls_back_to_the_newest_dated_build()
+    public async Task A_download_that_is_not_the_pinned_file_is_deleted_and_never_extracted()
     {
         if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
             return; // macOS uses the system libraries.
-        var handler = new RecordingHandler(request => request.RequestUri!.ToString() switch
+        // A real zip with the libraries' names: without the check it would install.
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            var u when u.Contains("/releases/latest/download/") => new HttpResponseMessage(HttpStatusCode.NotFound),
-            FfmpegManager.ReleasesApiUrl when request.Headers.UserAgent.Count > 0 =>
-                new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(ReleasesDuringRepublish) },
-            var u when u.Contains("/autobuild-") => new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new ByteArrayContent([1, 2, 3]), // not an archive: extraction fails after the fetch
-            },
-            _ => new HttpResponseMessage(HttpStatusCode.Forbidden),
+            Content = new ByteArrayContent(ArchiveWithLibraries()),
         });
 
-        await Assert.ThrowsAnyAsync<Exception>(
+        var error = await Assert.ThrowsAsync<SidecarIntegrityException>(
             () => new FfmpegManager(_toolsDir, new HttpClient(handler)).EnsureAsync());
 
-        Assert.Equal(3, handler.Requests.Count);
-        Assert.Equal(FfmpegManager.ReleasesApiUrl, handler.Requests[1].ToString());
-        Assert.Contains("/autobuild-2026-10-03-18-14/ffmpeg-n9.0.2-", handler.Requests[2].ToString());
+        Assert.Contains(FfmpegManager.Asset(OperatingSystem.IsWindows()).Sha256, error.Message);
+        Assert.False(Directory.Exists(LibrariesDir));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(_toolsDir));
+    }
+
+    private static byte[] ArchiveWithLibraries()
+    {
+        using var bytes = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(bytes, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, major) in FfmpegManager.RequiredLibraries)
+                zip.CreateEntry("ffmpeg/bin/" + FfmpegManager.LibraryFileName(name, major, isWindows: true));
+            zip.CreateEntry("ffmpeg/bin/ffmpeg.exe");
+        }
+        return bytes.ToArray();
     }
 
     private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage>? respond = null)

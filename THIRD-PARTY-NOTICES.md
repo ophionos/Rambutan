@@ -31,7 +31,7 @@ their own licenses. Each component's notice is reproduced here or in the
 Rambutan downloads two programs on first use and keeps them in its data
 folder. They are not part of this distribution:
 
-- **FFmpeg**, the LGPL shared build from https://github.com/BtbN/FFmpeg-Builds,
+- **FFmpeg**, the LGPL shared build from https://github.com/FFmpeg-Builds/FFmpeg-Builds,
   under the GNU Lesser General Public License (https://ffmpeg.org/legal.html).
 - **yt-dlp**, from https://github.com/yt-dlp/yt-dlp, under the Unlicense.
 
