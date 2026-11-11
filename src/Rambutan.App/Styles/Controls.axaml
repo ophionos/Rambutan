@@ -105,6 +105,36 @@
     <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.0A}" />
   </Style>
 
+  <!-- Home's leading tiles: a small cover and a title on a translucent tile,
+       so the block reads as one group above the shelves' bare cards. The
+       pointer's fill is the card's. -->
+  <Style Selector="Button.tile">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Surface.Card}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Card}" />
+    <Setter Property="Padding" Value="6" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.tile /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+
+  <Style Selector="Button.tile:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+  </Style>
+
+  <Style Selector="Button.tile:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.0A}" />
+  </Style>
+
   <!-- Sidebar navigation: flat rail entries — transparent at rest so the rail
        reads as one surface, soft fill under the pointer. -->
   <Style Selector="Button.nav">

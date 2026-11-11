@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Rambutan.Core.Models;
 using Rambutan.InnerTube.Parsing;
 
 namespace Rambutan.InnerTube.Tests;
@@ -39,6 +40,29 @@ public class HomeContinuationTests
         Assert.Equal(["Quick picks", "New releases"], page.Shelves.Select(s => s.Title));
         Assert.All(page.Shelves, s => Assert.Equal(3, s.Entries.Count));
         Assert.Equal("synthetic-home-page-3", page.Continuation?.Value);
+    }
+
+    [Fact]
+    public void QuickPicks_IsMarkedAsTheShelfToGoBackTo()
+    {
+        using var doc = LoadFixture("browse-home-continuation.synthetic.json");
+
+        var page = BrowseParsers.ParseHomeContinuation(doc.RootElement);
+
+        Assert.Equal([ShelfKind.Revisit, ShelfKind.Default], page.Shelves.Select(s => s.Kind));
+    }
+
+    [Theory]
+    [InlineData("browse-home.json")]
+    [InlineData("browse-home.relax.json")]
+    public void AHomeWithoutIt_MarksNoShelf(string fixture)
+    {
+        using var doc = LoadFixture(fixture);
+
+        var page = BrowseParsers.ParseHome(doc.RootElement);
+
+        Assert.NotEmpty(page.Shelves);
+        Assert.All(page.Shelves, s => Assert.Equal(ShelfKind.Default, s.Kind));
     }
 
     [Fact]

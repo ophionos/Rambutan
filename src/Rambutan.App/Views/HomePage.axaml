@@ -75,6 +75,45 @@
 
     <ScrollViewer x:Name="Scroller" Classes="pagescroll" Grid.Row="2" controls:ScrollMemory.IsEnabled="True">
       <StackPanel>
+        <!-- What to go back to: YouTube Music's Listen again or Quick picks
+             shelf, else the play log's latest albums, as two rows of small
+             tiles. A tile does what its card does: opens the page, plays a
+             song, and has the card's menu. -->
+        <StackPanel x:Name="Leading" Margin="4,0,4,16" Spacing="8" IsVisible="{Binding HasTiles}">
+          <TextBlock Text="{Binding TilesTitle}" FontSize="{StaticResource Token.Font.Section}" FontWeight="Bold"
+                     TextTrimming="CharacterEllipsis" />
+          <ItemsControl x:Name="TileGrid" ItemsSource="{Binding Tiles}"
+                        AutomationProperties.Name="{Binding TilesTitle}"
+                        controls:RovingFocus.IsEnabled="True">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <controls:TileGridPanel Rows="2" MinColumnWidth="220" MaxColumnWidth="360" Spacing="8" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="core:CatalogEntry">
+                <Panel controls:TrackMenu.Track="{Binding Converter={x:Static vm:Converters.SongTrack}}"
+                       controls:CollectionMenu.Entry="{Binding}">
+                  <Button Classes="tile"
+                          AutomationProperties.Name="{Binding Converter={x:Static controls:AccessibleNames.ItemConverter}}"
+                          Command="{Binding #Root.((vm:HomePageViewModel)DataContext).OpenEntryCommand}"
+                          CommandParameter="{Binding}">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <Border Classes="tileart" Classes.artist="{Binding Converter={x:Static vm:Converters.IsArtist}}"
+                              ClipToBounds="True" Width="52" Height="52">
+                        <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                      </Border>
+                      <TextBlock Grid.Column="1" Margin="12,0,4,0" VerticalAlignment="Center"
+                                 Text="{Binding Title}" FontSize="{StaticResource Token.Font.Body}" FontWeight="SemiBold"
+                                 TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" LineHeight="19" />
+                    </Grid>
+                  </Button>
+                </Panel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
         <!-- YTM's shelves, with the Last.fm stations among them while that setting
              is on. A station shelf always shows a state: a skeleton while
              it loads, the cards, a line saying the list is empty or that Last.fm

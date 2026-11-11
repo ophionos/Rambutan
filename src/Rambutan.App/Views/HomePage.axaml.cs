@@ -20,6 +20,15 @@ public partial class HomePage : UserControl
     {
         InitializeComponent();
 
+        // Tiles from the play log come after the shelves: above them, they
+        // would push the shelves down under someone already scrolling or
+        // moving through them.
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is HomePageViewModel vm)
+                vm.IsAtRest = () => Scroller.Offset.Y < 1 && !Scroller.IsKeyboardFocusWithin;
+        };
+
         // YTM sends Home a few shelves at a time: ask for more near the end. This
         // also fires when shelves arrive (the extent changes), so a window taller
         // than the shelves keeps asking until it's full or none are left.

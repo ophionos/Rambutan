@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Rambutan.Core.Home;
 using Rambutan.Core.Models;
 
 namespace Rambutan.InnerTube.Parsing;
@@ -208,7 +209,13 @@ public static class BrowseParsers
             ? new MoodCategory(title, moreParams)
             : null;
 
-        return entries.Count > 0 ? new Shelf(title, entries) { More = more } : null;
+        return entries.Count > 0
+            ? new Shelf(title, entries)
+            {
+                More = more,
+                Kind = LeadingBlock.IsRevisitTitle(title) ? ShelfKind.Revisit : ShelfKind.Default,
+            }
+            : null;
     }
 
     /// <summary>A gridRenderer of cards (a mood page's "Spotlight"), as one shelf.</summary>

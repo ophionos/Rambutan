@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 using Rambutan.App.Localization;
 using Rambutan.App.Services;
 using Rambutan.Core.Catalog;
+using Rambutan.Core.Diagnostics;
+using Rambutan.Core.Home;
 using Rambutan.Core.Models;
 
 namespace Rambutan.App.ViewModels;
@@ -34,7 +36,38 @@ public partial class HomePageViewModel : ViewModelBase
     /// <summary>The last "more shelves" request failed; shown where the list ends.</summary>
     [ObservableProperty] private LoadError? _moreError;
 
-    /// <summary>YouTube Music's shelves, as it sent them.</summary>
+    /// <summary>The tiles above the shelves (<see cref="LeadingBlock"/>); empty
+    /// for no block.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTiles))]
+    private IReadOnlyList<CatalogEntry> _tiles = [];
+
+    /// <summary>The caption above <see cref="Tiles"/>: YouTube Music's shelf title,
+    /// or our own for the play log's albums.</summary>
+    [ObservableProperty] private string? _tilesTitle;
+
+    public bool HasTiles => Tiles.Count > 0;
+
+    // The tiles on show are the play log's, so a load without YouTube Music's
+    // shelf keeps them until the log is read again.
+    private bool _tilesFromLog;
+
+    /// <summary>Whether the account is signed in; signed out (or unset) there are no tiles.</summary>
+    public Func<bool>? IsSignedIn { get; set; }
+
+    /// <summary>Reads the play log for the tiles; returns null while recording is off.</summary>
+    public Func<Task<PlayLogContents>?>? RecentPlays { get; set; }
+
+    /// <summary>Set by the view: true while the page is at the top and focus is
+    /// not in it, so tiles that come after the shelves move nothing under the
+    /// user. Unset, there is no view to move.</summary>
+    public Func<bool>? IsAtRest { get; set; }
+
+    /// <summary>The play log's read for the tiles, while one runs.</summary>
+    internal Task RecentLoad { get; private set; } = Task.CompletedTask;
+
+    /// <summary>YouTube Music's shelves, as it sent them, without the one that
+    /// became <see cref="Tiles"/>.</summary>
     public ObservableCollection<Shelf> Shelves { get; } = [];
 
     /// <summary>The mood chips above the shelves, as the last page sent them;
@@ -134,9 +167,15 @@ public partial class HomePageViewModel : ViewModelBase
             Chips.Clear();
             foreach (var each in page.Chips)
                 Chips.Add(each);
+            var leading = LeadingWanted;
+            var (block, shelves) = leading ? LeadingBlock.FromHome(page.Shelves) : (null, page.Shelves);
             Shelves.Clear();
-            foreach (var shelf in page.Shelves)
+            foreach (var shelf in shelves)
                 Shelves.Add(shelf);
+            if (block is not null || !leading || !_tilesFromLog)
+                ShowTiles(block, fromLog: false);
+            if (leading && block is null)
+                RecentLoad = LoadRecentAsync(generation);
             RebuildItems(freshStations);
             _continuation = page.Continuation;
             HasMore = _continuation is not null;
@@ -168,6 +207,45 @@ public partial class HomePageViewModel : ViewModelBase
             if (generation == _generation)
                 IsLoading = false;
         }
+    }
+
+    /// <summary>Tiles on plain Home only, signed in: a mood chip is YouTube
+    /// Music's pick for that mood, and signed out there is no account to go back to.</summary>
+    private bool LeadingWanted => _filter is null && IsSignedIn?.Invoke() == true;
+
+    private void ShowTiles(LeadingBlock? block, bool fromLog)
+    {
+        _tilesFromLog = fromLog && block is not null;
+        TilesTitle = block is null ? null : block.ShelfTitle ?? Strings.Get("home.leading.recent");
+        Tiles = block?.Tiles ?? [];
+    }
+
+    /// <summary>
+    /// The play log's albums, when Home has no shelf of its own for the tiles.
+    /// They come after the shelves, so they show only while the page is at
+    /// rest; a read that fails or finds nothing leaves no block and says
+    /// nothing, as Home without the block is what it was before.
+    /// </summary>
+    private async Task LoadRecentAsync(int generation)
+    {
+        LeadingBlock? block = null;
+        try
+        {
+            if (RecentPlays?.Invoke() is { } read &&
+                await read is { State: PlayLogState.Readable, Plays.Count: > 0 } contents)
+            {
+                var plays = contents.Plays;
+                block = await Task.Run(() => LeadingBlock.FromPlays(plays));
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("plays", $"Couldn't read the play log for Home: {ex.Message}");
+        }
+
+        if (generation != _generation || IsAtRest?.Invoke() == false)
+            return;
+        ShowTiles(block, fromLog: true);
     }
 
     /// <summary>
