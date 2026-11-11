@@ -186,13 +186,19 @@
         <TextBlock Classes="hint" Text="{Binding Kind, Converter={x:Static vm:Converters.LibraryEmptyHint}}" />
       </StackPanel>
 
-      <!-- Scrolling near the end loads the next page, as playlists do;
-           Load more below stays as the fallback. -->
-      <ScrollViewer x:Name="Scroller" Classes="pagescroll" IsVisible="{Binding !NeedsSignIn}"
+      <!-- The card tabs. Scrolling near the end loads the next page, as playlists
+           do (code-behind). Songs and History scroll in their own lists below, so
+           this scroller has no section (and keeps no position) on theirs. -->
+      <ScrollViewer x:Name="Scroller" Classes="pagescroll"
+                    DataContext="{Binding #Root.((vm:LibraryPageViewModel)DataContext).CardSection}"
                     controls:ScrollMemory.IsEnabled="True">
-        <Panel>
+        <ScrollViewer.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="#Root.((vm:LibraryPageViewModel)DataContext).CardSection" Converter="{x:Static ObjectConverters.IsNotNull}" />
+            <Binding Path="!NeedsSignIn" FallbackValue="False" />
+          </MultiBinding>
+        </ScrollViewer.IsVisible>
         <ItemsControl ItemsSource="{Binding Items}" Margin="4,0"
-                      IsVisible="{Binding !ShowsRows}"
                       controls:CollectionMenu.InLibrary="{Binding !IsOfflineCopy}"
                       AutomationProperties.Name="{Binding Kind, Converter={x:Static vm:Converters.LibrarySectionName}}"
                       controls:RovingFocus.IsEnabled="True">
@@ -208,26 +214,32 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+      </ScrollViewer>
 
-        <!-- Songs are track rows, as in a filtered search: a plain panel, since
-             the scroller above owns scrolling. A song plays with the loaded rows
-             as its queue. -->
-        <ListBox Classes="tracks" Background="Transparent" Margin="4,0"
-                 IsVisible="{Binding IsSongs}"
-                 ItemsSource="{Binding Items}"
-                 AutomationProperties.Name="{Binding Kind, Converter={x:Static vm:Converters.LibrarySectionName}}"
-                 controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlaySongCommand}"
-                 controls:TrackColumns.FixedWidth="266">
-          <!-- FixedWidth: item padding 16, cover 52, playing marker 14, album
-               gap 16, actions 112, duration 56. -->
-          <ListBox.ItemsPanel>
-            <ItemsPanelTemplate>
-              <StackPanel />
-            </ItemsPanelTemplate>
-          </ListBox.ItemsPanel>
-          <!-- Typed, not the ItemTemplate: while hidden on another tab this list
-               still shares that tab's items, which aren't songs. -->
-          <ListBox.DataTemplates>
+      <!-- Songs are track rows, as in a filtered search, in a list that scrolls
+           itself, as a playlist's does, so only the rows in view are built
+           (and the next page loads near its end, code-behind). Its own section
+           is its context, so its scroll position is that tab's alone. A song
+           plays with the loaded rows as its queue. Padding: pagescroll's 12
+           clear of the bar, and the 4 the cards keep at each side. -->
+      <ListBox x:Name="SongList" Classes="tracks pagescroll" Background="Transparent" Padding="4,0,16,0"
+               DataContext="{Binding #Root.((vm:LibraryPageViewModel)DataContext).Songs}"
+               ItemsSource="{Binding Items}"
+               AutomationProperties.Name="{Binding Kind, Converter={x:Static vm:Converters.LibrarySectionName}}"
+               controls:ScrollMemory.IsEnabled="True"
+               controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlaySongCommand}"
+               controls:TrackColumns.FixedWidth="266">
+        <!-- FixedWidth: item padding 16, cover 52, playing marker 14, album
+             gap 16, actions 112, duration 56. -->
+        <ListBox.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="#Root.((vm:LibraryPageViewModel)DataContext).IsSongs" />
+            <Binding Path="!NeedsSignIn" />
+          </MultiBinding>
+        </ListBox.IsVisible>
+        <!-- Typed, not the ItemTemplate: the tab's items are catalog entries,
+             and only a song has a row. -->
+        <ListBox.DataTemplates>
             <DataTemplate DataType="{x:Type core:SongEntry}">
               <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
                     Background="Transparent"
@@ -313,125 +325,125 @@
                 </Panel>
               </Grid>
             </DataTemplate>
+        </ListBox.DataTemplates>
+      </ListBox>
+
+      <!-- History: YouTube Music's own headings and their rows in one list that
+           scrolls itself (LibrarySection.HistoryRows), so only the rows in view
+           are built and a heading scrolls with its rows. A heading is no row:
+           code-behind keeps it from being selected, focused or played, and
+           names it as a heading. A song plays with the whole history as its
+           queue; the menu's last group removes it from the history. The note
+           stays above the list. -->
+      <DockPanel DataContext="{Binding #Root.((vm:LibraryPageViewModel)DataContext).History}">
+        <DockPanel.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="#Root.((vm:LibraryPageViewModel)DataContext).IsHistory" />
+            <Binding Path="!NeedsSignIn" />
+          </MultiBinding>
+        </DockPanel.IsVisible>
+        <TextBlock DockPanel.Dock="Top" Classes="rowmeta" Text="{l:T library.history.note}" TextWrapping="Wrap"
+                   Margin="4,0,16,0" IsVisible="{Binding !!Items.Count}" />
+        <ListBox x:Name="HistoryList" Classes="tracks pagescroll" Background="Transparent" Padding="4,0,16,0"
+                 ItemsSource="{Binding HistoryRows}"
+                 AutomationProperties.Name="{Binding Kind, Converter={x:Static vm:Converters.LibrarySectionName}}"
+                 controls:ScrollMemory.IsEnabled="True"
+                 controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlayHistoryEntryCommand}"
+                 controls:TrackColumns.FixedWidth="266">
+          <!-- Padding and FixedWidth: as the Songs tab's list. -->
+          <ListBox.DataTemplates>
+            <!-- The item's padding is the rows'; the heading goes back to the
+                 list's edge, and its top margin is the gap between groups. -->
+            <DataTemplate DataType="{x:Type vm:HistoryHeading}">
+              <TextBlock Classes="sectiontitle" Text="{Binding Played}" Margin="-8,12,0,2" />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type core:HistoryEntry}">
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
+                    Background="Transparent"
+                    controls:TrackMenu.Track="{Binding Track}"
+                    controls:TrackMenu.Host="{Binding #Root.((vm:LibraryPageViewModel)DataContext)}">
+                <Border Classes="rowart">
+                  <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="96" />
+                </Border>
+                <Panel Grid.Column="1" Width="14">
+                  <PathIcon Data="{StaticResource Icon.Play}" Width="12" Height="12"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource Token.Brush.Accent}">
+                    <PathIcon.IsVisible>
+                      <MultiBinding Converter="{x:Static conv:IsPlayingTrackConverter.Instance}">
+                        <Binding Path="Track.Identity" />
+                        <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Player.NowPlaying.Identity" />
+                      </MultiBinding>
+                    </PathIcon.IsVisible>
+                  </PathIcon>
+                </Panel>
+                <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
+                  <TextBlock Classes="rowtitle" Text="{Binding Title}" />
+                  <DockPanel>
+                    <PathIcon DockPanel.Dock="Left" Classes="downloadmark">
+                      <PathIcon.IsVisible>
+                        <MultiBinding Converter="{x:Static conv:IsDownloadedConverter.Instance}">
+                          <Binding Path="Track.VideoId" />
+                          <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Actions.DownloadedIds" />
+                        </MultiBinding>
+                      </PathIcon.IsVisible>
+                    </PathIcon>
+                    <TextBlock Classes="rowmeta" Text="{Binding Subtitle}"
+                               IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                  </DockPanel>
+                </StackPanel>
+                <!-- The album while the list has room for it (Controls/TrackColumns).
+                     Not a tab stop: one per row would crowd the Tab order,
+                     and the track menu has Go to album. -->
+                <Panel Grid.Column="3" Classes="rowalbum"
+                       Width="{Binding $parent[ListBox].(controls:TrackColumns.AlbumWidth)}">
+                  <Panel.IsVisible>
+                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                      <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
+                      <Binding Path="Track.Album" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                    </MultiBinding>
+                  </Panel.IsVisible>
+                  <Button Classes="textlink rowlink" IsTabStop="False"
+                          IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNotNull}}"
+                          ToolTip.Tip="{l:T common.goToAlbum}"
+                          Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
+                          CommandParameter="{Binding Track}">
+                    <TextBlock Text="{Binding Track.Album}" />
+                  </Button>
+                  <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
+                             IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
+                </Panel>
+                <TextBlock Grid.Column="5" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                           MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
+                <Panel Grid.Column="4" Width="112">
+                  <StackPanel Classes="rowactions" Orientation="Horizontal"
+                              HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
+                            Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlayHistoryEntryCommand}"
+                            CommandParameter="{Binding}">
+                      <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" />
+                    </Button>
+                    <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToQueue}"
+                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToQueueCommand}"
+                            CommandParameter="{Binding Track}">
+                      <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
+                    </Button>
+                    <controls:RateButton Classes="icon subtle small" IconSize="16" Kind="Like"
+                                         Track="{Binding Track}"
+                                         Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.LikeCommand}"
+                                         CommandParameter="{Binding Track}" />
+                    <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToPlaylist}"
+                            Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToPlaylistCommand}"
+                            CommandParameter="{Binding Track}">
+                      <PathIcon Data="{StaticResource Icon.AddToPlaylist}" Width="16" Height="16" />
+                    </Button>
+                  </StackPanel>
+                </Panel>
+              </Grid>
+            </DataTemplate>
           </ListBox.DataTemplates>
         </ListBox>
-
-        <!-- History: YouTube Music's own headings, each over a list of its rows
-             named by it. A song plays with the whole history as its queue; the
-             menu's last group removes it from the history. -->
-        <StackPanel Margin="4,0" IsVisible="{Binding IsHistory}">
-          <TextBlock Classes="rowmeta" Text="{l:T library.history.note}" TextWrapping="Wrap"
-                     Margin="0,0,0,12" IsVisible="{Binding !!Items.Count}" />
-          <ItemsControl ItemsSource="{Binding Groups}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:HistoryGroup">
-                <StackPanel Spacing="6" Margin="0,0,0,16">
-                  <TextBlock Classes="sectiontitle" Text="{Binding Played}" AutomationProperties.HeadingLevel="2" />
-                  <ListBox Classes="tracks" Background="Transparent"
-                           ItemsSource="{Binding Entries}"
-                           AutomationProperties.Name="{Binding Played}"
-                           controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlayHistoryEntryCommand}"
-                           controls:TrackColumns.FixedWidth="266">
-                    <!-- FixedWidth: as the Songs tab's rows. -->
-                    <ListBox.ItemsPanel>
-                      <ItemsPanelTemplate>
-                        <StackPanel />
-                      </ItemsPanelTemplate>
-                    </ListBox.ItemsPanel>
-                    <ListBox.ItemTemplate>
-                      <DataTemplate x:DataType="core:HistoryEntry">
-                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
-                              Background="Transparent"
-                              controls:TrackMenu.Track="{Binding Track}"
-                              controls:TrackMenu.Host="{Binding #Root.((vm:LibraryPageViewModel)DataContext)}">
-                          <Border Classes="rowart">
-                            <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="96" />
-                          </Border>
-                          <Panel Grid.Column="1" Width="14">
-                            <PathIcon Data="{StaticResource Icon.Play}" Width="12" Height="12"
-                                      VerticalAlignment="Center"
-                                      Foreground="{StaticResource Token.Brush.Accent}">
-                              <PathIcon.IsVisible>
-                                <MultiBinding Converter="{x:Static conv:IsPlayingTrackConverter.Instance}">
-                                  <Binding Path="Track.Identity" />
-                                  <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Player.NowPlaying.Identity" />
-                                </MultiBinding>
-                              </PathIcon.IsVisible>
-                            </PathIcon>
-                          </Panel>
-                          <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
-                            <TextBlock Classes="rowtitle" Text="{Binding Title}" />
-                            <DockPanel>
-                              <PathIcon DockPanel.Dock="Left" Classes="downloadmark">
-                                <PathIcon.IsVisible>
-                                  <MultiBinding Converter="{x:Static conv:IsDownloadedConverter.Instance}">
-                                    <Binding Path="Track.VideoId" />
-                                    <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).Actions.DownloadedIds" />
-                                  </MultiBinding>
-                                </PathIcon.IsVisible>
-                              </PathIcon>
-                              <TextBlock Classes="rowmeta" Text="{Binding Subtitle}"
-                                         IsVisible="{Binding Subtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                            </DockPanel>
-                          </StackPanel>
-                          <!-- The album while the list has room for it (Controls/TrackColumns).
-                               Not a tab stop: one per row would crowd the Tab order,
-                               and the track menu has Go to album. -->
-                          <Panel Grid.Column="3" Classes="rowalbum"
-                                 Width="{Binding $parent[ListBox].(controls:TrackColumns.AlbumWidth)}">
-                            <Panel.IsVisible>
-                              <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                <Binding Path="$parent[ListBox].(controls:TrackColumns.ShowsAlbum)" />
-                                <Binding Path="Track.Album" Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
-                              </MultiBinding>
-                            </Panel.IsVisible>
-                            <Button Classes="textlink rowlink" IsTabStop="False"
-                                    IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                    ToolTip.Tip="{l:T common.goToAlbum}"
-                                    Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.GoToAlbumCommand}"
-                                    CommandParameter="{Binding Track}">
-                              <TextBlock Text="{Binding Track.Album}" />
-                            </Button>
-                            <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
-                                       IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
-                          </Panel>
-                          <TextBlock Grid.Column="5" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
-                                     MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
-                          <Panel Grid.Column="4" Width="112">
-                            <StackPanel Classes="rowactions" Orientation="Horizontal"
-                                        HorizontalAlignment="Right" VerticalAlignment="Center">
-                              <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
-                                      Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlayHistoryEntryCommand}"
-                                      CommandParameter="{Binding}">
-                                <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" />
-                              </Button>
-                              <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToQueue}"
-                                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToQueueCommand}"
-                                      CommandParameter="{Binding Track}">
-                                <PathIcon Data="{StaticResource Icon.Add}" Width="16" Height="16" />
-                              </Button>
-                              <controls:RateButton Classes="icon subtle small" IconSize="16" Kind="Like"
-                                                   Track="{Binding Track}"
-                                                   Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.LikeCommand}"
-                                                   CommandParameter="{Binding Track}" />
-                              <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.addToPlaylist}"
-                                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).Actions.AddToPlaylistCommand}"
-                                      CommandParameter="{Binding Track}">
-                                <PathIcon Data="{StaticResource Icon.AddToPlaylist}" Width="16" Height="16" />
-                              </Button>
-                            </StackPanel>
-                          </Panel>
-                        </Grid>
-                      </DataTemplate>
-                    </ListBox.ItemTemplate>
-                  </ListBox>
-                </StackPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-        </Panel>
-      </ScrollViewer>
+      </DockPanel>
 
       <!-- Load failed with nothing to show: the failure takes the page. Declared last so it sits above the
            (empty, but hit-testable) list in the same cell, which would otherwise
