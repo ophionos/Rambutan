@@ -933,6 +933,9 @@ public sealed class LocalFileIndex : IDisposable
 
     /// <summary>The watched folders as full paths, without repeats. Blank or
     /// malformed entries are skipped.</summary>
+    /// <summary>The watched folders as full paths, as the scan takes them.</summary>
+    internal IReadOnlyList<string> WatchedRoots() => Roots(_folders());
+
     private List<string> Roots(IReadOnlyList<string> folders)
     {
         var roots = new List<string>();

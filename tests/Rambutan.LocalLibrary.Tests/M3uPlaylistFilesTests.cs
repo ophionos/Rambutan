@@ -108,6 +108,36 @@ public sealed class M3uPlaylistFilesTests : IDisposable
     }
 
     [Fact]
+    public async Task APathOnAnotherComputer_IsNeverLookedFor_UnlessItsFolderIsWatched()
+    {
+        // Only Windows contacts a host for such a path.
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "UNC paths are a Windows form.");
+        _folders.Add(@"\\nas\music");
+        using var index = Index();
+        var asked = new List<string>();
+        var list = List(
+            "\\\\evil\\share\\a.mp3\n" +
+            "file://evil2/share/b.mp3\n" +
+            "\\\\nas\\music\\c.mp3\n" +
+            "../music/later.mp3\n" +
+            "https://example.com/x.mp3\n");
+
+        var read = await M3uPlaylistFiles.ReadAsync(index, list, listed: null, paths: null, isThere: path =>
+        {
+            lock (asked)
+                asked.Add(path);
+            return false;
+        }, TestContext.Current.CancellationToken);
+
+        Assert.Equal([@"\\nas\music\c.mp3", Path.Combine(_music, "later.mp3")], asked.Order());
+        Assert.Equal([@"\\nas\music\c.mp3", Path.Combine(_music, "later.mp3")], read.Items.Select(i => i.Path));
+        Assert.Equal(2, read.OnOtherComputers);
+        Assert.Equal(1, read.Skipped);
+        // Not remembered either: a later scan or open must not look for them.
+        Assert.DoesNotContain(read.Items, i => i.Path!.Contains("evil"));
+    }
+
+    [Fact]
     public async Task AMissingPath_Elsewhere_IsFoundWhenThatFileIsOpened()
     {
         using var index = Index();

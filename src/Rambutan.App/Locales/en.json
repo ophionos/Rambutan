@@ -1026,6 +1026,7 @@
     "toast.localPlaylist.exported": "{count, plural, one {Saved # file to {name}.} other {Saved # files to {name}.}}",
     "toast.localPlaylist.importFailed": "Couldn't import {name}: {error}",
     "toast.localPlaylist.importNotLocal": "That file isn't on this computer, so the files it names can't be found.",
+    "toast.localPlaylist.importOtherComputers": "{count, plural, one {Left out # entry on another computer. Add its folder in Settings to import it.} other {Left out # entries on other computers. Add their folders in Settings to import them.}}",
     "toast.localPlaylist.importSkipped": "{count, plural, one {Skipped # entry: a web address or a file that can't be played.} other {Skipped # entries: web addresses or files that can't be played.}}",
     "toast.localPlaylist.imported": "{count, plural, one {Imported # song as “{name}”.} other {Imported # songs as “{name}”.}}",
     "toast.localPlaylist.nothingToExport": "“{title}” has no files on this computer to export.",
