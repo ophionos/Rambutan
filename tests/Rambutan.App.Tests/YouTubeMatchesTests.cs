@@ -112,18 +112,19 @@ public sealed class YouTubeMatchesTests : IDisposable
     public async Task A_match_fills_the_names_and_keeps_a_cover_for_a_file_without_one()
     {
         var matches = Matches();
-        var changed = 0;
-        matches.Changed += () => Interlocked.Increment(ref changed);
+        var announced = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        matches.Changed += () => announced.TrySetResult();
 
         matches.Request(Local("local:1", "Disco 2000"));
-        var cover = await Eventually(() => matches.CoverPathFor("local:1"));
+        // The cover's file lands before it is announced, and what shows a cover
+        // reads it when told: so wait to be told, then the cover must be there.
+        await announced.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
-        Assert.Equal(Path.Combine(_dir, "local-match-covers", "disco.jpg"), cover);
+        Assert.Equal(Path.Combine(_dir, "local-match-covers", "disco.jpg"), matches.CoverPathFor("local:1"));
         Assert.DoesNotContain("w60", Assert.Single(_fetched));
         var filled = matches.Fill(Local("local:1", "Disco 2000"));
         Assert.Equal("Pulp", Assert.Single(filled.Artists).Name);
         Assert.Equal("Different Class", filled.Album);
-        Assert.True(changed > 0);
     }
 
     [Fact]
