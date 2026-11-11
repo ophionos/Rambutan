@@ -59,16 +59,19 @@
                   HorizontalAlignment="Left" Margin="0,8,0,0" Padding="12,2" MinHeight="0"
                   FontSize="{StaticResource Token.Font.Caption}" />
         </Grid>
-        <!-- Same header actions as a playlist: a filled Play all, then an
-             outlined icon, each named by its tooltip and accessible name. -->
+        <!-- The hero pattern: one labelled primary, then outlined icons, each
+             named by its tooltip and accessible name. -->
         <controls:ActionRow Spacing="12" Margin="0,12,0,0">
-          <Button Classes="cardplay hero" controls:ActionRow.Keep="True" Command="{Binding PlayAllCommand}"
+          <Button Classes="accent heroprimary" controls:ActionRow.Keep="True" Command="{Binding PlayAllCommand}"
                   IsEnabled="{Binding !!Tracks.Count}"
-                  ToolTip.Tip="{l:T common.playAll}" AutomationProperties.Name="{l:T common.playAll}">
-            <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24" />
+                  ToolTip.Tip="{l:T common.play}" AutomationProperties.Name="{l:T common.play}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <PathIcon Data="{StaticResource Icon.Play}" Width="18" Height="18" VerticalAlignment="Center" />
+              <TextBlock Text="{l:T common.play}" VerticalAlignment="Center" />
+            </StackPanel>
           </Button>
           <Button Classes="icon outline" Command="{Binding ShuffleCommand}" IsEnabled="{Binding !!Tracks.Count}"
-                  ToolTip.Tip="{l:T album.shuffleTip}" AutomationProperties.Name="{l:T common.shuffle}">
+                  ToolTip.Tip="{l:T common.shuffle}" AutomationProperties.Name="{l:T common.shuffle}">
             <PathIcon Data="{StaticResource Icon.Shuffle}" Width="18" Height="18" />
           </Button>
           <!-- The collection's download state: the arrow, a progress

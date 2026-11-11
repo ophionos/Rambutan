@@ -114,12 +114,13 @@ public static class Converters
     public static readonly IValueConverter AlbumLibraryAction =
         new FuncValueConverter<bool?, string>(saved => Strings.Get(saved == true ? "album.remove" : "album.save"));
 
-    /// <summary>The subscribe button's label shows the state, as YouTube Music's does.</summary>
-    public static readonly IValueConverter SubscribeLabel =
-        new FuncValueConverter<bool?, string>(subscribed =>
-            Strings.Get(subscribed == true ? "artist.subscribed" : "artist.subscribe"));
+    /// <summary>Whether a state that may be unknown is known to be true.</summary>
+    public static readonly IValueConverter IsTrue = new FuncValueConverter<bool?, bool>(value => value == true);
 
-    /// <summary>Its screen-reader name and tooltip name the action it takes now.</summary>
+    /// <summary>The opposite: unknown reads as not true.</summary>
+    public static readonly IValueConverter IsNotTrue = new FuncValueConverter<bool?, bool>(value => value != true);
+
+    /// <summary>The subscribe button's screen-reader name and tooltip name the action it takes now.</summary>
     public static readonly IValueConverter SubscribeAction =
         new FuncValueConverter<bool?, string>(subscribed =>
             Strings.Get(subscribed == true ? "artist.unsubscribe" : "artist.subscribe"));

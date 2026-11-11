@@ -26,46 +26,43 @@
         <StackPanel Grid.Column="1" Margin="24,0,0,0" Spacing="12" VerticalAlignment="Center">
           <TextBlock Classes="herotitle" Text="{Binding Name}" />
           <controls:ActionRow Spacing="10">
-            <Button Classes="accent" controls:ActionRow.Keep="True" Command="{Binding PlayTopSongsCommand}"
-                    IsEnabled="{Binding !!TopSongs.Count}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource Icon.Play}" Width="16" Height="16" VerticalAlignment="Center" />
+            <Button Classes="accent heroprimary" controls:ActionRow.Keep="True" Command="{Binding PlayTopSongsCommand}"
+                    IsEnabled="{Binding !!TopSongs.Count}"
+                    ToolTip.Tip="{l:T artist.playTopSongs}" AutomationProperties.Name="{l:T artist.playTopSongs}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <PathIcon Data="{StaticResource Icon.Play}" Width="18" Height="18" VerticalAlignment="Center" />
                 <TextBlock Text="{l:T artist.playTopSongs}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
-            <!-- Only when the header has YouTube Music's Mix. -->
-            <Button Command="{Binding StartMixCommand}" IsVisible="{Binding CanStartMix}"
-                    ToolTip.Tip="{l:T artist.mixTip}"
-                    AutomationProperties.Name="{l:T menu.startMix}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource Icon.Radio}" Width="16" Height="16" VerticalAlignment="Center" />
-                <TextBlock Text="{l:T menu.startMix}" VerticalAlignment="Center" />
-              </StackPanel>
-            </Button>
             <!-- Only when the header has YouTube Music's Shuffle. -->
-            <Button Command="{Binding ShuffleSongsCommand}" IsVisible="{Binding CanShuffleSongs}"
-                    ToolTip.Tip="{l:T artist.shuffleSongsTip}"
-                    AutomationProperties.Name="{l:T artist.shuffleSongs}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource Icon.Shuffle}" Width="16" Height="16" VerticalAlignment="Center" />
-                <TextBlock Text="{l:T artist.shuffleSongs}" VerticalAlignment="Center" />
-              </StackPanel>
+            <Button Classes="icon outline" Command="{Binding ShuffleSongsCommand}" IsVisible="{Binding CanShuffleSongs}"
+                    ToolTip.Tip="{l:T artist.shuffleSongs}" AutomationProperties.Name="{l:T artist.shuffleSongs}">
+              <PathIcon Data="{StaticResource Icon.Shuffle}" Width="18" Height="18" />
             </Button>
-            <!-- Shown only when the state is known. The label shows the state, as
-                 YouTube Music's does; the name and tooltip say what a press does. -->
-            <Button Command="{Binding ToggleSubscribedCommand}"
+            <!-- Only when the header has YouTube Music's Mix. -->
+            <Button Classes="icon outline" Command="{Binding StartMixCommand}" IsVisible="{Binding CanStartMix}"
+                    ToolTip.Tip="{l:T menu.startMix}" AutomationProperties.Name="{l:T menu.startMix}">
+              <PathIcon Data="{StaticResource Icon.Radio}" Width="18" Height="18" />
+            </Button>
+            <!-- Shown only when the state is known. The bell is filled in the
+                 accent while subscribed; the name and tooltip say what a press does. -->
+            <Button Classes="icon outline" Command="{Binding ToggleSubscribedCommand}"
                     IsVisible="{Binding CanSubscribe}"
-                    Content="{Binding Subscribed, Converter={x:Static vm:Converters.SubscribeLabel}}"
                     ToolTip.Tip="{Binding Subscribed, Converter={x:Static vm:Converters.SubscribeAction}}"
-                    AutomationProperties.Name="{Binding Subscribed, Converter={x:Static vm:Converters.SubscribeAction}}" />
+                    AutomationProperties.Name="{Binding Subscribed, Converter={x:Static vm:Converters.SubscribeAction}}">
+              <Panel>
+                <PathIcon Data="{StaticResource Icon.Subscribe}" Width="18" Height="18"
+                          IsVisible="{Binding Subscribed, Converter={x:Static vm:Converters.IsNotTrue}, FallbackValue=True}" />
+                <PathIcon Data="{StaticResource Icon.Subscribed}" Width="18" Height="18"
+                          Foreground="{StaticResource Token.Brush.Accent}"
+                          IsVisible="{Binding Subscribed, Converter={x:Static vm:Converters.IsTrue}, FallbackValue=False}" />
+              </Panel>
+            </Button>
             <!-- Only while Last.fm stations are on and connected. -->
-            <Button Command="{Binding OpenStationCommand}" IsVisible="{Binding CanOpenStation}"
-                    ToolTip.Tip="{l:T artist.lastFmStationTip}"
+            <Button Classes="icon outline" controls:ActionRow.InMenu="True"
+                    Command="{Binding OpenStationCommand}" IsVisible="{Binding CanOpenStation}"
                     AutomationProperties.Name="{l:T artist.lastFmStation}">
-              <StackPanel Orientation="Horizontal" Spacing="6">
-                <PathIcon Data="{StaticResource Icon.Radio}" Width="16" Height="16" VerticalAlignment="Center" />
-                <TextBlock Text="{l:T artist.lastFmStation}" VerticalAlignment="Center" />
-              </StackPanel>
+              <PathIcon Data="{StaticResource Icon.Radio}" Width="18" Height="18" />
             </Button>
             <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
           </controls:ActionRow>

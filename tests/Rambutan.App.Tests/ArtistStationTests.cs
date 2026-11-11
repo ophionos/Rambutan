@@ -130,13 +130,14 @@ public class ArtistStationTests
         window.Show();
         window.UpdateLayout();
 
-        var button = view.GetVisualDescendants().OfType<Button>()
-            .Single(b => AutomationProperties.GetName(b) == Strings.Get("artist.lastFmStation"));
-        Assert.True(button.IsEffectivelyVisible);
+        // The action lives in the hero's More menu.
+        var row = view.GetVisualDescendants().OfType<ActionRow>().First();
+        bool InMore() => row.BuildMenu().Any(e => (string?)e.Header == Strings.Get("artist.lastFmStation"));
+        Assert.True(InMore());
 
         setup.Stations.Enabled = false;
         window.UpdateLayout();
-        Assert.False(button.IsEffectivelyVisible);
+        Assert.False(InMore());
 
         // Off screen, the page doesn't listen; shown again, it catches up.
         window.Content = null;
@@ -146,7 +147,7 @@ public class ArtistStationTests
         Assert.Equal(0, told);
         window.Content = view;
         window.UpdateLayout();
-        Assert.True(button.IsEffectivelyVisible);
+        Assert.True(InMore());
         window.Close();
     });
 }
