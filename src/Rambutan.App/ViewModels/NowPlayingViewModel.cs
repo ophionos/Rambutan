@@ -178,7 +178,7 @@ public partial class NowPlayingViewModel : ViewModelBase
 
     /// <summary>The stage dims under what shows over it, so that stays readable:
     /// more under the lyrics, less under the artwork and title.</summary>
-    public double StageOpacity => IsLyricsPaneVisible ? 0.3 : IsIdentityShown ? 0.6 : 1;
+    public double StageOpacity => IsLyricsPaneVisible ? Rambutan.Core.Appearance.LyricsLegibility.StageDim : IsIdentityShown ? 0.6 : 1;
 
     /// <summary>An animated preset draws: the one case where drawing in
     /// software costs resolution, which the view then says.</summary>

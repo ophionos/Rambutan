@@ -16,7 +16,18 @@ namespace Rambutan.App.Views;
 /// </summary>
 internal static class PlayerBarLayout
 {
-    public const double MaxSeekWidth = 460;
+    /// <summary>The widest the seek line grows, in a window with room to spare.</summary>
+    public const double MaxSeekWidth = 720;
+
+    /// <summary>The seek line's width in the mini player, which does not grow with
+    /// its window.</summary>
+    public const double MiniMaxSeekWidth = 460;
+
+    /// <summary>The seek line's width up to which the room beyond the usual goes to it
+    /// alone; past it the room is shared with the identity's text
+    /// (<see cref="IdentityTextWidth"/>).</summary>
+    public const double SeekShareStart = 460;
+
     public const double MinSeekWidth = 160;
 
     /// <summary>The narrowest the title may get before the seek line stops giving way.</summary>
@@ -38,8 +49,24 @@ internal static class PlayerBarLayout
     /// <summary>The seek line's width for a bar <paramref name="barWidth"/> wide, whose
     /// side zones each need <paramref name="sideNeed"/> (the wider of the two, since
     /// the columns are equal) and whose time labels take <paramref name="timeLabels"/>.</summary>
-    public static double SeekWidth(double barWidth, double sideNeed, double timeLabels) =>
-        Math.Clamp(barWidth - 2 * sideNeed - timeLabels, MinSeekWidth, MaxSeekWidth);
+    public static double SeekWidth(double barWidth, double sideNeed, double timeLabels, double maxWidth = MaxSeekWidth) =>
+        Math.Clamp(barWidth - 2 * sideNeed - timeLabels, MinSeekWidth, maxWidth);
+
+    /// <summary>The width of the full bar's title and byline column, which Like,
+    /// Dislike and Save follow, so they stay put from track to track. It depends on
+    /// the bar and the fit, never on the title: the floor (<see cref="MinTitleWidth"/>)
+    /// while the seek line is below <see cref="SeekShareStart"/>, then a quarter of
+    /// the room beyond that, up to <see cref="MaxTitleWidth"/> (the seek line keeps the
+    /// other three quarters). Null where the column is free to trim, in a compact or
+    /// narrow bar. <paramref name="sideNeed"/> is the side zones' need with the title
+    /// at its floor.</summary>
+    public static double? IdentityTextWidth(double barWidth, double sideNeed, double timeLabels, PlayerBarFit fit)
+    {
+        if (fit != PlayerBarFit.Full)
+            return null;
+        var spare = barWidth - 2 * sideNeed - timeLabels - SeekShareStart;
+        return Math.Clamp(MinTitleWidth + spare / 4, MinTitleWidth, MaxTitleWidth);
+    }
 
     /// <summary>The narrowest bar in which both side zones keep what they need around
     /// a seek line at its floor; the inverse of <see cref="SeekWidth"/> at the floor.</summary>

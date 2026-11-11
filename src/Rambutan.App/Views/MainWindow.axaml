@@ -186,7 +186,8 @@
             <!-- Title links the album, the byline its artist and album.
                  A part with nowhere to go stays plain text: no hover, no
                  hand cursor, no tab stop. -->
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" ClipToBounds="True">
+            <StackPanel x:Name="BarIdentityText" Grid.Column="1" VerticalAlignment="Center" Spacing="2" ClipToBounds="True"
+                        HorizontalAlignment="Left">
               <Button Classes="link" FontSize="{StaticResource Token.Font.Body}" FontWeight="SemiBold"
                       Command="{Binding Actions.GoToAlbumCommand}"
                       CommandParameter="{Binding Player.ShownTrack}"

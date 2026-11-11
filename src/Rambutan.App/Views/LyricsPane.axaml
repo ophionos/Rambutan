@@ -4,6 +4,7 @@
              xmlns:vm="using:Rambutan.App.ViewModels"
              xmlns:controls="using:Rambutan.App.Controls"
              xmlns:views="using:Rambutan.App.Views"
+             xmlns:legibility="using:Rambutan.Core.Appearance"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="520"
@@ -28,7 +29,7 @@
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="FontSize" Value="26" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Opacity" Value="0.34" />
+      <Setter Property="Opacity" Value="{x:Static legibility:LyricsLegibility.InactiveLineOpacity}" />
       <Setter Property="Transitions">
         <Transitions>
           <DoubleTransition Property="Opacity" Duration="0:0:0.25" />
@@ -48,7 +49,7 @@
       <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
     </Style>
     <Style Selector="Button.lyricline.near">
-      <Setter Property="Opacity" Value="0.55" />
+      <Setter Property="Opacity" Value="{x:Static legibility:LyricsLegibility.NearLineOpacity}" />
     </Style>
     <Style Selector="Button.lyricline.active">
       <Setter Property="Opacity" Value="1" />
@@ -97,11 +98,20 @@
     </Style>
   </UserControl.Styles>
 
+  <Panel>
+  <!-- The scrim: the page's ground over the visualizer, behind the column only,
+       so the lines read over the bars and the bars still show as movement
+       (LyricsLegibility holds the numbers). The switch above and the footer
+       below sit on it as plain strips: no line is drawn over them. -->
+  <Border x:Name="Scrim" IsHitTestVisible="False"
+          CornerRadius="{StaticResource Token.Radius.Panel}"
+          Background="{StaticResource Token.Brush.Ground}"
+          Opacity="{x:Static legibility:LyricsLegibility.ScrimOpacity}" />
   <DockPanel>
   <!-- The online source: both in view, chosen here and remembered. Hidden
        while the lyrics are the user's own or the track's, which win whatever
        the source. -->
-  <ListBox DockPanel.Dock="Top" Classes="segmented small" HorizontalAlignment="Center" Margin="0,0,0,10"
+  <ListBox x:Name="SourceSwitch" DockPanel.Dock="Top" Classes="segmented small" HorizontalAlignment="Center" Margin="0,0,0,10"
            ItemsSource="{Binding SourceChoices}" SelectedItem="{Binding SelectedSource}"
            SelectionMode="AlwaysSelected"
            IsVisible="{Binding ShowsSourceSwitch}"
@@ -132,7 +142,7 @@
     <Grid RowDefinitions="Auto,*,Auto" IsVisible="{Binding HasLyrics}">
       <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="6" Margin="0,0,0,10"
                   HorizontalAlignment="Center"
-                  Opacity="0.6" IsVisible="{Binding IsUnsynced}">
+                  Opacity="{x:Static legibility:LyricsLegibility.FooterTextOpacity}" IsVisible="{Binding IsUnsynced}">
         <PathIcon Data="{StaticResource Icon.Lyrics}" Width="14" Height="14" VerticalAlignment="Center" />
         <TextBlock Text="{l:T lyrics.unsynced}" FontSize="12" VerticalAlignment="Center" />
       </StackPanel>
@@ -193,9 +203,9 @@
       <!-- Footer: where the lyrics came from and Edit; for the user's own
            synced lyrics, the timing nudges too. The arrows
            point along the timeline: left shows the lyrics earlier. -->
-      <StackPanel Grid.Row="2" HorizontalAlignment="Center" Spacing="2" Margin="0,8,0,0">
+      <StackPanel x:Name="Footer" Grid.Row="2" HorizontalAlignment="Center" Spacing="2" Margin="0,8,0,0">
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-          <TextBlock Text="{Binding SourceLabel}" FontSize="11" Opacity="0.4" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding SourceLabel}" FontSize="11" Opacity="{x:Static legibility:LyricsLegibility.FooterTextOpacity}" VerticalAlignment="Center" />
           <Button Classes="link footer" Content="{l:T lyrics.edit}" Command="{Binding EditLyricsCommand}"
                   IsVisible="{Binding CanEditLyrics}" />
         </StackPanel>
@@ -214,7 +224,7 @@
                   AutomationProperties.Name="{l:T lyrics.offset.earlierBy, Arg={Binding SmallStep}, ArgName=amount}">
             <PathIcon Data="{StaticResource Icon.ChevronLeft}" />
           </Button>
-          <TextBlock Text="{Binding OffsetLabel}" FontSize="11" Opacity="0.6" MinWidth="104"
+          <TextBlock Text="{Binding OffsetLabel}" FontSize="11" Opacity="{x:Static legibility:LyricsLegibility.FooterTextOpacity}" MinWidth="104"
                      TextAlignment="Center" VerticalAlignment="Center" />
           <Button Classes="icon subtle nudge" Command="{Binding ShowLaterCommand}"
                   ToolTip.Tip="{l:T lyrics.offset.laterBy, Arg={Binding SmallStep}, ArgName=amount}"
@@ -297,4 +307,5 @@
     </ScrollViewer>
   </Panel>
   </DockPanel>
+  </Panel>
 </UserControl>
