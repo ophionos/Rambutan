@@ -59,10 +59,19 @@ public sealed class HistoryTabTests : IDisposable
         Assert.True(library.SelectedSection.IsHistory);
         Assert.True(library.SelectedSection.ShowsRows);
         Assert.False(library.SelectedSection.IsSongs);
-        Assert.Equal(
-            [("Today", ["a", "b"]), ("Yesterday", ["c"]), ("October 2026", ["d"])],
-            library.History.Groups.Select(g => (g.Played, g.Entries.Select(e => e.Track.VideoId).ToArray())));
+        Assert.Equal(["# Today", "a", "b", "# Yesterday", "c", "# October 2026", "d"], Rows(library));
     }
+
+    /// <summary>History's list as headings ("# Today") and the rows' ids.</summary>
+    private static string[] Rows(LibraryPageViewModel library) =>
+    [
+        .. library.History.HistoryRows.Select(row => row switch
+        {
+            HistoryHeading heading => "# " + heading.Played,
+            HistoryEntry entry => entry.Track.VideoId,
+            _ => "?",
+        }),
+    ];
 
     [Fact]
     public async Task A_heading_that_comes_back_later_starts_a_group_of_its_own()
@@ -73,7 +82,7 @@ public sealed class HistoryTabTests : IDisposable
         _catalog.LibraryCalls.Single().Complete(null, [Entry("a", "Today"), Entry("b", "Yesterday"), Entry("c", "Today")]);
         await shown;
 
-        Assert.Equal(["Today", "Yesterday", "Today"], library.History.Groups.Select(g => g.Played));
+        Assert.Equal(["# Today", "a", "# Yesterday", "b", "# Today", "c"], Rows(library));
     }
 
     [Fact]
@@ -111,7 +120,7 @@ public sealed class HistoryTabTests : IDisposable
 
         Assert.Equal(["forget T_c"], _catalog.LibraryEdits);
         Assert.Equal(["a", "b", "d"], library.History.Items.Select(e => ((HistoryEntry)e).Track.VideoId));
-        Assert.Equal(["Today", "October 2026"], library.History.Groups.Select(g => g.Played));
+        Assert.Equal(["# Today", "a", "b", "# October 2026", "d"], Rows(library));
         var toast = Assert.Single(_toasts.Toasts);
         Assert.False(toast.IsError);
         Assert.Equal("Removed “Title c” from your history", toast.Message);

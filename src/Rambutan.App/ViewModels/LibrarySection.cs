@@ -1,12 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Models;
+using Rambutan.App.Controls;
 using Rambutan.App.Localization;
 
 namespace Rambutan.App.ViewModels;
@@ -134,21 +137,36 @@ public partial class LibrarySection : ViewModelBase
     /// <summary>Songs and History show as track rows; the other tabs as cards.</summary>
     public bool ShowsRows => IsSongs || IsHistory;
 
-    /// <summary>History's rows under YouTube Music's own headings, kept in step
-    /// with <see cref="Items"/>; empty on the other tabs.</summary>
-    public ObservableCollection<HistoryGroup> Groups { get; } = [];
+    /// <summary>History's list: each of YouTube Music's headings
+    /// (<see cref="HistoryHeading"/>) followed by its <see cref="HistoryEntry"/>
+    /// rows, kept in step with <see cref="Items"/>; empty on the other tabs. One
+    /// list, so the view virtualizes it whole and headings scroll with their rows.</summary>
+    public ObservableCollection<object> HistoryRows { get; } = [];
 
     private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        Groups.Clear();
-        foreach (var entry in Items.OfType<HistoryEntry>())
+        HistoryRows.Clear();
+        foreach (var row in HistoryRowsOf(Items.OfType<HistoryEntry>()))
+            HistoryRows.Add(row);
+    }
+
+    /// <summary>The entries with a heading before the first and wherever the
+    /// heading changes. The rows come grouped, newest first, so a heading that
+    /// comes back later starts a group of its own.</summary>
+    public static List<object> HistoryRowsOf(IEnumerable<HistoryEntry> entries)
+    {
+        var rows = new List<object>();
+        string? played = null;
+        foreach (var entry in entries)
         {
-            // The rows come grouped, newest first; a heading only starts a group
-            // where it changes.
-            if (Groups.Count == 0 || Groups[^1].Played != entry.Played)
-                Groups.Add(new HistoryGroup(entry.Played));
-            Groups[^1].Entries.Add(entry);
+            if (rows.Count == 0 || entry.Played != played)
+            {
+                played = entry.Played;
+                rows.Add(new HistoryHeading(played));
+            }
+            rows.Add(entry);
         }
+        return rows;
     }
 
     [RelayCommand]
@@ -244,10 +262,15 @@ public partial class LibrarySection : ViewModelBase
     };
 }
 
-/// <summary>History's rows under one of YouTube Music's headings ("Today", a month).</summary>
-public sealed class HistoryGroup(string played)
+/// <summary>One of YouTube Music's history headings ("Today", a month) as a row of
+/// History's list: not selectable, not played, spoken as a heading. A class, not a
+/// record: two headings with the same text are two rows.</summary>
+public sealed class HistoryHeading(string played) : IHasAccessibleName
 {
     public string Played { get; } = played;
 
-    public ObservableCollection<HistoryEntry> Entries { get; } = [];
+    public string AccessibleName => Played;
+
+    // The text never changes.
+    event PropertyChangedEventHandler? INotifyPropertyChanged.PropertyChanged { add { } remove { } }
 }

@@ -45,6 +45,8 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
                 return;
             OnPropertyChanged(nameof(IsPlaylists));
             OnPropertyChanged(nameof(IsSongs));
+            OnPropertyChanged(nameof(IsHistory));
+            OnPropertyChanged(nameof(CardSection));
             if (_shown && _catalog is not null && IsYouTubeMusic)
                 _ = value.EnsureLoadedAsync();
         }
@@ -62,7 +64,14 @@ public partial class LibraryPageViewModel : ViewModelBase, ITrackMenuHost
 
     public LibrarySection Songs => Section(LibrarySectionKind.Songs);
 
+    public bool IsHistory => SelectedSection.IsHistory;
+
     public LibrarySection History => Section(LibrarySectionKind.History);
+
+    /// <summary>The tab on screen while it shows cards, else null. Songs and
+    /// History are lists that scroll themselves; the page's scroller serves only
+    /// the card tabs, so it keeps no scroll position for theirs.</summary>
+    public LibrarySection? CardSection => SelectedSection.ShowsRows ? null : SelectedSection;
 
     /// <summary>On this computer; null where the local library isn't composed,
     /// and then the source switch doesn't show.</summary>
