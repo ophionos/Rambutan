@@ -201,7 +201,7 @@ public class CollapsingHeroTests
         Assert.Same(rig.HeroPlay.Command, rig.Hero.BarPlayButton.Command);
         Assert.Same(rig.Page.PlayAllCommand, rig.Hero.BarPlayButton.Command);
         Assert.Equal(rig.HeroPlay.IsEnabled, rig.Hero.BarPlayButton.IsEnabled);
-        Assert.Equal(Strings.Get("common.playAll"), AutomationProperties.GetName(rig.Hero.BarPlayButton));
+        Assert.Equal(Strings.Get("common.play"), AutomationProperties.GetName(rig.Hero.BarPlayButton));
         Assert.Equal(Strings.Get("common.moreActions"), AutomationProperties.GetName(rig.Hero.BarMoreButton));
 
         var menu = rig.Hero.BuildMenu();

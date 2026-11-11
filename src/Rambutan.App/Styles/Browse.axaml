@@ -79,13 +79,33 @@
     <Setter Property="Margin" Value="2,0,0,0" />
   </Style>
 
-  <!-- The header's Play all: the card play button, larger. -->
-  <Style Selector="Button.cardplay.hero">
-    <Setter Property="Width" Value="52" />
-    <Setter Property="Height" Value="52" />
+  <!-- A page hero's one primary action: a labelled accent pill, as tall as the
+       outlined icon circles beside it. Used with the accent class. -->
+  <Style Selector="Button.heroprimary">
+    <Setter Property="Height" Value="40" />
+    <Setter Property="Padding" Value="20,0" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.OnAccent}" />
   </Style>
-  <Style Selector="Button.cardplay.hero:pointerover">
-    <Setter Property="RenderTransform" Value="scale(1.05)" />
+  <Style Selector="Button.heroprimary /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.OnAccent}" />
+  </Style>
+  <Style Selector="Button.heroprimary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPointerOver}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.OnAccent}" />
+  </Style>
+  <Style Selector="Button.heroprimary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource AccentButtonBackgroundPressed}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.OnAccent}" />
+  </Style>
+  <Style Selector="Button.heroprimary:disabled">
+    <Setter Property="Opacity" Value="0.4" />
+  </Style>
+  <Style Selector="Button.heroprimary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Accent}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.OnAccent}" />
   </Style>
   <Style Selector="Button.cardplay:disabled">
     <Setter Property="Opacity" Value="0.4" />

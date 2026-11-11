@@ -68,17 +68,19 @@
                   HorizontalAlignment="Left" Margin="0,8,0,0" Padding="12,2" MinHeight="0"
                   FontSize="{StaticResource Token.Font.Caption}" />
         </Grid>
-        <!-- One filled action, then outlined icons: Play all carries the
-             hierarchy by shape and colour, so the rest can drop their labels.
-             Each keeps its name as a tooltip and an accessible name. -->
+        <!-- One labelled primary, then at most three outlined icons, each with
+             its name as a tooltip and an accessible name; the rest in More. -->
         <controls:ActionRow Spacing="12" Margin="0,12,0,0">
-          <Button Classes="cardplay hero" controls:ActionRow.Keep="True" Command="{Binding PlayAllCommand}"
+          <Button Classes="accent heroprimary" controls:ActionRow.Keep="True" Command="{Binding PlayAllCommand}"
                   IsEnabled="{Binding !!Tracks.Count}"
-                  ToolTip.Tip="{l:T common.playAll}" AutomationProperties.Name="{l:T common.playAll}">
-            <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24" />
+                  ToolTip.Tip="{l:T common.play}" AutomationProperties.Name="{l:T common.play}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <PathIcon Data="{StaticResource Icon.Play}" Width="18" Height="18" VerticalAlignment="Center" />
+              <TextBlock Text="{l:T common.play}" VerticalAlignment="Center" />
+            </StackPanel>
           </Button>
           <Button Classes="icon outline" Command="{Binding ShuffleCommand}" IsEnabled="{Binding !!Tracks.Count}"
-                  ToolTip.Tip="{l:T playlist.shuffleTip}" AutomationProperties.Name="{l:T common.shuffle}">
+                  ToolTip.Tip="{l:T common.shuffle}" AutomationProperties.Name="{l:T common.shuffle}">
             <PathIcon Data="{StaticResource Icon.Shuffle}" Width="18" Height="18" />
           </Button>
           <!-- The collection's download state: the arrow, a progress
@@ -99,16 +101,16 @@
           </Button>
           <Button Classes="icon outline" Command="{Binding CopyToLocalCommand}" IsEnabled="{Binding !!Tracks.Count}"
                   IsVisible="{Binding CanCopyToLocal}"
-                  ToolTip.Tip="{l:T playlist.copyToLocalTip}" AutomationProperties.Name="{l:T menu.copyToLocalPlaylist}">
+                  ToolTip.Tip="{l:T menu.copyToLocalPlaylist}" AutomationProperties.Name="{l:T menu.copyToLocalPlaylist}">
             <PathIcon Data="{StaticResource Icon.AddToPlaylist}" Width="18" Height="18" />
           </Button>
-          <!-- Rename and Delete only on the account's own playlists. -->
-          <Button Classes="icon outline" Command="{Binding RenameCommand}" IsVisible="{Binding IsEditable}"
-                  ToolTip.Tip="{l:T common.rename}" AutomationProperties.Name="{l:T common.rename}">
+          <!-- Rename and Delete only on the account's own playlists, in More. -->
+          <Button Classes="icon outline" controls:ActionRow.InMenu="True" Command="{Binding RenameCommand}" IsVisible="{Binding IsEditable}"
+                  AutomationProperties.Name="{l:T common.rename}">
             <PathIcon Data="{StaticResource Icon.Edit}" Width="18" Height="18" />
           </Button>
-          <Button Classes="icon outline" Command="{Binding DeleteCommand}" IsVisible="{Binding IsEditable}"
-                  ToolTip.Tip="{l:T common.delete}" AutomationProperties.Name="{l:T common.delete}">
+          <Button Classes="icon outline" controls:ActionRow.InMenu="True" Command="{Binding DeleteCommand}" IsVisible="{Binding IsEditable}"
+                  AutomationProperties.Name="{l:T common.delete}">
             <PathIcon Data="{StaticResource Icon.Delete}" Width="18" Height="18" />
           </Button>
           <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsBusy}" />

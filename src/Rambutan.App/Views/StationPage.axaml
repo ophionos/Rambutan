@@ -27,9 +27,12 @@
                    IsVisible="{Binding LoadedText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         <TextBlock Classes="headersummary" Text="{Binding Summary}" IsVisible="{Binding !!Items.Count}" />
         <controls:ActionRow Spacing="12" Margin="0,12,0,0">
-          <Button Classes="cardplay hero" controls:ActionRow.Keep="True" Command="{Binding PlayAllCommand}"
-                  ToolTip.Tip="{l:T common.playAll}" AutomationProperties.Name="{l:T common.playAll}">
-            <PathIcon Data="{StaticResource Icon.Play}" Width="24" Height="24" />
+          <Button Classes="accent heroprimary" controls:ActionRow.Keep="True" Command="{Binding PlayAllCommand}"
+                  ToolTip.Tip="{l:T common.play}" AutomationProperties.Name="{l:T common.play}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <PathIcon Data="{StaticResource Icon.Play}" Width="18" Height="18" VerticalAlignment="Center" />
+              <TextBlock Text="{l:T common.play}" VerticalAlignment="Center" />
+            </StackPanel>
           </Button>
           <Button Classes="icon outline" Command="{Binding ShuffleCommand}"
                   ToolTip.Tip="{l:T common.shuffle}" AutomationProperties.Name="{l:T common.shuffle}">
