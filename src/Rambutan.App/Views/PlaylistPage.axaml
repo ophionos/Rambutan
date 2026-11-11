@@ -149,13 +149,17 @@
              controls:RowNumber.IsEnabled="True"
              controls:DragReorder.Command="{Binding DragReorderCommand}"
              controls:ItemActivation.Command="{Binding PlayFromCommand}"
-             controls:TrackColumns.FixedWidth="318">
-      <!-- FixedWidth: item padding 16, number 40, cover 52, album gap 16,
-           actions 138, duration 56. -->
+             controls:TrackColumns.HasAlbum="True"
+             controls:TrackColumns.HasLiked="True"
+             controls:TrackColumns.ItemInset="16"
+             controls:TrackColumns.FixedWidth="286">
+      <!-- Columns at fixed positions (Controls/TrackColumns). FixedWidth: number
+           40, cover 52, actions 138, duration 56; ItemInset the item's padding. -->
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="core:TrackInfo">
-          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
-                Background="Transparent"
+          <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="0,2"
+                Background="Transparent" HorizontalAlignment="Left"
+                Width="{Binding $parent[ListBox].(controls:TrackColumns.RowWidth)}"
                 controls:TrackMenu.Track="{Binding}"
                 controls:TrackMenu.Host="{Binding #Root.((vm:PlaylistPageViewModel)DataContext)}">
             <!-- Row number, or the playing marker in its place. The number
@@ -220,11 +224,16 @@
               <TextBlock Classes="rowmeta" Text="{Binding Album}"
                          IsVisible="{Binding AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
             </Panel>
-            <TextBlock Grid.Column="5" Classes="rowmeta"
+            <!-- Visual only: the Like button in the actions says the state. -->
+            <Panel Grid.Column="4" Width="24"
+                   IsVisible="{Binding $parent[ListBox].(controls:TrackColumns.ShowsLiked)}">
+              <controls:LikedMark Classes="likedmark" Track="{Binding}" />
+            </Panel>
+            <TextBlock Grid.Column="6" Classes="rowmeta"
                        Text="{Binding Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                        MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
             <!-- One wider slot: this surface carries a fifth action (remove). -->
-            <Panel Grid.Column="4" Width="138">
+            <Panel Grid.Column="5" Width="138">
               <StackPanel Classes="rowactions" Orientation="Horizontal"
                           HorizontalAlignment="Right" VerticalAlignment="Center">
                 <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.playFromHere}"

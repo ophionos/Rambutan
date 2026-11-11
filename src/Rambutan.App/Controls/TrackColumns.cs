@@ -72,6 +72,13 @@ public static class TrackColumns
     public static readonly AttachedProperty<double> RowWidthProperty =
         AvaloniaProperty.RegisterAttached<ItemsControl, double>("RowWidth", typeof(TrackColumns), double.NaN);
 
+    /// <summary>Written by this class only: <see cref="RowWidthProperty"/> and the
+    /// item's padding, the width of the item or row border, so its hover, selection
+    /// and focus highlight end with the row; NaN (the item fills the list) while
+    /// the list has no width and in a list without the mode.</summary>
+    public static readonly AttachedProperty<double> ItemWidthProperty =
+        AvaloniaProperty.RegisterAttached<ItemsControl, double>("ItemWidth", typeof(TrackColumns), double.NaN);
+
     static TrackColumns()
     {
         FixedWidthProperty.Changed.AddClassHandler<ItemsControl>((list, _) => OnSettingChanged(list));
@@ -115,6 +122,8 @@ public static class TrackColumns
     public static bool GetShowsLiked(ItemsControl list) => list.GetValue(ShowsLikedProperty);
 
     public static double GetRowWidth(ItemsControl list) => list.GetValue(RowWidthProperty);
+
+    public static double GetItemWidth(ItemsControl list) => list.GetValue(ItemWidthProperty);
 
     /// <summary>Whether the list has the album column at all, whatever its width now.
     /// A list laid out by <see cref="TrackRowColumns.Fit"/> without an album has none.</summary>
@@ -176,5 +185,15 @@ public static class TrackColumns
             list.SetValue(ShowsPlaysProperty, plays);
         if (!row.Equals(list.GetValue(RowWidthProperty)))
             list.SetValue(RowWidthProperty, row);
+
+        var item = double.IsFinite(row) ? row + GetItemInset(list) : double.NaN;
+        if (!item.Equals(list.GetValue(ItemWidthProperty)))
+        {
+            list.SetValue(ItemWidthProperty, item);
+            // A style can't test for NaN, and a width on an item with stretch
+            // alignment centers it, so the fitted items are picked out by a
+            // pseudo-class (Styles/Browse.axaml).
+            ((IPseudoClasses)list.Classes).Set(":fitted", double.IsFinite(item));
+        }
     }
 }

@@ -1,5 +1,6 @@
 <Styles xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:Rambutan.App.Controls">
 
   <!-- Browse surfaces: card play button, album/playlist headers, album track
        numbers. -->
@@ -173,6 +174,12 @@
   <Style Selector="ListBox.tracks ListBoxItem">
     <Setter Property="Padding" Value="8,4" />
     <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Control}" />
+  </Style>
+  <!-- A list laid out by TrackColumns: the item, and so its highlight, ends with
+       the row. -->
+  <Style Selector="ListBox.tracks:fitted ListBoxItem">
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Width" Value="{Binding $parent[ListBox].(controls:TrackColumns.ItemWidth)}" />
   </Style>
   <Style Selector="Border.rowart">
     <Setter Property="Width" Value="40" />
