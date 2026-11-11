@@ -22,13 +22,16 @@ public static class ActionRowFit
     /// <param name="actions">The widths of the actions that may move, in order.</param>
     /// <param name="spacing">The gap between two items.</param>
     /// <param name="moreWidth">The More button's width.</param>
+    /// <param name="alwaysMore">The More button shows whatever the width, because
+    /// an item lives only in its menu: it takes its room even when every action fits.</param>
     public static int Kept(
         double available,
         double pinnedWidth,
         int pinnedCount,
         ReadOnlySpan<double> actions,
         double spacing,
-        double moreWidth)
+        double moreWidth,
+        bool alwaysMore = false)
     {
         // Half a pixel of slack: measured widths carry rounding from layout.
         var room = available + 0.5;
@@ -36,8 +39,15 @@ public static class ActionRowFit
         var all = pinnedWidth;
         foreach (var width in actions)
             all += width;
-        if (all + Gaps(pinnedCount + actions.Length, spacing) <= room)
+        if (alwaysMore)
+        {
+            if (all + moreWidth + Gaps(pinnedCount + actions.Length + 1, spacing) <= room)
+                return actions.Length;
+        }
+        else if (all + Gaps(pinnedCount + actions.Length, spacing) <= room)
+        {
             return actions.Length;
+        }
 
         var kept = actions.Length;
         var used = all;

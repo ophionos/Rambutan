@@ -50,6 +50,9 @@
       <Setter Property="Margin" Value="2,0" />
       <Setter Property="CornerRadius" Value="2,2,0,0" />
       <Setter Property="VerticalAlignment" Value="Bottom" />
+      <!-- One busy day in a week is a bar, not a block; a stretched element
+           narrower than its cell sits in the middle of it. -->
+      <Setter Property="MaxWidth" Value="48" />
     </Style>
     <Style Selector="ListBox.chart.dense Border.bar">
       <Setter Property="Margin" Value="0" />
@@ -173,7 +176,7 @@
 
       <ScrollViewer IsVisible="{Binding IsReady}" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="4,0,16,24">
-          <WrapPanel>
+          <controls:StatTileGrid x:Name="Tiles">
             <Border Classes="statcard">
               <StackPanel Spacing="2">
                 <TextBlock Classes="statlabel" Text="{l:T stats.listened}" />
@@ -199,13 +202,18 @@
                 <TextBlock Classes="statvalue" Text="{Binding LongestStreakText}" />
               </StackPanel>
             </Border>
-          </WrapPanel>
+          </controls:StatTileGrid>
 
           <TextBlock Classes="rowmeta" Text="{Binding SelectedPeriod.EmptyText}" Margin="0,4,0,8"
                      IsVisible="{Binding IsPeriodEmpty}" />
 
           <StackPanel IsVisible="{Binding HasPlays}">
             <TextBlock Classes="statheader" Text="{l:T stats.perDay}" />
+            <!-- The scale: the top line is the busiest day, the baseline under each bar is zero. -->
+            <TextBlock Classes="rowmeta" Text="{Binding ScaleText}" Margin="0,0,0,2" />
+            <Panel>
+            <Border Height="1" VerticalAlignment="Top" Opacity="0.6" IsHitTestVisible="False"
+                    Background="{DynamicResource Token.Brush.Line}" />
             <ListBox Classes="chart" Classes.dense="{Binding IsDense}"
                      ItemsSource="{Binding Days}" SelectedItem="{Binding SelectedDay}"
                      AutomationProperties.Name="{l:T stats.perDay.name}">
@@ -229,6 +237,27 @@
                 </DataTemplate>
               </ListBox.ItemTemplate>
             </ListBox>
+            </Panel>
+            <!-- The days under the bars: for sight only, since each bar already has its name. -->
+            <ItemsControl x:Name="DayLabels" ItemsSource="{Binding AxisLabels}" Margin="0,2,0,0"
+                          Focusable="False" IsTabStop="False" IsHitTestVisible="False"
+                          AutomationProperties.AccessibilityView="Raw">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Rows="1" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:StatsAxisLabel">
+                  <Panel>
+                    <TextBlock Classes="rowmeta" Text="{Binding Text}" HorizontalAlignment="Center"
+                               TextWrapping="NoWrap" IsVisible="{Binding !Overflows}" />
+                    <TextBlock Classes="rowmeta" Text="{Binding Text}" HorizontalAlignment="Stretch"
+                               TextWrapping="NoWrap" Margin="0,0,-40,0" IsVisible="{Binding Overflows}" />
+                  </Panel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
             <TextBlock Classes="rowmeta" Margin="0,6,0,0" Text="{Binding SelectedDay.Name}"
                        AutomationProperties.LiveSetting="Polite" />
 

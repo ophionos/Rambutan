@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="using:Rambutan.App.Localization"
+             xmlns:vm="using:Rambutan.App.ViewModels"
+             xmlns:views="using:Rambutan.App.Views"
+             x:Class="Rambutan.App.Views.StatsPage"
+             x:DataType="vm:ListeningStatsViewModel">
+
+  <!-- Stats: a sidebar page of its own, from the play log. The stats view has
+       its own scroller. -->
+  <Grid RowDefinitions="Auto,*">
+    <TextBlock Text="{l:T stats.title}" FontSize="{StaticResource Token.Font.Page}" FontWeight="ExtraBold"
+               Margin="4,0,16,8" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+               AutomationProperties.HeadingLevel="1" />
+    <views:ListeningStatsView Grid.Row="1" />
+  </Grid>
+</UserControl>

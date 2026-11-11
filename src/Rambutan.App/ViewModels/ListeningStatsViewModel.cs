@@ -20,6 +20,11 @@ public sealed record StatsPeriodChoice(int Days, string Label, string PreviousLa
 /// <summary>One day's bar; <see cref="Name"/> is what a screen reader says.</summary>
 public sealed record StatsBar(string Name, double Height, bool IsToday);
 
+/// <summary>The text under one bar of the per-day chart; empty for a bar with
+/// none. <see cref="Overflows"/> lets it run past its bar to the right, for a
+/// month's name over a year's narrow bars.</summary>
+public sealed record StatsAxisLabel(string Text, bool Overflows);
+
 /// <summary>One weekday-and-hour cell; <see cref="Strength"/> is 0 to 1 of the busiest cell.</summary>
 public sealed record StatsCell(string Name, double Strength);
 
@@ -31,13 +36,17 @@ public sealed record StatsRow(int Rank, string Title, string? Subtitle, string D
 }
 
 /// <summary>
-/// Library → Stats: listening stats from the play log, calculated each time the
-/// view shows or the period changes, never kept up to date as songs play. The
+/// The Stats page: listening stats from the play log, calculated each time the
+/// page shows or the period changes, never kept up to date as songs play. The
 /// log is read on its own worker and the stats calculated off the UI thread.
 /// </summary>
 public partial class ListeningStatsViewModel : ViewModelBase
 {
     public const double BarAreaHeight = 120;
+
+    /// <summary>The least a bar with listening in it draws, so it isn't
+    /// mistaken for the baseline.</summary>
+    public const double MinBarHeight = 3;
 
     private readonly Func<Task<PlayLogContents>> _read;
     private readonly Func<bool> _recording;
@@ -84,6 +93,12 @@ public partial class ListeningStatsViewModel : ViewModelBase
     [ObservableProperty] private string _newSongsTitle = "";
     [ObservableProperty] private IReadOnlyList<StatsBar> _days = [];
     [ObservableProperty] private StatsBar? _selectedDay;
+
+    /// <summary>One entry per bar of <see cref="Days"/>, for the row under the chart.</summary>
+    [ObservableProperty] private IReadOnlyList<StatsAxisLabel> _axisLabels = [];
+
+    /// <summary>The chart's scale: the top of the bars is the busiest day.</summary>
+    [ObservableProperty] private string _scaleText = "";
     [ObservableProperty] private IReadOnlyList<string> _hourLabels = [];
     /// <summary>The heatmap's rows, from the culture's first day of the week.</summary>
     [ObservableProperty] private IReadOnlyList<string> _heatmapDays = [];
@@ -199,10 +214,14 @@ public partial class ListeningStatsViewModel : ViewModelBase
             var day = summary.First.AddDays(i);
             return new StatsBar(
                 Strings.Format("stats.day.name", ("day", DayLabel(day)), ("listened", Duration(listened))),
-                busiestDay > TimeSpan.Zero ? BarAreaHeight * listened.Ticks / busiestDay.Ticks : 0,
+                listened > TimeSpan.Zero && busiestDay > TimeSpan.Zero
+                    ? Math.Max(MinBarHeight, BarAreaHeight * listened.Ticks / busiestDay.Ticks)
+                    : 0,
                 day == summary.Last);
         })];
         SelectedDay = Days[^1];
+        ScaleText = Strings.Format("stats.scale.max", ("listened", Duration(busiestDay)));
+        AxisLabels = AxisFor(summary);
 
         HourLabels = [Hour(0), Hour(6), Hour(12), Hour(18)];
         var busiestHour = summary.Heatmap.Max();
@@ -226,6 +245,24 @@ public partial class ListeningStatsViewModel : ViewModelBase
             new StatsRow(i + 1, a.Title, a.Artist, Detail(a.Plays, a.Listened), a.ThumbnailUrl))];
         NewSongs = [.. summary.NewSongs.Select((s, i) => SongRow(s, i + 1))];
         NewSongsTitle = Strings.Format("stats.newSongs.title", ("count", summary.NewSongCount));
+    }
+
+    private static IReadOnlyList<StatsAxisLabel> AxisFor(ListeningSummary summary)
+    {
+        var format = Strings.Culture.DateTimeFormat;
+        var axis = new StatsAxisLabel[summary.PerDay.Count];
+        Array.Fill(axis, new StatsAxisLabel("", false));
+        foreach (var label in DayAxis.Labels(summary.First, summary.PerDay.Count))
+        {
+            axis[label.Index] = label.Kind switch
+            {
+                DayLabelKind.Weekday => new(format.GetAbbreviatedDayName(label.Day.DayOfWeek), false),
+                DayLabelKind.DayOfMonth => new(label.Day.Day.ToString(Strings.Culture), false),
+                _ => new(format.GetAbbreviatedMonthName(label.Day.Month), true),
+            };
+        }
+
+        return axis;
     }
 
     private static StatsRow SongRow(RankedSong song, int rank) => new(

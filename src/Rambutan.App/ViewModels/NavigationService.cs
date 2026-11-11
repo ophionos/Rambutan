@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,6 +22,7 @@ public enum NavSection
     Home,
     Search,
     Library,
+    Stats,
     Settings,
 }
 
@@ -33,8 +35,13 @@ public partial class NavigationService : ViewModelBase
     private readonly ICatalog _catalog;
     private readonly PlaybackCoordinator _coordinator;
     private readonly TrackActionsViewModel _actions;
-    private readonly Stack<ViewModelBase> _backStack = new();
-    private readonly Stack<ViewModelBase> _forwardStack = new();
+    private readonly Stack<Entry> _backStack = new();
+    private readonly Stack<Entry> _forwardStack = new();
+    private bool _currentIsRoot;
+
+    /// <summary>A page in the history with the sidebar entry it was shown under,
+    /// and whether it was a sidebar root or a page opened from one.</summary>
+    private readonly record struct Entry(ViewModelBase Page, NavSection Section, bool IsRoot);
 
     private HomePageViewModel? _home;
     private SearchPageViewModel? _search;
@@ -119,20 +126,23 @@ public partial class NavigationService : ViewModelBase
         _ = _home.EnsureLoadedAsync();
     }
 
-    public void GoSearch()
+    public void GoSearch() => GoSearch(reset: false);
+
+    private void GoSearch(bool reset)
     {
         _search ??= new SearchPageViewModel(_catalog, _coordinator, this, _searchHistory,
             _local is null ? null : _local.SearchAsync, new MoodsPageViewModel(_catalog, this));
-        NavigateRoot(_search, NavSection.Search);
+        NavigateRoot(_search, NavSection.Search, reset);
         _search.EnsureMoodsLoaded();
         _search.RequestFocus();
     }
 
     /// <summary>Opens Search and runs <paramref name="query"/> there, without
-    /// adding it to the search history (a rambutan://search link).</summary>
+    /// adding it to the search history (a rambutan://search link). A link starts
+    /// from nothing: it leaves no way back to what was open.</summary>
     public void GoSearch(string query)
     {
-        GoSearch();
+        GoSearch(reset: true);
         _search!.RunFromLink(query);
     }
 
@@ -140,10 +150,24 @@ public partial class NavigationService : ViewModelBase
 
     private void GoLibrary(LibrarySource source)
     {
-        _library ??= new LibraryPageViewModel(_catalog, this, _actions, _coordinator, _local, source, _stats);
+        _library ??= new LibraryPageViewModel(_catalog, this, _actions, _coordinator, _local, source);
         _library.Source = source;
         NavigateRoot(_library, NavSection.Library);
         _ = _library.EnsureLoadedAsync();
+    }
+
+    /// <summary>Opens the listening stats, which read the play log each time they
+    /// open. Does nothing where the play log isn't composed.</summary>
+    public void GoStats()
+    {
+        if (_stats is null)
+            return;
+        // Showing the page loads it (OnCurrentChanged); a click on the page that
+        // is showing reads the log again.
+        var showing = ReferenceEquals(Current, _stats);
+        NavigateRoot(_stats, NavSection.Stats);
+        if (showing)
+            _ = _stats.LoadAsync();
     }
 
     /// <summary>Opens the downloads: Library → On this computer, filtered to
@@ -170,6 +194,7 @@ public partial class NavigationService : ViewModelBase
             _ = shown.ShowAsync();
     }
 
+    /// <summary>Opens a root page, such as Settings (made anew each visit).</summary>
     public void GoTo(ViewModelBase page, NavSection section = NavSection.None) =>
         NavigateRoot(page, section);
 
@@ -181,6 +206,8 @@ public partial class NavigationService : ViewModelBase
         var onScreen = ReferenceEquals(Current, _library);
         var source = _library.Source;
         _library.Detach();
+        // The old page is no use in the history; the new one takes its place.
+        Forget(_library);
         _library = null;
         // On screen, it loads again in place for the new session: signing in
         // from the Library's own prompt stays on the Library.
@@ -191,8 +218,12 @@ public partial class NavigationService : ViewModelBase
     /// <summary>Requests now go out as someone else (signed in, signed out, or
     /// expired): Home's feed is the old account's. On screen it loads again now;
     /// otherwise the next time it opens.</summary>
-    public void OnSignInChanged() =>
+    public void OnSignInChanged()
+    {
+        // Every page behind this one was loaded for the old account.
+        ClearHistory();
         _home?.OnSignInChanged(onScreen: ReferenceEquals(Current, _home));
+    }
 
     public void OpenAlbum(string browseId)
     {
@@ -338,8 +369,8 @@ public partial class NavigationService : ViewModelBase
             return;
 
         if (Current is not null)
-            _forwardStack.Push(Current);
-        Current = _backStack.Pop();
+            _forwardStack.Push(new Entry(Current, Section, _currentIsRoot));
+        Show(_backStack.Pop());
         UpdateHistoryState();
     }
 
@@ -352,30 +383,84 @@ public partial class NavigationService : ViewModelBase
             return;
 
         if (Current is not null)
-            _backStack.Push(Current);
-        Current = _forwardStack.Pop();
+            _backStack.Push(new Entry(Current, Section, _currentIsRoot));
+        Show(_forwardStack.Pop());
         UpdateHistoryState();
     }
 
-    /// <summary>Sidebar roots reset the history; drill-down pages push onto it.
-    /// A root page opens at its top, as a sidebar click means "start here": only
-    /// Back and Forward return to where a page was left.</summary>
-    private void NavigateRoot(ViewModelBase page, NavSection section)
+    // The sidebar entry comes back with the page, so Back to a root lights its entry.
+    private void Show(Entry entry)
+    {
+        Section = entry.Section;
+        _currentIsRoot = entry.IsRoot;
+        Current = entry.Page;
+    }
+
+    /// <summary>
+    /// A sidebar entry (or a shortcut to a root) navigates like any page: the page
+    /// it leaves goes onto the back stack and the forward stack is dropped. Asking
+    /// for the root that is already showing adds nothing, and a root that is made
+    /// anew (Settings, a Library after a session change) takes the place of the
+    /// old one. A root page opens at its top, as a sidebar click means "start
+    /// here": only Back and Forward return to where a page was left.
+    /// </summary>
+    /// <param name="reset">Drops the history first, so the root has no way back
+    /// (a link that opens a search, see <see cref="GoSearch(string)"/>).</param>
+    private void NavigateRoot(ViewModelBase page, NavSection section, bool reset = false)
+    {
+        if (reset)
+            ClearHistory();
+
+        var sameRoot = Current is not null && _currentIsRoot && section != NavSection.None && section == Section;
+        if (!ReferenceEquals(page, Current))
+        {
+            page.SavedScrollOffset = 0;
+            if (Current is not null && !sameRoot && !reset)
+            {
+                _backStack.Push(new Entry(Current, Section, _currentIsRoot));
+                _forwardStack.Clear();
+            }
+        }
+
+        Section = section;
+        _currentIsRoot = true;
+        Current = page;
+        UpdateHistoryState();
+    }
+
+    /// <summary>
+    /// Drops every way back and forward, leaving the page on screen. Runs when
+    /// requests start going out as someone else, so no earlier page (loaded for
+    /// the old session) can be reached again.
+    /// </summary>
+    public void ClearHistory()
     {
         _backStack.Clear();
         _forwardStack.Clear();
-        if (!ReferenceEquals(page, Current))
-            page.SavedScrollOffset = 0;
-        Section = section;
-        Current = page;
         UpdateHistoryState();
+    }
+
+    private void Forget(ViewModelBase page)
+    {
+        Remove(_backStack, page);
+        Remove(_forwardStack, page);
+        UpdateHistoryState();
+
+        static void Remove(Stack<Entry> stack, ViewModelBase page)
+        {
+            var kept = stack.Where(e => !ReferenceEquals(e.Page, page)).Reverse().ToArray();
+            stack.Clear();
+            foreach (var entry in kept)
+                stack.Push(entry);
+        }
     }
 
     private void Push(ViewModelBase page)
     {
         if (Current is not null)
-            _backStack.Push(Current);
+            _backStack.Push(new Entry(Current, Section, _currentIsRoot));
         _forwardStack.Clear();
+        _currentIsRoot = false;
         Current = page;
         UpdateHistoryState();
     }
@@ -386,6 +471,8 @@ public partial class NavigationService : ViewModelBase
     {
         if (value is not null && ReferenceEquals(value, _library))
             _ = _library.EnsureLoadedAsync();
+        else if (value is not null && ReferenceEquals(value, _stats))
+            _ = _stats.LoadAsync();
     }
 
     private void UpdateHistoryState()

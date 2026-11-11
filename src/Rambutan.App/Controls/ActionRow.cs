@@ -20,6 +20,7 @@ namespace Rambutan.App.Controls;
 /// (<see cref="ActionRowFit"/> has the rule). Three kinds of item:
 /// <list type="bullet">
 /// <item>one marked <see cref="KeepProperty"/> always stays (the primary action, a title);</item>
+/// <item>one marked <see cref="InMenuProperty"/> is always in the menu;</item>
 /// <item>any other <see cref="Button"/> may move into the menu, where its entry
 /// carries its command, parameter, name and enabled state, so it needs a
 /// command: a button that only opens a flyout has to be kept;</item>
@@ -32,6 +33,11 @@ public sealed class ActionRow : Control
     /// <summary>Whether an item always stays in the row.</summary>
     public static readonly AttachedProperty<bool> KeepProperty =
         AvaloniaProperty.RegisterAttached<ActionRow, Control, bool>("Keep");
+
+    /// <summary>Whether a button is always in the More menu, never in the row,
+    /// whatever the width. Like any button in the menu it needs a command.</summary>
+    public static readonly AttachedProperty<bool> InMenuProperty =
+        AvaloniaProperty.RegisterAttached<ActionRow, Control, bool>("InMenu");
 
     public static readonly StyledProperty<double> SpacingProperty =
         AvaloniaProperty.Register<ActionRow, double>(nameof(Spacing));
@@ -88,6 +94,10 @@ public sealed class ActionRow : Control
 
     public static void SetKeep(Control control, bool value) => control.SetValue(KeepProperty, value);
 
+    public static bool GetInMenu(Control control) => control.GetValue(InMenuProperty);
+
+    public static void SetInMenu(Control control, bool value) => control.SetValue(InMenuProperty, value);
+
     /// <summary>The More button; shown only while a button is in its menu.</summary>
     internal Button MoreButton => _more;
 
@@ -138,10 +148,13 @@ public sealed class ActionRow : Control
         Keep,
         Action,
         Extra,
+        Menu,
     }
 
     private static Kind KindOf(Control item) =>
-        GetKeep(item) ? Kind.Keep : item is Button ? Kind.Action : Kind.Extra;
+        GetKeep(item) ? Kind.Keep
+        : item is Button ? (GetInMenu(item) ? Kind.Menu : Kind.Action)
+        : Kind.Extra;
 
     private void ApplyMoreClasses()
     {
@@ -187,7 +200,7 @@ public sealed class ActionRow : Control
     // nothing, so the row listens for what puts the button in or out of the menu.
     private void OnItemPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
-        if (e.Property == IsVisibleProperty || e.Property == KeepProperty)
+        if (e.Property == IsVisibleProperty || e.Property == KeepProperty || e.Property == InMenuProperty)
             InvalidateMeasure();
     }
 
@@ -245,6 +258,7 @@ public sealed class ActionRow : Control
         var actionCount = 0;
         var pinnedWidth = 0.0;
         var pinnedCount = 0;
+        var menuOnly = 0;
         var height = 0.0;
         foreach (var slot in _slots)
         {
@@ -253,6 +267,11 @@ public sealed class ActionRow : Control
             slot.ClipToBounds = kind == Kind.Extra;
             if (!item.IsVisible || kind == Kind.Extra)
                 continue;
+            if (kind == Kind.Menu)
+            {
+                menuOnly++;
+                continue;
+            }
 
             item.Measure(Size.Infinity);
             height = Math.Max(height, item.DesiredSize.Height);
@@ -268,10 +287,12 @@ public sealed class ActionRow : Control
         }
 
         actions = actions[..actionCount];
+        // The More button is there anyway while a button lives only in its menu.
         var kept = double.IsInfinity(availableSize.Width)
             ? actionCount
-            : ActionRowFit.Kept(availableSize.Width, pinnedWidth, pinnedCount, actions, spacing, moreWidth);
-        var hasMore = kept < actionCount;
+            : ActionRowFit.Kept(availableSize.Width, pinnedWidth, pinnedCount, actions, spacing, moreWidth,
+                alwaysMore: menuOnly > 0);
+        var hasMore = kept < actionCount || menuOnly > 0;
 
         // What the kept buttons take, so the extras share only what is left.
         var taken = pinnedWidth + (hasMore ? moreWidth : 0);
@@ -293,7 +314,7 @@ public sealed class ActionRow : Control
             }
 
             var kind = KindOf(item);
-            if (kind == Kind.Action && seen++ >= kept)
+            if (kind == Kind.Menu || (kind == Kind.Action && seen++ >= kept))
             {
                 if (firstMoved is null)
                 {

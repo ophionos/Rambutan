@@ -189,6 +189,7 @@ public sealed class LocalLibraryDownloadsTests : IDisposable
         navigation.GoLibrary();
         var library = Assert.IsType<LibraryPageViewModel>(navigation.Current);
         Assert.Equal(LibrarySource.YouTubeMusic, library.Source);
+        Assert.Equal([LibrarySource.YouTubeMusic, LibrarySource.ThisComputer], library.Sources);
 
         Assert.NotNull(navigation.GoDownloads);
         navigation.GoDownloads();
