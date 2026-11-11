@@ -10,8 +10,12 @@
 
   <Grid RowDefinitions="Auto,*">
     <!-- The same header as a YouTube Music playlist's, without what only
-         YouTube Music has (owner, download). -->
-    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="4,0,16,20" IsVisible="{Binding !IsGone}">
+         YouTube Music has (owner, download); a thin bar once the list is
+         scrolled. -->
+    <controls:CollapsingHero Grid.Row="0" List="{Binding #TrackList}" Title="{Binding Title}"
+                             CoverUrl="{Binding Cover, Converter={x:Static conv:ArtworkConverter.Instance}}"
+                             CoverIcon="{StaticResource Icon.Queue}">
+    <Grid ColumnDefinitions="Auto,*" Margin="4,0,16,20" IsVisible="{Binding !IsGone}">
       <Border Classes="heroart" Width="176" Height="176">
         <Panel>
           <PathIcon Data="{StaticResource Icon.Queue}" Width="48" Height="48" Opacity="0.35" />
@@ -57,6 +61,7 @@
         </controls:ActionRow>
       </StackPanel>
     </Grid>
+    </controls:CollapsingHero>
 
     <StackPanel Grid.Row="1" Spacing="8" VerticalAlignment="Top" Margin="4,0,16,0" IsVisible="{Binding IsLoading}">
       <Border Classes="skeleton" Height="40" CornerRadius="6" />
@@ -78,7 +83,7 @@
 
     <!-- Drag a row or press Alt+↑/↓ on the selected one to move it
          (Controls/DragReorder), as on a YouTube Music playlist. -->
-    <ListBox Grid.Row="1" Classes="tracks pagescroll" Background="Transparent" ItemsSource="{Binding Rows}"
+    <ListBox x:Name="TrackList" Grid.Row="1" Classes="tracks pagescroll" Background="Transparent" ItemsSource="{Binding Rows}"
              IsVisible="{Binding !!Rows.Count}"
              AutomationProperties.Name="{l:T common.tracks}"
              AutomationProperties.HelpText="{Binding ListHelp}"

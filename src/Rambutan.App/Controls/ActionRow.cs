@@ -101,20 +101,36 @@ public sealed class ActionRow : Control
     {
         var entries = new List<MenuItem>(_overflowed.Count);
         foreach (var button in _overflowed)
-        {
-            var entry = new MenuItem
-            {
-                Header = NameOf(button),
-                Command = button.Command,
-                CommandParameter = button.CommandParameter,
-                IsEnabled = button.IsEnabled,
-            };
-            if (IconOf(button) is { } geometry)
-                entry.Icon = new PathIcon { Data = geometry, Width = 14, Height = 14 };
-            entries.Add(entry);
-        }
+            entries.Add(EntryFor(button));
 
         return entries;
+    }
+
+    /// <summary>The buttons that may move into the menu (not kept, own
+    /// <see cref="Visual.IsVisible"/> true), in the row's order, wherever they sit now.</summary>
+    internal IEnumerable<Button> MovableButtons()
+    {
+        foreach (var item in Items)
+        {
+            if (item is Button { IsVisible: true } button && !GetKeep(button))
+                yield return button;
+        }
+    }
+
+    /// <summary>A menu entry standing for <paramref name="button"/>: its command,
+    /// parameter, name, icon and enabled state.</summary>
+    internal static MenuItem EntryFor(Button button)
+    {
+        var entry = new MenuItem
+        {
+            Header = NameOf(button),
+            Command = button.Command,
+            CommandParameter = button.CommandParameter,
+            IsEnabled = button.IsEnabled,
+        };
+        if (IconOf(button) is { } geometry)
+            entry.Icon = new PathIcon { Data = geometry, Width = 14, Height = 14 };
+        return entry;
     }
 
     private enum Kind

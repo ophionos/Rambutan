@@ -10,7 +10,10 @@
              x:DataType="vm:AlbumPageViewModel">
 
   <Grid RowDefinitions="Auto,*">
-    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="4,0,16,20">
+    <!-- Gives way to a thin bar once the list is scrolled. -->
+    <controls:CollapsingHero Grid.Row="0" List="{Binding #TrackList}"
+                             Title="{Binding Title}" CoverUrl="{Binding ThumbnailUrl}">
+    <Grid ColumnDefinitions="Auto,*" Margin="4,0,16,20">
       <Grid.IsVisible>
         <!-- A failed first load has no title, art or tracks to head: the
              error state takes the page instead of an empty header. -->
@@ -100,6 +103,7 @@
 
       </StackPanel>
     </Grid>
+    </controls:CollapsingHero>
 
 
     <StackPanel Grid.Row="1" Spacing="8" VerticalAlignment="Top" Margin="4,0,16,0">
@@ -118,7 +122,7 @@
       <Border Classes="skeleton" Height="48" CornerRadius="8" />
     </StackPanel>
 
-    <ListBox Grid.Row="1" Classes="tracks pagescroll" Background="Transparent" ItemsSource="{Binding Tracks}"
+    <ListBox x:Name="TrackList" Grid.Row="1" Classes="tracks pagescroll" Background="Transparent" ItemsSource="{Binding Tracks}"
              AutomationProperties.Name="{l:T common.tracks}"
              controls:ScrollMemory.IsEnabled="True"
              controls:ItemActivation.Command="{Binding PlayFromCommand}">

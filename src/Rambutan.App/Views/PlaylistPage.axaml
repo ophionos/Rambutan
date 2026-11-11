@@ -10,7 +10,12 @@
              x:DataType="vm:PlaylistPageViewModel">
 
   <Grid RowDefinitions="Auto,*,Auto">
-    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="4,0,16,20">
+    <!-- Gives way to a thin bar once the list is scrolled. A failed next page
+         keeps it up: its Try again is in the hero. -->
+    <controls:CollapsingHero Grid.Row="0" List="{Binding #TrackList}"
+                             Title="{Binding Title}" CoverUrl="{Binding ThumbnailUrl}"
+                             HoldExpanded="{Binding LoadError, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Grid ColumnDefinitions="Auto,*" Margin="4,0,16,20">
       <Grid.IsVisible>
         <!-- A failed first load has no title, art or tracks to head: the
              error state takes the page instead of an empty header. -->
@@ -114,6 +119,7 @@
                       IsVisible="{Binding !!Tracks.Count}" />
       </StackPanel>
     </Grid>
+    </controls:CollapsingHero>
 
 
     <StackPanel Grid.Row="1" Spacing="8" VerticalAlignment="Top" Margin="4,0,16,0">

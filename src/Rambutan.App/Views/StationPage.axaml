@@ -12,7 +12,12 @@
        A track with nothing to play stays in the list, marked; one that plays
        Last.fm's YouTube link says so. -->
   <Grid RowDefinitions="Auto,*" DataContext="{Binding Station}" x:DataType="vm:StationShelfViewModel">
-    <Grid Grid.Row="0" ColumnDefinitions="Auto,*" Margin="4,0,16,20">
+    <!-- Gives way to a thin bar once the list is scrolled. A failed refresh
+         keeps it up: its Try again is in the hero. -->
+    <controls:CollapsingHero Grid.Row="0" List="{Binding #TrackList}"
+                             Title="{Binding Title}" CoverUrl="{Binding CoverUrl}"
+                             HoldExpanded="{Binding LoadError, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <Grid ColumnDefinitions="Auto,*" Margin="4,0,16,20">
       <Border Classes="heroart" Width="176" Height="176">
         <controls:RemoteImage Url="{Binding CoverUrl}" Stretch="UniformToFill" />
       </Border>
@@ -50,8 +55,9 @@
         <TextBlock Classes="headermeta" Text="{l:T station.page.empty}" IsVisible="{Binding HasNoTracks}" />
       </StackPanel>
     </Grid>
+    </controls:CollapsingHero>
 
-    <ListBox Grid.Row="1" Classes="tracks pagescroll" Background="Transparent" ItemsSource="{Binding Items}"
+    <ListBox x:Name="TrackList" Grid.Row="1" Classes="tracks pagescroll" Background="Transparent" ItemsSource="{Binding Items}"
              AutomationProperties.Name="{l:T common.tracks}"
              controls:ScrollMemory.IsEnabled="True"
              controls:RowNumber.IsEnabled="True"

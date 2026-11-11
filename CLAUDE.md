@@ -333,6 +333,14 @@ file sink), never to files directly.
   Signed out, neither shows; a playlist card's copy to a local playlist
   does, since it only reads. No Rename or Delete on a card: they stay on the
   playlist's page.
+- Page heroes: the playlist, album, local playlist and station pages put
+  their hero in `Controls/CollapsingHero`, which gives way to a thin bar
+  (cover, title, Play, and More with the hero row's other actions) once the
+  track list is scrolled, and comes back at the top. The rule is
+  `Core/Layout/HeroCollapse`: it collapses only past the hero's height, and
+  the offset drops by as much so the rows stay put; a list too short for
+  that never collapses, so it can't flip back and forth. A state shown only
+  in the hero (a failed page's Try again) holds it up (`HoldExpanded`).
 - Offline pages: `Core/Downloads/OfflineCatalog` wraps the `ICatalog` that App
   registers. When an album or playlist page, or the Library's Albums or Playlists
   tab, can't load, it serves the copy that "Download all" kept
