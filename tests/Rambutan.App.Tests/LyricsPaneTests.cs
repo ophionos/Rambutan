@@ -121,6 +121,36 @@ public class LyricsPaneTests
     });
 
     [Fact]
+    public void TheSwitchAndTheFooter_AreStripsNoLineIsDrawnOver() => Headless.Run(() =>
+    {
+        var doc = new LyricsDocument
+        {
+            Source = LrcLibProvider.SourceName,
+            IsSynced = true,
+            Lines = Enumerable.Range(0, 40)
+                .Select(i => new LyricLine($"line {i}", TimeSpan.FromSeconds(4 * (i + 1))))
+                .ToArray(),
+        };
+        var vm = new LyricsViewModel(
+            (_, _) => Task.FromResult(new LyricsLookup(LyricsStatus.Found, doc)),
+            _ => Task.CompletedTask,
+            applySource: _ => { });
+        vm.OnTrackChanged(Crush);
+        var (window, pane) = Show(vm);
+        var switcher = pane.FindControl<ListBox>("SourceSwitch")!;
+        var scroller = pane.FindControl<ScrollViewer>("Scroller")!;
+        var footer = pane.FindControl<StackPanel>("Footer")!;
+        var first = (Control)pane.FindControl<ItemsControl>("LinesList")!.ContainerFromIndex(0)!;
+        Assert.True(switcher.IsVisible);
+
+        Rect In(Control c) => new(c.TranslatePoint(default, pane)!.Value, c.Bounds.Size);
+        Assert.False(In(switcher).Intersects(In(first)), "the first line runs under the source switch");
+        Assert.False(In(footer).Intersects(In(scroller)), "the footer runs under the scroller");
+        Assert.False(In(switcher).Intersects(In(scroller)), "the source switch runs over the scroller");
+        window.Close();
+    });
+
+    [Fact]
     public void ResumeAfter_IsAboutThreeSeconds() =>
         Assert.Equal(TimeSpan.FromSeconds(3), LyricsPane.ResumeAfter);
 

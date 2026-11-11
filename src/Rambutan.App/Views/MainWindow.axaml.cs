@@ -274,8 +274,11 @@ public partial class MainWindow : Window
 
         var barWidth = PlayerBarGrid.Bounds.Width;
         SetBarFit(PlayerBarLayout.Fit(barWidth, fullSide, compactSide, _timeLabelsWidth));
-        // A long title takes room from the seek line before it trims.
-        var titledSide = Math.Max(fullSide, identityRest + PlayerBarLayout.TitleRoom(TitleWidth()) + _fullActionsWidth);
+        // The title column's width follows the bar, not the title, so the rating
+        // buttons beside it stay where they are from track to track.
+        var textWidth = PlayerBarLayout.IdentityTextWidth(barWidth, fullSide, _timeLabelsWidth, _barFit);
+        BarIdentityText.Width = textWidth ?? double.NaN;
+        var titledSide = Math.Max(fullSide, identityRest + (textWidth ?? PlayerBarLayout.MinTitleWidth) + _fullActionsWidth);
         var width = _barFit switch
         {
             PlayerBarFit.Full => PlayerBarLayout.SeekWidth(barWidth, titledSide, _timeLabelsWidth),
@@ -441,7 +444,10 @@ public partial class MainWindow : Window
         SetBarFit(fits ? PlayerBarFit.Compact : PlayerBarFit.Narrow);
         // As in the full bar, a long title takes room from the seek line before it trims.
         var titledSide = Math.Max(side, identityRest + PlayerBarLayout.TitleRoom(TitleWidth()));
-        var width = fits ? PlayerBarLayout.SeekWidth(barWidth, titledSide, _timeLabelsWidth) : PlayerBarLayout.MinSeekWidth;
+        var width = fits
+            ? PlayerBarLayout.SeekWidth(barWidth, titledSide, _timeLabelsWidth, PlayerBarLayout.MiniMaxSeekWidth)
+            : PlayerBarLayout.MinSeekWidth;
+        BarIdentityText.Width = double.NaN;
         if (Math.Abs(width - SeekArea.Width) > 0.5)
             SeekArea.Width = width;
 

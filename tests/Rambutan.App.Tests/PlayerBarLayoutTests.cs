@@ -12,7 +12,51 @@ public class PlayerBarLayoutTests
 {
     [Fact]
     public void WideBar_KeepsTheFullSeekLine() =>
-        Assert.Equal(PlayerBarLayout.MaxSeekWidth, PlayerBarLayout.SeekWidth(1244, 344, 88));
+        // Short of the maximum now: the room (1244 - 2 * 344 - 88) is what it takes.
+        Assert.Equal(468, PlayerBarLayout.SeekWidth(1244, 344, 88));
+
+    [Fact]
+    public void VeryWideBar_GrowsTheSeekLineBeyondTheOldMaximum()
+    {
+        var seek = PlayerBarLayout.SeekWidth(1720, 344, 88);
+        Assert.True(seek > 460);
+        Assert.True(seek <= 720);
+    }
+
+    [Theory]
+    [InlineData(1000)]
+    [InlineData(1400)]
+    [InlineData(1720)]
+    [InlineData(2600)]
+    public void TheIdentityTextWidth_StaysBetweenTheFloorAndTheCap(double barWidth) =>
+        Assert.InRange(PlayerBarLayout.IdentityTextWidth(barWidth, 318, 88, PlayerBarFit.Full)!.Value,
+            PlayerBarLayout.MinTitleWidth, PlayerBarLayout.MaxTitleWidth);
+
+    [Fact]
+    public void TheIdentityTextWidth_KeepsTheFloorWhereTheSeekLineIsBelowItsUsualWidth()
+    {
+        Assert.Equal(PlayerBarLayout.MinTitleWidth, PlayerBarLayout.IdentityTextWidth(1000, 318, 88, PlayerBarFit.Full));
+        Assert.Null(PlayerBarLayout.IdentityTextWidth(1700, 318, 88, PlayerBarFit.Compact));
+        Assert.Null(PlayerBarLayout.IdentityTextWidth(1700, 318, 88, PlayerBarFit.Narrow));
+    }
+
+    [Theory]
+    [InlineData(1000)]
+    [InlineData(1244)]
+    [InlineData(1720)]
+    [InlineData(2600)]
+    public void TheSeekLineAndTheText_ShareTheRoom_WithoutPassingTheBar(double barWidth)
+    {
+        const double identityRest = 96, actions = 102, labels = 88;
+        var fullSide = identityRest + PlayerBarLayout.MinTitleWidth + actions;
+        var text = PlayerBarLayout.IdentityTextWidth(barWidth, fullSide, labels, PlayerBarFit.Full)!.Value;
+        var side = Math.Max(fullSide, identityRest + text + actions);
+        var seek = PlayerBarLayout.SeekWidth(barWidth, side, labels);
+        Assert.True(2 * side + labels + seek <= barWidth + 0.5 || seek == PlayerBarLayout.MinSeekWidth);
+        // Wherever the old line was short of 460, it is the same.
+        if (PlayerBarLayout.SeekWidth(barWidth, fullSide, labels, 460) < 460)
+            Assert.Equal(PlayerBarLayout.SeekWidth(barWidth, fullSide, labels, 460), seek);
+    }
 
     [Fact]
     public void NarrowBar_ShrinksTheSeekLine_SoTheSidesKeepWhatTheyNeed()
@@ -39,7 +83,7 @@ public class PlayerBarLayoutTests
         // 1404 wide, 96 of artwork and gaps, 102 of actions, 104 of time labels.
         var usual = PlayerBarLayout.SeekWidth(1404, 96 + PlayerBarLayout.MinTitleWidth + 102, 104);
         var titled = PlayerBarLayout.SeekWidth(1404, 96 + PlayerBarLayout.TitleRoom(270) + 102, 104);
-        Assert.Equal(PlayerBarLayout.MaxSeekWidth, usual);
+        Assert.Equal(1404 - 2 * (96 + PlayerBarLayout.MinTitleWidth + 102) - 104, usual);
         Assert.Equal(1404 - 2 * (96 + 270 + 102) - 104, titled);
     }
 
@@ -101,6 +145,37 @@ public class PlayerBarLayoutTests
         // Narrow keeps the times, under the line.
         Assert.True(seek.Children[0].IsVisible && seek.Children[2].IsVisible);
         Assert.Equal(expected == PlayerBarFit.Narrow ? 1 : 0, Grid.GetRow((Control)seek.Children[0]));
+        window.Close();
+    });
+
+    [Fact]
+    public void TheRatingButtons_StayWhereTheyAre_WhateverTheTitle() => Headless.Run(() =>
+    {
+        ShellResources.Ensure();
+        var vm = new MainViewModel();
+        vm.Player.ShownTrack = new TrackInfo { VideoId = "a", Title = "Hi", Artists = [] };
+        var window = new MainWindow { DataContext = vm, Width = 1720 };
+        window.Show();
+        Settle(window);
+
+        var grid = Named<Grid>(window, "PlayerBarGrid");
+        var actions = Named<StackPanel>(window, "BarIdentityActions");
+        var seek = Named<Grid>(window, "SeekRow");
+        double ActionsX() => actions.TranslatePoint(default, grid)!.Value.X;
+        var short1 = ActionsX();
+        var shortSeek = seek.Bounds.Width;
+
+        vm.Player.ShownTrack = new TrackInfo
+        {
+            VideoId = "b", Artists = [],
+            Title = "A very long title that goes on and on well past any column the bar could give it",
+        };
+        Settle(window);
+
+        Assert.Equal(PlayerBarFit.Full, window.BarFit);
+        Assert.Equal(short1, ActionsX(), 0.5);
+        Assert.Equal(shortSeek, seek.Bounds.Width, 0.5);
+        Assert.True(Named<StackPanel>(window, "BarIdentityText").Width >= PlayerBarLayout.MinTitleWidth);
         window.Close();
     });
 
