@@ -55,7 +55,7 @@
                     <Grid ColumnDefinitions="6,*">
                       <Border Background="{Binding Color, Converter={x:Static vm:Converters.MoodStripe}}" />
                       <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="14,0,10,0"
-                                 FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                 FontWeight="{StaticResource Token.Weight.Item}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                     </Grid>
                   </Button>
                 </DataTemplate>

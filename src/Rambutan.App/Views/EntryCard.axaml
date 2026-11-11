@@ -31,7 +31,7 @@
              cards stay one uniform size. The subtitle sits right under the
              title; the minimum height keeps the spare lines below it. -->
         <StackPanel Spacing="2" MinHeight="74">
-          <TextBlock Text="{Binding Title}" FontSize="{StaticResource Token.Font.Body}" FontWeight="SemiBold"
+          <TextBlock Text="{Binding Title}" FontSize="{StaticResource Token.Font.Body}" FontWeight="{StaticResource Token.Weight.Item}"
                      TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
                      LineHeight="19" />
           <TextBlock Text="{Binding Subtitle}" FontSize="{StaticResource Token.Font.Meta}"

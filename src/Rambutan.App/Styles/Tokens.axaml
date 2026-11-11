@@ -18,6 +18,9 @@
     <x:Double x:Key="Token.Font.Caption">12</x:Double>
     <x:Double x:Key="Token.Font.Meta">12.5</x:Double>
     <x:Double x:Key="Token.Font.Body">14</x:Double>
+    <!-- Content that repeats (a track row's title, a card's title, a chip):
+         lighter than the headings above it, so those stand out. -->
+    <FontWeight x:Key="Token.Weight.Item">Medium</FontWeight>
     <x:Double x:Key="Token.Font.Group">15</x:Double>
     <x:Double x:Key="Token.Font.Section">20</x:Double>
     <x:Double x:Key="Token.Font.Page">30</x:Double>
