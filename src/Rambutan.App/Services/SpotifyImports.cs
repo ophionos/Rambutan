@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Import;
+using Rambutan.Core.IO;
 using Rambutan.Core.Models;
 using Rambutan.Core.Stations;
 using Rambutan.Core.Text;
@@ -26,6 +27,9 @@ public sealed class SpotifyImports
     /// <summary>The newest matches kept: enough for a large library and the
     /// imports after it.</summary>
     public const int MaxMatches = 50_000;
+
+    /// <summary>The largest file, or zip entry once expanded, that is read.</summary>
+    public const long MaxFileBytes = 64L * 1024 * 1024;
 
     private readonly StationMatchStore _matchStore;
     private readonly SpotifyImportRecordStore _records;
@@ -71,20 +75,24 @@ public sealed class SpotifyImports
     /// </summary>
     /// <exception cref="ImportFormatException">Not a file the import reads.</exception>
     /// <exception cref="IOException">The file couldn't be read.</exception>
-    public static IReadOnlyList<ImportedList> Read(string path)
+    public static IReadOnlyList<ImportedList> Read(string path) => Read(path, MaxFileBytes);
+
+    internal static IReadOnlyList<ImportedList> Read(string path, long maxFileBytes)
     {
         if (IsZip(path))
         {
             using var zip = ZipFile.OpenRead(path);
             var files = zip.Entries
                 .Where(e => SpotifyExport.IsListFile(e.FullName))
-                .Select(e => (e.FullName, Text(e)))
+                .Select(e => (e.FullName, Text(e, maxFileBytes)))
                 .ToList();
             if (files.Count == 0)
                 throw new ImportFormatException(ImportProblem.Unreadable, "no playlist file in the zip");
             return SpotifyExport.ReadAll(files);
         }
 
+        if (new FileInfo(path).Length > maxFileBytes)
+            throw new ImportFormatException(ImportProblem.Unreadable, "the file is too large");
         var text = FileText.Decode(File.ReadAllBytes(path));
         var extension = System.IO.Path.GetExtension(path);
         return extension.Equals(".json", StringComparison.OrdinalIgnoreCase)
@@ -100,12 +108,20 @@ public sealed class SpotifyImports
                head[0] == (byte)'P' && head[1] == (byte)'K' && head[2] == 3 && head[3] == 4;
     }
 
-    private static string Text(ZipArchiveEntry entry)
+    /// <summary>An entry's declared length can lie, so the bytes read are counted too.</summary>
+    private static string Text(ZipArchiveEntry entry, long maxBytes)
     {
-        using var stream = entry.Open();
-        using var bytes = new MemoryStream();
-        stream.CopyTo(bytes);
-        return FileText.Decode(bytes.GetBuffer().AsSpan(0, (int)bytes.Length));
+        if (entry.Length > maxBytes)
+            throw new ImportFormatException(ImportProblem.Unreadable, $"{entry.FullName} is too large");
+        try
+        {
+            using var stream = entry.Open();
+            return FileText.Decode(BoundedRead.ReadAll(stream, maxBytes));
+        }
+        catch (InputTooLargeException ex)
+        {
+            throw new ImportFormatException(ImportProblem.Unreadable, $"{entry.FullName} is too large", ex);
+        }
     }
 }
 

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Import;
+using Rambutan.Core.IO;
 
 namespace Rambutan.Integrations.Spotify;
 
@@ -52,6 +53,9 @@ public sealed class SpotifyLinkReader
     /// longer taken.
     /// </summary>
     public const string PlaylistContentsHash = "21ea11a6ac75a5f3e01fd365d29c18e0a4a8b7dc09f89bbb5d73910190c6acaf";
+
+    /// <summary>The most one answer, an embed page or a page of rows, may hold.</summary>
+    public const long MaxResponseBytes = 8 * 1024 * 1024;
 
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(20);
 
@@ -168,7 +172,8 @@ public sealed class SpotifyLinkReader
     }
 
     /// <summary>Sends a request and reads the whole answer, whatever its status.</summary>
-    /// <exception cref="HttpRequestException">No answer, or none in time.</exception>
+    /// <exception cref="HttpRequestException">No answer, none in time, or one larger than
+    /// <see cref="MaxResponseBytes"/>.</exception>
     public async Task<(string Body, int Status)> SendAsync(HttpRequestMessage request, CancellationToken ct = default)
     {
         using (request)
@@ -177,8 +182,9 @@ public sealed class SpotifyLinkReader
             timeout.CancelAfter(RequestTimeout);
             try
             {
-                using var response = await _http.SendAsync(request, timeout.Token);
-                return (await response.Content.ReadAsStringAsync(timeout.Token), (int)response.StatusCode);
+                using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+                return (await BoundedRead.ReadContentStringAsync(response.Content, MaxResponseBytes, timeout.Token),
+                    (int)response.StatusCode);
             }
             catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
             {

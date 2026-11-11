@@ -38,6 +38,41 @@ internal sealed class FakeLrcLibHandler : HttpMessageHandler
     }
 }
 
+/// <summary>A body that never ends and counts what was read from it.</summary>
+internal sealed class EndlessStream : Stream
+{
+    public long Served;
+
+    public static HttpResponseMessage Response(EndlessStream body, long? declaredLength)
+    {
+        var content = new StreamContent(body);
+        content.Headers.ContentLength = declaredLength;
+        return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+    }
+
+    public override int Read(Span<byte> buffer)
+    {
+        buffer.Clear();
+        Served += buffer.Length;
+        return buffer.Length;
+    }
+
+    public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) =>
+        ValueTask.FromResult(Read(buffer.Span));
+
+    public override bool CanRead => true;
+    public override bool CanSeek => false;
+    public override bool CanWrite => false;
+    public override long Length => throw new NotSupportedException();
+    public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+    public override void Flush() { }
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+    public override void SetLength(long value) => throw new NotSupportedException();
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+}
+
 internal static class Fixtures
 {
     public static string Read(string name) =>

@@ -73,6 +73,55 @@ public sealed class SpotifyImportsTests : IDisposable
             Assert.Throws<ImportFormatException>(() => SpotifyImports.Read(Write("x.csv", "a,b\n1,2\n"))).Problem);
     }
 
+    private const string OneSong =
+        """{"tracks":[{"artist":"Daft Punk","album":"Discovery","track":"One More Time","uri":"spotify:track:0DiWol3AO6WpXZgp0goxAV"}]}""";
+
+    private string ZipWith(string json)
+    {
+        var path = Path.Combine(_dir.FullName, "export.zip");
+        using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
+        using var writer = new StreamWriter(zip.CreateEntry("Spotify Account Data/YourLibrary.json").Open(), Encoding.UTF8);
+        writer.Write(json);
+        return path;
+    }
+
+    [Fact]
+    public void A_zip_entry_that_expands_past_the_limit_is_unreadable()
+    {
+        // Compresses to a few hundred bytes, expands to more than the limit.
+        var path = ZipWith(OneSong.Replace("Discovery", new string('x', 5000)));
+
+        Assert.Equal(ImportProblem.Unreadable,
+            Assert.Throws<ImportFormatException>(() => SpotifyImports.Read(path, maxFileBytes: 1000)).Problem);
+    }
+
+    [Fact]
+    public void A_zip_entry_within_the_limit_is_read()
+    {
+        var path = ZipWith(OneSong);
+
+        var list = Assert.Single(SpotifyImports.Read(path, maxFileBytes: OneSong.Length + 16));
+
+        Assert.Equal("One More Time", list.Tracks[0].Title);
+    }
+
+    [Fact]
+    public void A_loose_file_over_the_limit_is_unreadable()
+    {
+        var path = Write("Songs.json", OneSong.Replace("Discovery", new string('x', 5000)));
+
+        Assert.Equal(ImportProblem.Unreadable,
+            Assert.Throws<ImportFormatException>(() => SpotifyImports.Read(path, maxFileBytes: 1000)).Problem);
+    }
+
+    [Fact]
+    public void A_loose_file_within_the_limit_is_read()
+    {
+        var path = Write("Songs.json", OneSong);
+
+        Assert.Single(SpotifyImports.Read(path, maxFileBytes: OneSong.Length));
+    }
+
     private static ImportRecord Record(string name) => new(
         name, ImportedListKind.Playlist, ImportTarget.YouTubeMusic, name,
         [new ImportedPart("PL1", 2)], ["a", "b"], DateTimeOffset.UnixEpoch);

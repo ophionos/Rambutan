@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
+using Rambutan.Core.IO;
 
 namespace Rambutan.App.Services;
 
@@ -30,6 +31,9 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
     /// least-recently-read first (reads touch the file timestamp).</summary>
     private const long DiskBudgetBytes = 200L * 1024 * 1024;
     private const int TrimEveryNWrites = 100;
+
+    /// <summary>A larger download fails like an unreachable host; any host can answer.</summary>
+    internal const long MaxImageBytes = 16L * 1024 * 1024;
 
     private readonly string _dir = Path.Combine(dataDirectory, "cache", "artwork");
     private readonly HttpClient _http = handler is null ? new() : new(handler);
@@ -68,7 +72,9 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
 
         if (!File.Exists(path))
         {
-            var bytes = await _http.GetByteArrayAsync(url, ct);
+            using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+            response.EnsureSuccessStatusCode();
+            var bytes = await BoundedRead.ReadContentAsync(response.Content, MaxImageBytes, ct);
             Directory.CreateDirectory(_dir);
             await File.WriteAllBytesAsync(path, bytes, ct);
             if (Interlocked.Increment(ref _writesSinceTrim) >= TrimEveryNWrites)

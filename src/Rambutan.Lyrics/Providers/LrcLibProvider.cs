@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using Rambutan.Core.IO;
 using Rambutan.Lyrics.Models;
 using Rambutan.Lyrics.Parsing;
 
@@ -23,6 +24,9 @@ public sealed class LrcLibProvider : ILyricsProvider, IDisposable
     public const string SourceName = "lrclib";
 
     public static readonly TimeSpan DurationTolerance = TimeSpan.FromSeconds(3);
+
+    /// <summary>A larger answer fails the lookup like an unreachable LRCLIB.</summary>
+    public const long MaxResponseBytes = 4 * 1024 * 1024;
 
     private static readonly Uri BaseUri = new("https://lrclib.net/api/");
 
@@ -194,8 +198,8 @@ public sealed class LrcLibProvider : ILyricsProvider, IDisposable
                 }
                 response.EnsureSuccessStatusCode();
 
-                await using var body = await response.Content.ReadAsStreamAsync(ct);
-                return await JsonSerializer.DeserializeAsync(body, type, ct);
+                var body = await BoundedRead.ReadContentAsync(response.Content, MaxResponseBytes, ct);
+                return JsonSerializer.Deserialize(body, type);
             }
         }
     }
