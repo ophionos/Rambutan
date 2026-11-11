@@ -251,7 +251,7 @@ public partial class NavigationService : ViewModelBase
         Push(new LocalPlaylistPageViewModel(library, id, _local.Scans, _coordinator, this, _actions));
     }
 
-    /// <summary>The Moods &amp; genres grid, from Home's header.</summary>
+    /// <summary>The Moods &amp; genres grid, from the last chip of Home's chip row.</summary>
     public void OpenMoods()
     {
         var page = new MoodsPageViewModel(_catalog, this);

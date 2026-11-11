@@ -28,12 +28,12 @@
           <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
         </Border>
         <!-- Two lines each for title and subtitle (2 × 19 + 2 × 17 + 2), so
-             cards stay one uniform size. The title keeps its two lines when it
-             fills one, so the subtitles of a shelf start at one height. -->
+             cards stay one uniform size. The subtitle sits right under the
+             title; the minimum height keeps the spare lines below it. -->
         <StackPanel Spacing="2" MinHeight="74">
           <TextBlock Text="{Binding Title}" FontSize="{StaticResource Token.Font.Body}" FontWeight="SemiBold"
                      TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
-                     LineHeight="19" MinHeight="38" />
+                     LineHeight="19" />
           <TextBlock Text="{Binding Subtitle}" FontSize="{StaticResource Token.Font.Meta}"
                      Foreground="{StaticResource Token.Brush.Text.Muted}"
                      TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"

@@ -15,7 +15,6 @@
       <Button Classes="icon subtle" ToolTip.Tip="{l:T common.refresh}" Command="{Binding RefreshCommand}">
         <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
       </Button>
-      <Button Content="{l:T home.moods}" Command="{Binding OpenMoodsCommand}" VerticalAlignment="Center" />
       <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />
       <ContentControl Content="{Binding LoadError}"
                       ContentTemplate="{StaticResource ErrorState.Compact}"
@@ -25,24 +24,31 @@
 
     <!-- YouTube Music's mood chips. A chip filters Home to it; the
          selected one, filled, takes Home back. The shelves on show stay until
-         the filtered ones come, with the progress bar above. -->
-    <ItemsControl x:Name="ChipRow" Grid.Row="1" ItemsSource="{Binding Chips}" Margin="4,0,16,14"
+         the filtered ones come, with the progress bar above. The row ends in a
+         chip that opens Moods and genres, which is all the row holds while
+         there are no mood chips. -->
+    <ItemsControl x:Name="ChipRow" Grid.Row="1" ItemsSource="{Binding ChipRow}" Margin="4,0,16,14"
                   AutomationProperties.Name="{l:T home.chipsName}"
-                  controls:RovingFocus.IsEnabled="True"
-                  IsVisible="{Binding !!Chips.Count}">
+                  controls:RovingFocus.IsEnabled="True">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
           <WrapPanel ItemSpacing="8" LineSpacing="8" />
         </ItemsPanelTemplate>
       </ItemsControl.ItemsPanel>
-      <ItemsControl.ItemTemplate>
+      <ItemsControl.DataTemplates>
         <DataTemplate x:DataType="core:HomeChip">
           <Button Classes="chip" Classes.selected="{Binding IsSelected}" Content="{Binding Title}"
                   AutomationProperties.Name="{Binding Converter={x:Static vm:Converters.HomeChipName}}"
                   Command="{Binding #Root.((vm:HomePageViewModel)DataContext).SelectChipCommand}"
                   CommandParameter="{Binding}" />
         </DataTemplate>
-      </ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:MoodsChip">
+          <Button Classes="chip" Content="{l:T home.moreMoods}"
+                  AutomationProperties.Name="{l:T home.moods}"
+                  ToolTip.Tip="{l:T home.moods}"
+                  Command="{Binding #Root.((vm:HomePageViewModel)DataContext).OpenMoodsCommand}" />
+        </DataTemplate>
+      </ItemsControl.DataTemplates>
     </ItemsControl>
 
     <!-- First-load skeleton: two shelf shapes. Refreshes keep real content
