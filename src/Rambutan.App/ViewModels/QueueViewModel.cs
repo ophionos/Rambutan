@@ -57,6 +57,12 @@ public sealed partial class QueueItemViewModel(TrackInfo track) : ObservableObje
     }
     public string Artist => Track.ArtistDisplay;
 
+    /// <summary>"3:45", as the track lists write it; empty when the length is
+    /// unknown (a zero length is one a source didn't give).</summary>
+    public string Duration => Track.Duration is { } d && d > TimeSpan.Zero
+        ? Rambutan.App.Converters.DurationFormat.Clock(d)
+        : "";
+
     /// <summary>Position in the queue as of the last refresh.</summary>
     [ObservableProperty] private int _index;
 

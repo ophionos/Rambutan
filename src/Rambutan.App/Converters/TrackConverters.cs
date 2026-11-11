@@ -73,6 +73,21 @@ public sealed class IsDownloadedConverter : IMultiValueConverter
 }
 
 /// <summary>
+/// Whether an album page's row shows its artist line: [row's Artists, the album's
+/// artist] → false when the line would only repeat the album's artist
+/// (<see cref="AlbumArtistLine"/>).
+/// </summary>
+public sealed class AlbumArtistLineConverter : IMultiValueConverter
+{
+    public static readonly AlbumArtistLineConverter Shows = new();
+
+    public object Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture) =>
+        !(values.Count >= 2
+          && values[0] is IReadOnlyList<ArtistRef> artists
+          && AlbumArtistLine.Hides(values[1] as ArtistRef, artists));
+}
+
+/// <summary>
 /// A track's cover: the download's own copy when it has one, as a <c>file:</c> URI
 /// that <c>RemoteImage</c> reads in place, so it shows offline and outlives the
 /// artwork cache; otherwise the remote thumbnail. Keyed by <c>VideoId</c> like

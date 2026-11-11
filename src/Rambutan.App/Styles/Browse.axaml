@@ -193,6 +193,17 @@
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="Foreground" Value="{StaticResource Token.Brush.Accent}" />
   </Style>
+  <!-- A track row's liked mark (Controls/LikedMark), centred in its slot between
+       the album and the actions. Muted, so a column of them doesn't outweigh the
+       titles; the row's Like button is the accent one. -->
+  <Style Selector="PathIcon.likedmark">
+    <Setter Property="Data" Value="{StaticResource Icon.ThumbUp}" />
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+  </Style>
 
   <!-- Search's top-result card: a card surface around a larger
        cover and title, with the card's own rows below on the same row styles.

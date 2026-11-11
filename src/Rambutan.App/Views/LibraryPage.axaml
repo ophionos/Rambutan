@@ -228,9 +228,13 @@
                AutomationProperties.Name="{Binding Kind, Converter={x:Static vm:Converters.LibrarySectionName}}"
                controls:ScrollMemory.IsEnabled="True"
                controls:ItemActivation.Command="{Binding #Root.((vm:LibraryPageViewModel)DataContext).PlaySongCommand}"
-               controls:TrackColumns.FixedWidth="266">
-        <!-- FixedWidth: item padding 16, cover 52, playing marker 14, album
-             gap 16, actions 112, duration 56. -->
+               controls:TrackColumns.HasAlbum="True"
+               controls:TrackColumns.HasLiked="True"
+               controls:TrackColumns.ItemInset="16"
+               controls:TrackColumns.FixedWidth="234">
+        <!-- Columns at fixed positions (Controls/TrackColumns). FixedWidth: cover
+             52, playing marker 14, actions 112, duration 56; ItemInset the
+             item's padding. -->
         <ListBox.IsVisible>
           <MultiBinding Converter="{x:Static BoolConverters.And}">
             <Binding Path="#Root.((vm:LibraryPageViewModel)DataContext).IsSongs" />
@@ -241,8 +245,9 @@
              and only a song has a row. -->
         <ListBox.DataTemplates>
             <DataTemplate DataType="{x:Type core:SongEntry}">
-              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
-                    Background="Transparent"
+              <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto" Margin="0,2"
+                    Background="Transparent" HorizontalAlignment="Left"
+                    Width="{Binding $parent[ListBox].(controls:TrackColumns.RowWidth)}"
                     controls:TrackMenu.Track="{Binding Track}">
                 <Border Classes="rowart">
                   <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" DecodeWidth="96" />
@@ -296,10 +301,15 @@
                   <TextBlock Classes="rowmeta" Text="{Binding Track.Album}"
                              IsVisible="{Binding Track.AlbumBrowseId, Converter={x:Static ObjectConverters.IsNull}}" />
                 </Panel>
-                <TextBlock Grid.Column="5" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
+                <!-- Visual only: the Like button in the actions says the state. -->
+                <Panel Grid.Column="4" Width="24"
+                       IsVisible="{Binding $parent[ListBox].(controls:TrackColumns.ShowsLiked)}">
+                  <controls:LikedMark Classes="likedmark" Track="{Binding Track}" />
+                </Panel>
+                <TextBlock Grid.Column="6" Classes="rowmeta" Text="{Binding Track.Duration, Converter={x:Static conv:DurationFormat.Converter}}"
                            MinWidth="40" TextAlignment="Right" VerticalAlignment="Center" Margin="8,0" />
                 <!-- Fixed width and before the duration, as on Search's rows. -->
-                <Panel Grid.Column="4" Width="112">
+                <Panel Grid.Column="5" Width="112">
                   <StackPanel Classes="rowactions" Orientation="Horizontal"
                               HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Classes="icon subtle small" ToolTip.Tip="{l:T common.play}"
