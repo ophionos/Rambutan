@@ -9,6 +9,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
 using Avalonia.Platform.Storage;
+using Avalonia.VisualTree;
 using Rambutan.App.Controls;
 using Rambutan.App.Localization;
 using Rambutan.App.Services;
@@ -56,6 +57,13 @@ public partial class MainWindow : Window
                         () => QueueList.ScrollIntoView(restored),
                         Avalonia.Threading.DispatcherPriority.Loaded);
                 HistoryButtons.Attach(this, vm.Navigation);
+                // The Search page has its own field: the title bar's hides there.
+                vm.Navigation.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(NavigationService.Current))
+                        FitTitleSearch();
+                };
+                FitTitleSearch();
 
                 if (vm.IsMiniPlayer)
                     ApplyMiniPlayer(true);
@@ -102,10 +110,11 @@ public partial class MainWindow : Window
         };
         FitShell();
 
-        // Custom title bar: drag to move, double-click to toggle maximize.
+        // Custom title bar: drag to move, double-click to toggle maximize. Not
+        // from the search field: a press there places the caret or selects a word.
         TitleBar.PointerPressed += (_, e) =>
         {
-            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || IsInTitleSearch(e.Source))
                 return;
 
             if (e.ClickCount == 2)
@@ -115,6 +124,7 @@ public partial class MainWindow : Window
             else
                 BeginMoveDrag(e);
         };
+        FollowTitleSearch();
         // The mini player has no title bar: the bar itself moves the window.
         // Its buttons, links and sliders take their own presses first.
         PlayerBar.PointerPressed += (_, e) =>
@@ -661,6 +671,100 @@ public partial class MainWindow : Window
             DropHintText.Text = Strings.Get(key);
     }
 
+    /// <summary>The page's control that last had the focus, for Esc in the title
+    /// bar's search field to give it back.</summary>
+    private InputElement? _pageFocus;
+
+    private void FollowTitleSearch()
+    {
+        // The bar resized, or its buttons did (the text size changed).
+        TitleBar.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == BoundsProperty)
+                FitTitleSearch();
+        };
+        TitleBarItems.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == BoundsProperty)
+                FitTitleSearch();
+        };
+        TitleSearch.KeyDown += OnTitleSearchKeyDown;
+        TitleSearchClear.Click += (_, _) =>
+        {
+            TitleSearch.Text = "";
+            TitleSearch.Focus(NavigationMethod.Pointer);
+        };
+        AddHandler(GotFocusEvent, (_, e) =>
+        {
+            if (e.Source is InputElement focused && ContentPanel.IsVisualAncestorOf(focused))
+                _pageFocus = focused;
+        }, handledEventsToo: true);
+    }
+
+    private bool IsInTitleSearch(object? source) =>
+        source is Visual visual && (visual == TitleSearch || TitleSearch.IsVisualAncestorOf(visual));
+
+    /// <summary>Shows the title bar's search field where it fits
+    /// (<see cref="TitleSearchFit"/>), and hides it while the Search page shows.</summary>
+    private void FitTitleSearch()
+    {
+        var place = DataContext is MainViewModel { Navigation.Current: SearchPageViewModel }
+            ? null
+            : TitleSearchFit.Place(TitleBar.Bounds.Width, TitleBarItems.Bounds.Right);
+        TitleSearch.IsVisible = place is not null;
+        if (place is not { } fit)
+            return;
+        // Unset, the width is NaN, which compares as no change.
+        if (!(Math.Abs(TitleSearch.Width - fit.Width) <= 0.5))
+            TitleSearch.Width = fit.Width;
+        if (Math.Abs(TitleSearch.Margin.Left - fit.Left) > 0.5)
+            TitleSearch.Margin = new Thickness(fit.Left, 0, 0, 0);
+    }
+
+    /// <summary>Enter searches on the Search page, as its own box does (an empty
+    /// field just opens it); Esc empties the field, then gives the focus back to
+    /// the page. Handled either way, so Esc never also closes Now Playing.</summary>
+    private void OnTitleSearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || e.KeyModifiers != KeyModifiers.None)
+            return;
+        switch (e.Key)
+        {
+            case Key.Enter:
+                var query = TitleSearch.Text ?? "";
+                TitleSearch.Text = "";
+                if (string.IsNullOrWhiteSpace(query))
+                    vm.Navigation.GoSearch();
+                else
+                    vm.Navigation.SearchFor(query);
+                break;
+            case Key.Escape when !string.IsNullOrEmpty(TitleSearch.Text):
+                TitleSearch.Text = "";
+                break;
+            case Key.Escape:
+                FocusPage();
+                break;
+            default:
+                return;
+        }
+        e.Handled = true;
+    }
+
+    /// <summary>Focuses the page's control that last had the focus, else the
+    /// page's first tab stop.</summary>
+    private void FocusPage()
+    {
+        if (_pageFocus is { } last && ContentPanel.IsVisualAncestorOf(last) &&
+            last.IsEffectivelyVisible && last.IsEffectivelyEnabled && last.Focus(NavigationMethod.Tab))
+        {
+            return;
+        }
+        ContentPanel.GetVisualDescendants().OfType<InputElement>()
+            .FirstOrDefault(c => c.Focusable && KeyboardNavigation.GetIsTabStop(c) &&
+                                 c.IsEffectivelyVisible && c.IsEffectivelyEnabled)
+            ?.Focus(NavigationMethod.Tab);
+    }
+
     /// <summary>Keyboard shortcuts; the reference sheet is on F1.</summary>
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -702,6 +806,20 @@ public partial class MainWindow : Window
                 break;
             case (Key.F, KeyModifiers.Control):
                 Run(vm.GoSearchCommand);
+                break;
+            case (Key.K, KeyModifiers.Control):
+                // Where the title bar's field isn't shown (the Search page, the
+                // mini player, the visualizer's fullscreen, a bar too narrow for
+                // it), as Ctrl+F: the Search page's own field.
+                if (TitleSearch.IsEffectivelyVisible)
+                {
+                    TitleSearch.Focus(NavigationMethod.Tab);
+                    TitleSearch.SelectAll();
+                }
+                else
+                {
+                    Run(vm.GoSearchCommand);
+                }
                 break;
             case (Key.OemComma, KeyModifiers.Control):
                 Run(vm.GoSettingsCommand);

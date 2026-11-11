@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -24,6 +26,12 @@ public partial class MoodsPageViewModel : ViewModelBase
 
     public ObservableCollection<MoodSection> Sections { get; } = [];
 
+    /// <summary>Leaves out a tile that an earlier group already shows, and a group
+    /// left with none. YouTube Music's first group ("For you") repeats tiles of
+    /// the groups after it, which reads as noise under the Search page's recent
+    /// searches; the Moods &amp; genres page keeps the groups as sent.</summary>
+    public bool LeavesOutRepeats { get; set; }
+
     public MoodsPageViewModel(ICatalog catalog, NavigationService navigation)
     {
         _catalog = catalog;
@@ -39,7 +47,7 @@ public partial class MoodsPageViewModel : ViewModelBase
         {
             var page = await _catalog.GetMoodsAndGenresAsync();
             Sections.Clear();
-            foreach (var section in page.Sections)
+            foreach (var section in LeavesOutRepeats ? WithoutRepeats(page.Sections) : page.Sections)
                 Sections.Add(section);
             IsEmpty = Sections.Count == 0;
         }
@@ -51,6 +59,24 @@ public partial class MoodsPageViewModel : ViewModelBase
         {
             IsLoading = false;
         }
+    }
+
+    /// <summary>Each group without the tiles of the groups before it (a tile is
+    /// its params, or its title when it has none); repeats inside one group stay.</summary>
+    private static IEnumerable<MoodSection> WithoutRepeats(IReadOnlyList<MoodSection> sections)
+    {
+        var shown = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var section in sections)
+        {
+            var kept = section.Categories.Where(c => !shown.Contains(Key(c))).ToList();
+            foreach (var category in kept)
+                shown.Add(Key(category));
+            if (kept.Count > 0)
+                yield return kept.Count == section.Categories.Count ? section : section with { Categories = kept };
+        }
+
+        static string Key(MoodCategory category) =>
+            string.IsNullOrEmpty(category.Params) ? "title:" + category.Title : "params:" + category.Params;
     }
 
     [RelayCommand]

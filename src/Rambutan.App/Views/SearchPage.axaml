@@ -13,8 +13,9 @@
 
   <!-- 4px side inset matches every other page's content edge. -->
   <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="4,0">
-    <Grid Margin="0,0,12,0" Grid.Row="0" ColumnDefinitions="*,Auto">
-      <TextBox x:Name="SearchBox" Grid.Column="0" Classes="searchfield" PlaceholderText="{l:T search.placeholder}"
+    <!-- Enter searches: there is no Search button. -->
+    <Grid Margin="0,0,12,0" Grid.Row="0">
+      <TextBox x:Name="SearchBox" Classes="searchfield" PlaceholderText="{l:T search.placeholder}"
                Text="{Binding Query}"
                KeyDown="OnSearchKeyDown">
         <TextBox.InnerLeftContent>
@@ -22,8 +23,6 @@
                     Foreground="{StaticResource Token.Brush.Text.Muted}" />
         </TextBox.InnerLeftContent>
       </TextBox>
-      <Button Grid.Column="1" Content="{l:T search.button}" Classes="accent" Margin="8,0,0,0"
-              Command="{Binding SearchCommand}" />
 
       <!-- While typing: matching recent queries, YTM's completions and the
            entities it matched. With the box empty the page lists the recent ones.
@@ -188,6 +187,23 @@
                   IsVisible="{Binding HasSearched}">
       <StackPanel>
       <StackPanel.DataTemplates>
+
+        <!-- A group's heading in the All tab's results. The item's padding is
+             the rows'; the heading goes back to the list's edge, and its top
+             margin is the gap between groups. See all is not a tab stop: the
+             filter chips above reach the same tabs from the keyboard. -->
+        <DataTemplate DataType="{x:Type vm:SearchResultHeading}">
+          <Grid ColumnDefinitions="*,Auto" Margin="-8,12,0,2">
+            <TextBlock Classes="sectiontitle" Text="{Binding Title}" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="textlink seeall" IsTabStop="False" VerticalAlignment="Center"
+                    Content="{l:T shelf.seeAll}"
+                    ToolTip.Tip="{Binding Title, Converter={x:Static vm:Converters.SeeAllName}}"
+                    AutomationProperties.Name="{Binding Title, Converter={x:Static vm:Converters.SeeAllName}}"
+                    Command="{Binding #Root.((vm:SearchPageViewModel)DataContext).ShowTabCommand}"
+                    CommandParameter="{Binding SeeAll}"
+                    IsVisible="{Binding SeeAll, Converter={x:Static ObjectConverters.IsNotNull}}" />
+          </Grid>
+        </DataTemplate>
 
         <DataTemplate DataType="{x:Type core:SongEntry}">
           <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="0,2"
@@ -521,10 +537,12 @@
       </Border>
 
       <!-- A plain panel: the scroller above owns scrolling, and a virtualizing
-           panel measured at infinite height would realize every row anyway. -->
-      <ListBox Classes="tracks" Background="Transparent"
+           panel measured at infinite height would realize every row anyway.
+           On the All tab its rows are grouped under headings, one list, so the
+           arrow keys go from group to group (code-behind). -->
+      <ListBox x:Name="ResultsList" Classes="tracks" Background="Transparent"
                AutomationProperties.Name="{l:T search.resultsName}"
-               ItemsSource="{Binding Results}"
+               ItemsSource="{Binding Rows}"
                controls:ItemActivation.Command="{Binding OpenCommand}"
                controls:TrackColumns.FixedWidth="266">
         <ListBox.ItemsPanel>

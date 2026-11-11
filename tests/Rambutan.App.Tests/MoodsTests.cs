@@ -118,6 +118,56 @@ public class MoodsTests
         Assert.False(page.IsEmpty);
     }
 
+    // YouTube Music's first group repeats tiles that its later groups list too.
+    private static readonly MoodsPage Repeating = new()
+    {
+        Sections =
+        [
+            new MoodSection("For you", [new MoodCategory("Chill", "CHILL"), new MoodCategory("Jazz", "JAZZ")]),
+            new MoodSection("Moods & moments", [new MoodCategory("Chill", "CHILL"), new MoodCategory("Focus", "FOCUS")]),
+            new MoodSection("Genres", [new MoodCategory("Jazz", "JAZZ")]),
+            // No params: told apart by title.
+            new MoodSection("More", [new MoodCategory("Pop", ""), new MoodCategory("Pop", "")]),
+            new MoodSection("Again", [new MoodCategory("Pop", "")]),
+        ],
+    };
+
+    private static string[] Groups(MoodsPageViewModel page) =>
+        page.Sections.Select(s => $"{s.Title}: {string.Join(", ", s.Categories.Select(c => c.Title))}").ToArray();
+
+    [Fact]
+    public async Task TheSearchLanding_LeavesOutTilesAnEarlierGroupShows_AndGroupsLeftEmpty()
+    {
+        var catalog = new FakeCatalog { Moods = () => Task.FromResult(Repeating) };
+        var search = new SearchPageViewModel(catalog, null!, null!, moods: new MoodsPageViewModel(catalog, null!));
+
+        await search.Moods!.LoadAsync();
+
+        Assert.Equal(
+            ["For you: Chill, Jazz", "Moods & moments: Focus", "More: Pop, Pop"],
+            Groups(search.Moods));
+        Assert.False(search.Moods.IsEmpty);
+
+        // A reload filters as the first load did.
+        await search.Moods.ReloadCommand.ExecuteAsync(null);
+        Assert.Equal(3, search.Moods.Sections.Count);
+    }
+
+    [Fact]
+    public async Task TheMoodsPage_ShowsEveryGroupAsSent()
+    {
+        var catalog = new FakeCatalog { Moods = () => Task.FromResult(Repeating) };
+        var navigation = new NavigationService(catalog, null!, null!);
+        navigation.OpenMoods();
+        var page = Assert.IsType<MoodsPageViewModel>(navigation.Current);
+
+        await page.LoadAsync();
+
+        Assert.Equal(
+            ["For you: Chill, Jazz", "Moods & moments: Chill, Focus", "Genres: Jazz", "More: Pop, Pop", "Again: Pop"],
+            Groups(page));
+    }
+
     [Fact]
     public async Task CategoryPage_TakesItsOwnTitle_AndSeeAllOnlyWhereThereIsMore()
     {

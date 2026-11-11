@@ -1,5 +1,6 @@
 using System.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -48,6 +49,9 @@ public partial class SearchPage : UserControl
         RecentList.AddHandler(KeyDownEvent, OnRecentKeyDown);
         RecentList.AddHandler(Button.ClickEvent, OnRecentClick);
 
+        ResultsList.ContainerPrepared += OnResultContainerPrepared;
+        ResultsList.SelectionChanged += OnResultSelectionChanged;
+
         // A filtered search's next page, as the list nears its end. Extent changes
         // raise this too, so a first page too short to scroll asks for the next.
         ResultsScroller.ScrollChanged += (_, _) =>
@@ -92,6 +96,50 @@ public partial class SearchPage : UserControl
     }
 
     private void OnWindowDeactivated(object? sender, System.EventArgs e) => _vm?.CloseDropdown();
+
+    // As History's headings (LibraryPage), except that a heading stays
+    // hit-testable for its See all. Containers are recycled between headings and
+    // rows, so each one is set both ways. A heading takes no focus (the arrow
+    // keys pass over it); a screen reader hears it as a heading, named by
+    // AccessibleNames from its IHasAccessibleName.
+    private void OnResultContainerPrepared(object? sender, ContainerPreparedEventArgs e)
+    {
+        var container = e.Container;
+        if (ResultsList.Items[e.Index] is SearchResultHeading)
+        {
+            container.Focusable = false;
+            AutomationProperties.SetHeadingLevel(container, 2);
+        }
+        else
+        {
+            container.ClearValue(FocusableProperty);
+            container.ClearValue(AutomationProperties.HeadingLevelProperty);
+        }
+    }
+
+    // Whatever selects a heading (a press beside its See all, a key that lands
+    // on it) moves on to the row beyond it in the same direction, else the row
+    // before it: Enter then always has an entry to open.
+    private void OnResultSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (ResultsList.SelectedItem is not SearchResultHeading)
+            return;
+        var items = ResultsList.Items;
+        var at = ResultsList.SelectedIndex;
+        var from = e.RemovedItems.Count > 0 ? items.IndexOf(e.RemovedItems[0]) : -1;
+        var step = from > at ? -1 : 1;
+        ResultsList.SelectedIndex = NextRow(at, step) ?? NextRow(at, -step) ?? -1;
+
+        int? NextRow(int index, int direction)
+        {
+            for (var i = index + direction; i >= 0 && i < items.Count; i += direction)
+            {
+                if (items[i] is not SearchResultHeading)
+                    return i;
+            }
+            return null;
+        }
+    }
 
     private void CheckFieldActive()
     {

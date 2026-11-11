@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Rambutan.App.Controls;
 using Rambutan.App.Localization;
 using Rambutan.App.Services;
 using Rambutan.Core.Catalog;
@@ -23,6 +24,41 @@ namespace Rambutan.App.ViewModels;
 public sealed record SearchTab(SearchFilter? Filter)
 {
     public static SearchTab All { get; } = new((SearchFilter?)null);
+}
+
+/// <summary>The kinds the All tab's results are grouped by.</summary>
+public enum SearchResultGroup
+{
+    SongsAndVideos,
+    Albums,
+    Artists,
+    Playlists,
+    Other,
+}
+
+/// <summary>A group's heading as a row of the All tab's results: not selected,
+/// not opened, spoken as a heading. <see cref="SeeAll"/> is the tab that lists
+/// only that kind, null where none does. A class, not a record: two headings of
+/// the same kind are two rows.</summary>
+public sealed class SearchResultHeading(SearchResultGroup group, SearchTab? seeAll) : IHasAccessibleName
+{
+    public SearchResultGroup Group { get; } = group;
+
+    public SearchTab? SeeAll { get; } = seeAll;
+
+    public string Title => Strings.Get(Group switch
+    {
+        SearchResultGroup.SongsAndVideos => "search.group.songsAndVideos",
+        SearchResultGroup.Albums => "search.filter.albums",
+        SearchResultGroup.Artists => "search.filter.artists",
+        SearchResultGroup.Playlists => "search.filter.playlists",
+        _ => "search.group.other",
+    });
+
+    public string AccessibleName => Title;
+
+    // The heading is rebuilt with each answer; its text doesn't change in place.
+    event System.ComponentModel.PropertyChangedEventHandler? System.ComponentModel.INotifyPropertyChanged.PropertyChanged { add { } remove { } }
 }
 
 /// <summary>A query from this machine's search history, in the drop-down and on
@@ -129,6 +165,12 @@ public partial class SearchPageViewModel : ViewModelBase
 
     public ObservableCollection<CatalogEntry> Results { get; } = [];
 
+    /// <summary>What the results list shows: <see cref="Results"/>, under a
+    /// <see cref="SearchResultHeading"/> per kind on the All tab (the kinds in the
+    /// order they first come in the answer, each kind's rows in theirs), as they
+    /// are on a type's tab.</summary>
+    public ObservableCollection<object> Rows { get; } = [];
+
     /// <summary>Searches the local index: the query, how many rows to return at
     /// most, and the search's token. Null where there is no local library.</summary>
     public delegate Task<(IReadOnlyList<LocalTrackRow> Rows, int Total)> LocalSearchFunc(
@@ -172,6 +214,7 @@ public partial class SearchPageViewModel : ViewModelBase
         {
             Title = "Random Access Memories", Subtitle = "Album • Daft Punk • 2013", BrowseId = "x",
         });
+        ShowRows(grouped: true);
     }
 
     public SearchPageViewModel(
@@ -185,6 +228,8 @@ public partial class SearchPageViewModel : ViewModelBase
         _history = history ?? new SearchHistory(null);
         _searchLocal = searchLocal;
         Moods = moods;
+        if (moods is not null)
+            moods.LeavesOutRepeats = true;
 
         SyncRecent();
         _history.Changed += OnHistoryChanged;
@@ -283,6 +328,7 @@ public partial class SearchPageViewModel : ViewModelBase
         IsLoadingMore = false;
         MoreError = null;
         Results.Clear();
+        Rows.Clear();
         TopResult = null;
         ShowLocal([], 0, expanded: false);
         HasSearched = false;
@@ -388,6 +434,11 @@ public partial class SearchPageViewModel : ViewModelBase
         RunQuery(query);
     }
 
+    /// <summary>Runs a search typed outside the page (the title bar's field) as
+    /// one typed in the page's box: under the filter on screen, and kept in the
+    /// search history.</summary>
+    public void RunTyped(string query) => RunQuery(query);
+
     /// <summary>Set for one search that the history must not keep.</summary>
     private bool _forgetNext;
 
@@ -464,10 +515,11 @@ public partial class SearchPageViewModel : ViewModelBase
         try
         {
             var query = Query.Trim();
+            var filter = SelectedTab.Filter;
             // Both start at once: the local shelf shows in moments, and it stays
             // when YouTube Music can't answer (offline is when it matters most).
-            var remote = FetchAsync(query, SelectedTab.Filter, search.Token);
-            if (SelectedTab.Filter is null && _searchLocal is not null)
+            var remote = FetchAsync(query, filter, search.Token);
+            if (filter is null && _searchLocal is not null)
                 await ShowLocalAsync(_searchLocal(query, LocalKept, search.Token), search);
             else
                 ShowLocal([], 0, expanded: false);
@@ -480,6 +532,7 @@ public partial class SearchPageViewModel : ViewModelBase
             Results.Clear();
             foreach (var entry in entries)
                 Results.Add(entry);
+            ShowRows(grouped: filter is null);
             _next = next;
             HasMore = next is not null;
         }
@@ -490,6 +543,7 @@ public partial class SearchPageViewModel : ViewModelBase
                 // A failed search must not leave the previous query's results
                 // standing under the new query and filter.
                 Results.Clear();
+                Rows.Clear();
                 TopResult = null;
                 LoadError = LoadError.From(ex, LoadSubject.SearchResults, SearchCommand);
             }
@@ -595,10 +649,15 @@ public partial class SearchPageViewModel : ViewModelBase
 
             // A row YTM repeats across pages would be the same row twice.
             var shown = Results.Select(Key).ToHashSet();
+            // Only a type's tab pages, so its rows have no headings: appended, the
+            // rows on screen keep their place and focus.
             foreach (var entry in page.Items)
             {
                 if (shown.Add(Key(entry)))
+                {
                     Results.Add(entry);
+                    Rows.Add(entry);
+                }
             }
 
             _next = page.Continuation is { } token && token != next.Token && page.Items.Count > 0
@@ -631,15 +690,65 @@ public partial class SearchPageViewModel : ViewModelBase
         _ => entry.GetType().Name + ":" + entry.Title,
     };
 
-    /// <summary>Songs play with the list they came from as their queue; the rest navigate.</summary>
+    /// <summary>Songs play with the list they came from as their queue; the rest
+    /// navigate. Anything that isn't an entry (a heading of the results) does nothing.</summary>
     [RelayCommand]
-    private async Task OpenAsync(CatalogEntry entry)
+    private async Task OpenAsync(object? item)
     {
-        if (entry is SongEntry song)
+        if (item is SongEntry song)
             await PlayAsync(song);
-        else
+        else if (item is CatalogEntry entry)
             await _navigation.OpenEntryAsync(entry);
     }
+
+    /// <summary>A heading's See all: that kind's own tab.</summary>
+    [RelayCommand]
+    private void ShowTab(SearchTab? tab)
+    {
+        if (tab is not null)
+            SelectedTab = tab;
+    }
+
+    /// <summary>Fills <see cref="Rows"/> from <see cref="Results"/>, under headings
+    /// when <paramref name="grouped"/> (the All tab's answer).</summary>
+    private void ShowRows(bool grouped)
+    {
+        Rows.Clear();
+        foreach (var row in grouped ? Grouped(Results) : Results)
+            Rows.Add(row);
+    }
+
+    /// <summary>A heading per kind, in the order the kinds first come, with each
+    /// kind's rows in their order. Songs and videos share one group: the All
+    /// answer doesn't say which a row is.</summary>
+    private IEnumerable<object> Grouped(IEnumerable<CatalogEntry> entries)
+    {
+        foreach (var group in entries.GroupBy(GroupOf))
+        {
+            yield return new SearchResultHeading(group.Key, TabFor(group.Key));
+            foreach (var entry in group)
+                yield return entry;
+        }
+    }
+
+    private static SearchResultGroup GroupOf(CatalogEntry entry) => entry switch
+    {
+        SongEntry => SearchResultGroup.SongsAndVideos,
+        AlbumEntry => SearchResultGroup.Albums,
+        ArtistEntry => SearchResultGroup.Artists,
+        PlaylistEntry => SearchResultGroup.Playlists,
+        _ => SearchResultGroup.Other,
+    };
+
+    /// <summary>The tab that lists only that kind; none for songs and videos,
+    /// which two tabs hold between them, nor for the rest.</summary>
+    private SearchTab? TabFor(SearchResultGroup group) => group switch
+    {
+        SearchResultGroup.Albums => Tabs.Single(t => t.Filter == SearchFilter.Albums),
+        SearchResultGroup.Artists => Tabs.Single(t => t.Filter == SearchFilter.Artists),
+        SearchResultGroup.Playlists => Tabs.Single(t => t.Filter == SearchFilter.Playlists),
+        _ => null,
+    };
 
     [RelayCommand]
     private async Task PlayAsync(SongEntry song)
