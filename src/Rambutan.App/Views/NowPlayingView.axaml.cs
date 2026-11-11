@@ -177,9 +177,14 @@ public partial class NowPlayingView : UserControl
             or nameof(NowPlayingViewModel.IsArtworkShown))
             ApplyLayout();
         if (e.PropertyName is nameof(NowPlayingViewModel.IsFullscreen))
+        {
             ApplyLayout();
-        else if (e.PropertyName is nameof(NowPlayingViewModel.IsFullscreen) or nameof(NowPlayingViewModel.IsPointerHidden))
             ApplyFullscreen();
+        }
+        else if (e.PropertyName is nameof(NowPlayingViewModel.IsPointerHidden))
+        {
+            ApplyFullscreen();
+        }
     }
 
     private bool _applying;

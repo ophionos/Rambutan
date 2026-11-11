@@ -355,11 +355,14 @@ public sealed class YouTubeMatchesTests : IDisposable
     public async Task A_failed_search_says_so_and_the_menu_filling_again_does_not_search_again()
     {
         var searches = 0;
+        // Held open until the first status is read: a search that has already
+        // failed on another thread reads as Failed, not Searching.
+        var search = new TaskCompletionSource<IReadOnlyList<TrackInfo>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var matches = new YouTubeMatches(
             new LocalMatcher((_, _) =>
             {
                 Interlocked.Increment(ref searches);
-                return Task.FromException<IReadOnlyList<TrackInfo>>(new HttpRequestException("offline"));
+                return search.Task;
             }),
             id => _files.GetValueOrDefault(id), _dir, (_, _) => Task.FromResult(Array.Empty<byte>()))
         {
@@ -374,6 +377,7 @@ public sealed class YouTubeMatchesTests : IDisposable
         var local = Local("local:1", "Disco 2000");
 
         Assert.Equal(LocalMatchState.Searching, matches.StatusOf(local)!.Value.State);
+        search.SetException(new HttpRequestException("offline"));
         await announced.Task.WaitAsync(TimeSpan.FromSeconds(10));
         // What the open menu does when told: it builds itself again.
         var group = TrackMenuModel.Build(local, actions)[1];

@@ -389,6 +389,31 @@ public class FullscreenVisualizerTests
     });
 
     [Fact]
+    public void TheMargins_FollowFullscreen_AtOnce() => Headless.Run(() =>
+    {
+        var (vm, _, _, _) = NowPlaying();
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+        var view = new NowPlayingView { DataContext = vm };
+        var window = new Window { Content = view };
+        window.Show();
+        Settle(window);
+        var stage = view.GetVisualDescendants().OfType<Control>().Single(c => c.Name == "StageVisualizer");
+        var body = view.GetVisualDescendants().OfType<Control>().Single(c => c.Name == "Body");
+        var (stageMargin, bodyMargin) = (stage.Margin, body.Margin);
+
+        // Before the pointer hides: the lyrics column must end above the
+        // transport from the first frame.
+        vm.IsFullscreen = true;
+        Assert.Equal(default, stage.Margin);
+        Assert.Equal(112, body.Margin.Bottom);
+
+        vm.IsFullscreen = false;
+        Assert.Equal(stageMargin, stage.Margin);
+        Assert.Equal(bodyMargin, body.Margin);
+    });
+
+    [Fact]
     public void ThePointer_HidesWithTheControls_OnlyWhileTheWindowIsActive()
     {
         var (vm, _, _, timers) = NowPlaying();
