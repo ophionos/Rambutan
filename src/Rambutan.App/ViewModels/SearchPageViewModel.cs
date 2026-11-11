@@ -29,6 +29,9 @@ public sealed record SearchTab(SearchFilter? Filter)
 /// <summary>The kinds the All tab's results are grouped by.</summary>
 public enum SearchResultGroup
 {
+    Songs,
+    Videos,
+    /// <summary>Rows that play but whose answer didn't say which they are.</summary>
     SongsAndVideos,
     Albums,
     Artists,
@@ -48,6 +51,8 @@ public sealed class SearchResultHeading(SearchResultGroup group, SearchTab? seeA
 
     public string Title => Strings.Get(Group switch
     {
+        SearchResultGroup.Songs => "search.filter.songs",
+        SearchResultGroup.Videos => "search.filter.videos",
         SearchResultGroup.SongsAndVideos => "search.group.songsAndVideos",
         SearchResultGroup.Albums => "search.filter.albums",
         SearchResultGroup.Artists => "search.filter.artists",
@@ -719,8 +724,8 @@ public partial class SearchPageViewModel : ViewModelBase
     }
 
     /// <summary>A heading per kind, in the order the kinds first come, with each
-    /// kind's rows in their order. Songs and videos share one group: the All
-    /// answer doesn't say which a row is.</summary>
+    /// kind's rows in their order. A row that plays goes by its
+    /// <see cref="TrackInfo.Kind"/>.</summary>
     private IEnumerable<object> Grouped(IEnumerable<CatalogEntry> entries)
     {
         foreach (var group in entries.GroupBy(GroupOf))
@@ -733,6 +738,8 @@ public partial class SearchPageViewModel : ViewModelBase
 
     private static SearchResultGroup GroupOf(CatalogEntry entry) => entry switch
     {
+        SongEntry { Track.Kind: TrackKind.Song } => SearchResultGroup.Songs,
+        SongEntry { Track.Kind: TrackKind.Video } => SearchResultGroup.Videos,
         SongEntry => SearchResultGroup.SongsAndVideos,
         AlbumEntry => SearchResultGroup.Albums,
         ArtistEntry => SearchResultGroup.Artists,
@@ -740,10 +747,12 @@ public partial class SearchPageViewModel : ViewModelBase
         _ => SearchResultGroup.Other,
     };
 
-    /// <summary>The tab that lists only that kind; none for songs and videos,
+    /// <summary>The tab that lists only that kind; none for the mixed group,
     /// which two tabs hold between them, nor for the rest.</summary>
     private SearchTab? TabFor(SearchResultGroup group) => group switch
     {
+        SearchResultGroup.Songs => Tabs.Single(t => t.Filter == SearchFilter.Songs),
+        SearchResultGroup.Videos => Tabs.Single(t => t.Filter == SearchFilter.Videos),
         SearchResultGroup.Albums => Tabs.Single(t => t.Filter == SearchFilter.Albums),
         SearchResultGroup.Artists => Tabs.Single(t => t.Filter == SearchFilter.Artists),
         SearchResultGroup.Playlists => Tabs.Single(t => t.Filter == SearchFilter.Playlists),

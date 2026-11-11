@@ -13,6 +13,17 @@ public sealed record ArtistRef(string Name, string? BrowseId = null);
 /// </summary>
 public sealed record LibraryToggle(bool InLibrary, string AddToken, string RemoveToken);
 
+/// <summary>
+/// What YouTube Music lists a row as: <see cref="Song"/> is an audio track (its
+/// "Song" results), <see cref="Video"/> anything with a picture of its own (an
+/// official music video, a user's upload).
+/// </summary>
+public enum TrackKind
+{
+    Song,
+    Video,
+}
+
 public sealed record TrackInfo
 {
     public required string VideoId { get; init; }
@@ -69,6 +80,19 @@ public sealed record TrackInfo
     /// to it when the audio track won't resolve. Null everywhere else.
     /// </summary>
     public string? ListedVideoId { get; init; }
+
+    /// <summary>
+    /// How often it was played, as the source row said ("1.2B plays", a video's
+    /// "609M views"): rounded as YouTube Music rounds it, so 1,200,000,000. Null
+    /// when the row carried no count (playlist rows, radio rows, a local file).
+    /// </summary>
+    public long? PlayCount { get; init; }
+
+    /// <summary>
+    /// Whether the row is a song or a video. Null when the source didn't say
+    /// (cards, a restored queue, a local file), which is "unknown".
+    /// </summary>
+    public TrackKind? Kind { get; init; }
 
     public TrackIdentity Identity => new(VideoId, SongId);
 

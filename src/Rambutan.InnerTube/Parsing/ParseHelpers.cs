@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Rambutan.Core.Models;
+using Rambutan.Core.Text;
 
 namespace Rambutan.InnerTube.Parsing;
 
@@ -141,6 +142,38 @@ internal static class ParseHelpers
             return true;
         var space = text.LastIndexOf(' ');
         return space > 0 && char.IsAsciiDigit(text[0]) && CountUnits.Contains(text[(space + 1)..]);
+    }
+
+    /// <summary>
+    /// A row's musicVideoType, on its play overlay or its title's watch endpoint:
+    /// ATV (an "art track", audio with a still cover) is a song, every other
+    /// type a video. Null when the row has none, and for a podcast episode.
+    /// </summary>
+    public static TrackKind? ListItemKind(JsonElement renderer, JsonElement titleRun)
+    {
+        string? type = null;
+        if (renderer.TryGetPath(out var fromOverlay,
+                "overlay", "musicItemThumbnailOverlayRenderer", "content", "musicPlayButtonRenderer",
+                "playNavigationEndpoint", "watchEndpoint", "watchEndpointMusicSupportedConfigs",
+                "watchEndpointMusicConfig", "musicVideoType") &&
+            fromOverlay.ValueKind == JsonValueKind.String)
+        {
+            type = fromOverlay.GetString();
+        }
+        else if (titleRun.TryGetPath(out var fromTitle,
+                     "navigationEndpoint", "watchEndpoint", "watchEndpointMusicSupportedConfigs",
+                     "watchEndpointMusicConfig", "musicVideoType") &&
+                 fromTitle.ValueKind == JsonValueKind.String)
+        {
+            type = fromTitle.GetString();
+        }
+
+        return type switch
+        {
+            null or "" or "MUSIC_VIDEO_TYPE_PODCAST_EPISODE" => null,
+            "MUSIC_VIDEO_TYPE_ATV" => TrackKind.Song,
+            _ => TrackKind.Video,
+        };
     }
 
     public static string? PageType(JsonElement navigationEndpointOwner)
@@ -322,8 +355,9 @@ internal static class ParseHelpers
         string? album = null;
         string? albumBrowseId = null;
         TimeSpan? duration = null;
+        long? playCount = null;
 
-        // Artists/album/duration live in the remaining flex columns, identified by
+        // Artists/album/duration/plays live in the remaining flex columns, identified by
         // their browse page type (never by position — layouts vary per surface).
         for (var c = 1; c < columns.GetArrayLength(); c++)
         {
@@ -352,6 +386,8 @@ internal static class ParseHelpers
                     default:
                         if (duration is null && TryParseDuration(text, out var parsed))
                             duration = parsed;
+                        else if (playCount is null && PlayCountText.TryParse(text.Trim(), out var count))
+                            playCount = count;
                         break;
                 }
             }
@@ -382,6 +418,8 @@ internal static class ParseHelpers
             Rating = ListItemRating(renderer),
             Library = ListItemLibraryToggle(renderer),
             SongId = CreditsSongId(renderer),
+            PlayCount = playCount,
+            Kind = ListItemKind(renderer, titleRun),
         };
         return true;
     }

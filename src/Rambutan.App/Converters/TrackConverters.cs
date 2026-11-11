@@ -1,6 +1,8 @@
 using System.Globalization;
 using Avalonia.Data.Converters;
+using Rambutan.App.Localization;
 using Rambutan.Core.Models;
+using Rambutan.Core.Text;
 
 namespace Rambutan.App.Converters;
 
@@ -70,6 +72,28 @@ public sealed class IsDownloadedConverter : IMultiValueConverter
         && values[0] is string { Length: > 0 } videoId
         && values[1] is IReadOnlySet<string> downloaded
         && downloaded.Contains(videoId);
+}
+
+/// <summary>A row's play count as YouTube Music shortens it ("1.2B plays");
+/// blank for a row without one.</summary>
+public static class PlayCountFormat
+{
+    public static string Text(long count)
+    {
+        var shortened = PlayCountText.Shorten(count);
+        var scale = shortened.Scale switch
+        {
+            CountScale.Billions => "billions",
+            CountScale.Millions => "millions",
+            CountScale.Thousands => "thousands",
+            _ => count == 1 ? "one" : "units",
+        };
+        // A number, not text: the string table formats it for the UI language.
+        return Strings.Format("track.plays", ("scale", scale), ("value", (double)shortened.Value));
+    }
+
+    public static readonly IValueConverter Converter =
+        new FuncValueConverter<long?, string>(count => count is { } plays ? Text(plays) : "");
 }
 
 /// <summary>

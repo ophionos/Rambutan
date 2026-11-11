@@ -1099,6 +1099,7 @@
     "toast.track.addedToQueue": "Added “{title}” to the queue",
     "toast.track.linkCopied": "Link to “{title}” copied",
     "toast.track.playingNext": "Playing “{title}” next",
+    "track.plays": "{scale, select, billions {{value}B plays} millions {{value}M plays} thousands {{value}K plays} one {{value} play} other {{value} plays}}",
     "tray.exit": "Exit",
     "tray.miniPlayer": "Mini player",
     "tray.next": "Next",
