@@ -35,14 +35,26 @@ public class EntryCardLayoutTests
     private static double Top(Visual visual, Visual within) => visual.TranslatePoint(default, within)!.Value.Y;
 
     [Fact]
-    public void TheSubtitle_SitsAtTheSameHeight_UnderAOneLineTitleAndATwoLineTitle() => Headless.Run(() =>
+    public void TheSubtitle_SitsDirectlyUnderTheTitle_WhateverItsLength() => Headless.Run(() =>
     {
         var one = Show("Discovery", "Album • Daft Punk");
         var two = Show(LongTitle, "Album • Daft Punk");
 
         // The long title does take two lines, or the test shows nothing.
         Assert.True(two.Title.Bounds.Height > one.Title.TextLayout.Height + 1);
-        Assert.Equal(Top(two.Subtitle, two.Card), Top(one.Subtitle, one.Card));
+        // The 2 px is the stack's spacing.
+        Assert.Equal(Top(one.Title, one.Card) + one.Title.Bounds.Height + 2, Top(one.Subtitle, one.Card), 0.5);
+        Assert.Equal(Top(two.Title, two.Card) + two.Title.Bounds.Height + 2, Top(two.Subtitle, two.Card), 0.5);
+        Assert.True(Top(one.Subtitle, one.Card) < Top(two.Subtitle, two.Card));
+    });
+
+    [Fact]
+    public void Cards_KeepTheirHeight_WhetherTheTitleTakesOneLineOrTwo() => Headless.Run(() =>
+    {
+        var one = Show("Discovery", "Album • Daft Punk");
+        var two = Show(LongTitle, "A subtitle that is also long enough to need a second line of its own");
+
+        Assert.Equal(two.Card.Bounds.Height, one.Card.Bounds.Height);
     });
 
     [Fact]

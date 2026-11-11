@@ -131,6 +131,39 @@
     <Setter Property="Padding" Value="5" />
   </Style>
 
+  <!-- A shelf's page arrows (Views/ShelfView): a 32 px disc that shows at rest,
+       since a bare glyph on the blurred page background is easy to miss. The
+       disc is a light wash, quieter than the shelf's title; the white glyph is
+       what identifies the control, and on the wash over the page's backdrop
+       (about #141418 under a dark cover to #2F2F33 under a white one) it is
+       above 10:1 (WCAG 1.4.11 asks 3:1). Disabled keeps the disc and dims only
+       the glyph, so it still reads as a control; the global 0.3 opacity would
+       take the disc away. -->
+  <Style Selector="Button.icon.shelfpage">
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="7" />
+  </Style>
+  <Style Selector="Button.icon.shelfpage /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+  </Style>
+  <Style Selector="Button.icon.shelfpage:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.38}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.White}" />
+  </Style>
+  <Style Selector="Button.icon.shelfpage:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.38}" />
+    <Setter Property="RenderTransform" Value="scale(0.92)" />
+  </Style>
+  <Style Selector="Button.icon.shelfpage:disabled">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="Button.icon.shelfpage:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.1F}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Overlay.59}" />
+  </Style>
+
   <!-- Repeat/shuffle when engaged. -->
   <Style Selector="Button.icon.active">
     <Setter Property="Foreground" Value="{StaticResource Token.Brush.Accent}" />

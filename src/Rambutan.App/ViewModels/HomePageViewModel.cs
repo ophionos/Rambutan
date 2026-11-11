@@ -14,6 +14,15 @@ using Rambutan.Core.Models;
 
 namespace Rambutan.App.ViewModels;
 
+/// <summary>The last item of Home's chip row: it opens Moods &amp; genres and is
+/// never a mood to filter by.</summary>
+public sealed class MoodsChip
+{
+    public static MoodsChip Instance { get; } = new();
+
+    private MoodsChip() { }
+}
+
 public partial class HomePageViewModel : ViewModelBase
 {
     private readonly ICatalog _catalog;
@@ -74,6 +83,11 @@ public partial class HomePageViewModel : ViewModelBase
     /// <summary>The mood chips above the shelves, as the last page sent them;
     /// the one Home is filtered to is <see cref="HomeChip.IsSelected"/>.</summary>
     public ObservableCollection<HomeChip> Chips { get; } = [];
+
+    /// <summary>What the chip row lists: <see cref="Chips"/>, then the
+    /// <see cref="MoodsChip"/> that opens Moods &amp; genres. It is the only item
+    /// when there are no mood chips, so the page stays reachable from Home.</summary>
+    public ObservableCollection<object> ChipRow { get; } = [MoodsChip.Instance];
 
     /// <summary>What the page lists: <see cref="Shelves"/>, with the Last.fm
     /// station shelves (<see cref="StationShelfViewModel"/>) after the first
@@ -168,6 +182,10 @@ public partial class HomePageViewModel : ViewModelBase
             Chips.Clear();
             foreach (var each in page.Chips)
                 Chips.Add(each);
+            ChipRow.Clear();
+            foreach (var each in Chips)
+                ChipRow.Add(each);
+            ChipRow.Add(MoodsChip.Instance);
             var leading = LeadingWanted;
             var (block, shelves) = leading ? LeadingBlock.FromHome(page.Shelves) : (null, page.Shelves);
             Shelves.Clear();
