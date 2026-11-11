@@ -139,8 +139,17 @@ public partial class SettingsPageViewModel : ViewModelBase
     public SessionViewModel Session { get; } = new();
 
     // Discord. Available only when the build carries an app id.
-    [ObservableProperty] private bool _discordAvailable;
-    [ObservableProperty] private bool _discordEnabled;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DiscordOptionsVisible))]
+    private bool _discordAvailable;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DiscordOptionsVisible))]
+    private bool _discordEnabled;
+
+    /// <summary>The Discord options show only while sharing is on.</summary>
+    public bool DiscordOptionsVisible => DiscordAvailable && DiscordEnabled;
+
     [ObservableProperty] private bool _discordShowTrack = true;
     [ObservableProperty] private bool _discordShowArtwork = true;
     [ObservableProperty] private bool _discordShowElapsed = true;
@@ -292,7 +301,7 @@ public partial class SettingsPageViewModel : ViewModelBase
         _discordShowTrack = app.DiscordShowTrack;
         _discordShowArtwork = app.DiscordShowArtwork;
         _discordShowElapsed = app.DiscordShowElapsed;
-        _discordSharingNote = SharingNote(DiscordOptions(app));
+        _discordSharingNote = SharingNote(DiscordOptions(app), _discordEnabled);
         RefreshDiscordStatus();
         if (discord is not null)
             discord.ConnectionChanged += () => Dispatcher.UIThread.Post(RefreshDiscordStatus);
@@ -313,8 +322,11 @@ public partial class SettingsPageViewModel : ViewModelBase
         new(app.DiscordShowTrack, app.DiscordShowArtwork, app.DiscordShowElapsed);
 
     /// <summary>Exactly what leaves the machine with the current toggles: each
-    /// outbound integration says what it shares.</summary>
-    public static string SharingNote(DiscordPresenceOptions options)
+    /// outbound integration says what it shares. Shown under the Discord switch
+    /// whether it is on or off, since the options that change it show only
+    /// while it is on; <paramref name="sending"/> false words it as what turning
+    /// it on would send.</summary>
+    public static string SharingNote(DiscordPresenceOptions options, bool sending = true)
     {
         var parts = new List<string>();
         if (options.ShowTrack)
@@ -324,7 +336,7 @@ public partial class SettingsPageViewModel : ViewModelBase
         if (options.ShowElapsed)
             parts.Add(Strings.Get("settings.discord.share.elapsed"));
         var what = parts.Count == 0 ? Strings.Get("settings.discord.share.nothing") : string.Join("; ", parts);
-        var note = Strings.Format("settings.discord.sharingNote", ("what", what));
+        var note = Strings.Format(sending ? "settings.discord.sharingNote" : "settings.discord.sharingNoteOff", ("what", what));
         // Discord draws a clock on every activity; without timestamps it can't be hidden.
         return options.ShowElapsed ? note : note + " " + Strings.Get("settings.discord.ownClock");
     }
@@ -367,7 +379,7 @@ public partial class SettingsPageViewModel : ViewModelBase
         _app.DiscordShowElapsed = DiscordShowElapsed;
         var options = DiscordOptions(_app);
         _discord?.Configure(DiscordEnabled, options);
-        DiscordSharingNote = SharingNote(options);
+        DiscordSharingNote = SharingNote(options, DiscordEnabled);
         RefreshDiscordStatus();
         _persist?.Invoke();
     }
@@ -655,7 +667,7 @@ public partial class SettingsPageViewModel : ViewModelBase
         SystemMotionNote = MotionNote(_appearance.SystemReducesMotion);
         VersionDisplay = Strings.Format("settings.updates.version", ("version", _updates.CurrentVersion));
         OnPropertyChanged(nameof(AudioCacheSizeText));
-        DiscordSharingNote = SharingNote(DiscordOptions(_app));
+        DiscordSharingNote = SharingNote(DiscordOptions(_app), DiscordEnabled);
         RefreshDiscordStatus();
         if (_lastFm is null)
             LastFmStatus = LastFmUnavailableText;
