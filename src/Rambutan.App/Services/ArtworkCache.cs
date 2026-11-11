@@ -15,9 +15,9 @@ namespace Rambutan.App.Services;
 
 /// <summary>
 /// Artwork loader: byte-budgeted in-memory cache over a content-addressed disk
-/// cache. Decodes off the UI thread at the size the caller actually renders —
+/// cache. Reads and decodes on the thread pool, whatever thread asks, at the size the caller actually renders —
 /// YTM serves 544px art for rows drawn at 40px, and holding those at full size
-/// costs ~1 MB each, which is most of the 250 MB memory budget.
+/// costs ~1 MB each, which is most of the 48 MiB memory budget.
 /// </summary>
 /// <param name="handler">Replaces the network (demo mode); null = real downloads.</param>
 public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handler = null) : IDisposable
@@ -46,6 +46,18 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
     private readonly Lock _sync = new();
     private long _bytes;
 
+    /// <summary>Whether the budget's books agree: the byte total is the sizes' sum
+    /// and each admitted key is in the order once.</summary>
+    internal bool BooksBalance()
+    {
+        lock (_sync)
+            return _bytes == _sizes.Values.Sum() && _order.Count == _sizes.Count
+                && _order.Distinct().Count() == _order.Count;
+    }
+
+    /// <summary>Runs on the thread that is about to decode; lets a test see where.</summary>
+    internal Action? BeforeDecode { get; set; }
+
     /// <summary>Loads <paramref name="url"/> decoded to <paramref name="decodeWidth"/>
     /// pixels wide (0 = source size). Callers pass roughly 2× their layout size so
     /// the art stays sharp on fractional-DPI displays.</summary>
@@ -53,17 +65,33 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
     {
         var key = $"{decodeWidth}|{url}";
         Touch(key);
-        return _memory.GetOrAdd(key, _ => LoadAsync(key, url, decodeWidth));
+
+        // The load runs on the thread pool, never on the caller's thread or its
+        // synchronization context; the caller only awaits the result. Exactly one
+        // caller per key wins the add and starts the load.
+        var source = new TaskCompletionSource<Bitmap?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var task = _memory.GetOrAdd(key, source.Task);
+        if (ReferenceEquals(task, source.Task))
+        {
+            _ = Task.Run(async () =>
+            {
+                try { source.SetResult(await LoadAsync(key, source.Task, url, decodeWidth)); }
+                catch (Exception e) { source.SetException(e); }
+            });
+        }
+        return task;
     }
 
     /// <summary>The image's bytes, from the disk cache or fetched into it: what a
-    /// download keeps as its own cover.</summary>
-    public async Task<byte[]> GetBytesAsync(string url, CancellationToken ct = default) =>
-        await File.ReadAllBytesAsync(await EnsureOnDiskAsync(url, ct), ct);
+    /// download keeps as its own cover. The disk work runs on the thread pool.</summary>
+    public Task<byte[]> GetBytesAsync(string url, CancellationToken ct = default) =>
+        Task.Run(async () => await File.ReadAllBytesAsync(await EnsureOnDiskAsync(url, ct), ct), ct);
 
     /// <summary>The image's file in the disk cache, fetched into it first when
-    /// needed. Its extension says nothing of the format.</summary>
-    public Task<string> GetFileAsync(string url, CancellationToken ct = default) => EnsureOnDiskAsync(url, ct);
+    /// needed. Its extension says nothing of the format. The disk work runs on the
+    /// thread pool.</summary>
+    public Task<string> GetFileAsync(string url, CancellationToken ct = default) =>
+        Task.Run(() => EnsureOnDiskAsync(url, ct), ct);
 
     private async Task<string> EnsureOnDiskAsync(string url, CancellationToken ct)
     {
@@ -76,7 +104,22 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
             response.EnsureSuccessStatusCode();
             var bytes = await BoundedRead.ReadContentAsync(response.Content, MaxImageBytes, ct);
             Directory.CreateDirectory(_dir);
-            await File.WriteAllBytesAsync(path, bytes, ct);
+            // Two loads of one url (at different widths) can fetch together; each
+            // writes its own temporary file, so none reads or replaces a half-written one.
+            var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                await File.WriteAllBytesAsync(temp, bytes, ct);
+                File.Move(temp, path, overwrite: true);
+            }
+            catch (Exception e)
+            {
+                try { File.Delete(temp); } catch { }
+                // The other load won and has the file open to decode it (Windows
+                // then refuses to replace it): its file is the same image.
+                if (e is not (IOException or UnauthorizedAccessException) || !File.Exists(path))
+                    throw;
+            }
             if (Interlocked.Increment(ref _writesSinceTrim) >= TrimEveryNWrites)
             {
                 Interlocked.Exchange(ref _writesSinceTrim, 0);
@@ -91,7 +134,8 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
         return path;
     }
 
-    private async Task<Bitmap?> LoadAsync(string key, string url, int decodeWidth)
+    /// <summary>Runs on a pool thread. Never throws: a failure gives null.</summary>
+    private async Task<Bitmap?> LoadAsync(string key, Task<Bitmap?> self, string url, int decodeWidth)
     {
         try
         {
@@ -101,6 +145,7 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
                 : await EnsureOnDiskAsync(url, CancellationToken.None);
 
             await using var stream = File.OpenRead(path);
+            BeforeDecode?.Invoke();
             var bitmap = decodeWidth > 0
                 ? Bitmap.DecodeToWidth(stream, decodeWidth)
                 : new Bitmap(stream);
@@ -110,7 +155,7 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
         }
         catch
         {
-            _memory.TryRemove(key, out _); // a failed fetch must not cache forever
+            _memory.TryRemove(new KeyValuePair<string, Task<Bitmap?>>(key, self)); // a failed fetch must not cache forever
             return null; // missing art renders as an empty placeholder
         }
     }
