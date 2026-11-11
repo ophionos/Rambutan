@@ -38,11 +38,13 @@ public sealed partial class ThemeColors : ObservableObject
     [ObservableProperty] private Color? _color;
 
     /// <summary>The accent the user chose, before <see cref="AccentPalette"/>
-    /// makes it readable. With the artwork source, the default red until the
-    /// cover has been read, when it can't be, and when the cover has no vivid
-    /// colour: a grey accent would make the playing track's marker look like
-    /// plain text. While a new cover is read, the last cover's accent stays,
-    /// so a track change doesn't flash the whole app red.</summary>
+    /// makes it readable. With the artwork source, the cover's colour through
+    /// <see cref="AccentPalette.ForCover"/>: a weak colour is made clearer, and
+    /// a cover with no usable colour gives the default red, as do a cover not
+    /// yet read and one that can't be: a grey accent would make the playing
+    /// track's marker look like plain text. While a new cover is read, the
+    /// last cover's accent stays, so a track change doesn't flash the whole
+    /// app red.</summary>
     [ObservableProperty] private Rgb _accent = AccentPalette.Default.Base;
 
     /// <summary>The cover read in progress, for tests to wait on.</summary>
@@ -123,7 +125,7 @@ public sealed partial class ThemeColors : ObservableObject
             AccentSource.Custom => CssHexColor.TryParse(_appearance.AccentCustomColor, out var custom)
                 ? new Rgb(custom.R, custom.G, custom.B)
                 : AccentPalette.Default.Base,
-            AccentSource.Artwork when cover is { } c && !IsNeutral(c) => new Rgb(c.R, c.G, c.B),
+            AccentSource.Artwork when cover is { } c => AccentPalette.ForCover(new Rgb(c.R, c.G, c.B)),
             AccentSource.Artwork when keepAccent && _coverAccent is { } last => last,
             _ => AccentPalette.Default.Base,
         };
@@ -131,9 +133,6 @@ public sealed partial class ThemeColors : ObservableObject
             ? Accent
             : null;
     }
-
-    private static bool IsNeutral(Color c) =>
-        (c.R, c.G, c.B) == ArtworkColor.Neutral;
 
     private void Cancel()
     {

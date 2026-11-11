@@ -67,6 +67,71 @@ public sealed record AccentPalette(
             OnAccent: ContrastRatio(White, color) >= MinWhiteOnAccent ? White : Ground);
     }
 
+    /// <summary>The OKLCH chroma under which a cover's colour is taken for a
+    /// grey, whose hue is noise: the accent falls back to the default.</summary>
+    public const double CoverNoColorChroma = 0.04;
+
+    /// <summary>The least OKLCH chroma of an accent taken from a cover. The
+    /// visualizer's pick has at least HSV saturation 0.45, which for a yellow
+    /// or an orange is still a dull gold or tan (about 0.08 to 0.10). 0.13 is
+    /// a clear colour on the dark UI and stays under the least chroma sRGB
+    /// reaches at any hue (about 0.138, a teal), so every hue reaches it.</summary>
+    public const double CoverMinChroma = 0.13;
+
+    /// <summary>
+    /// The accent for a colour picked from a cover (before <see cref="From"/>).
+    /// Under <see cref="CoverNoColorChroma"/> it is the default red. Under
+    /// <see cref="CoverMinChroma"/> its chroma is raised to that floor with its
+    /// hue kept, at its lightness, or at the nearest lightness towards the
+    /// hue's most colourful one where sRGB has that chroma. At or above the
+    /// floor it is used as picked. Covers on either side of the floor give
+    /// nearly the same accent; the only jump is to the default.
+    /// </summary>
+    public static Rgb ForCover(Rgb picked)
+    {
+        var (l, c, h) = Oklch.Of(picked);
+        if (c < CoverNoColorChroma)
+            return Default.Base;
+        if (c >= CoverMinChroma)
+            return picked;
+        var (lightness, chroma) = FitChroma(l, h, CoverMinChroma);
+        return Oklch.ToRgb(lightness, chroma, h);
+    }
+
+    /// <summary>The lightness nearest <paramref name="l"/> at which hue
+    /// <paramref name="h"/> has <paramref name="chroma"/> in sRGB, with that
+    /// chroma; the hue's most colourful point when it never has that much.</summary>
+    private static (double L, double C) FitChroma(double l, double h, double chroma)
+    {
+        if (Oklch.InGamut(l, chroma, h))
+            return (l, chroma);
+        // The hue's most chroma, against lightness, rises to one peak and falls.
+        double low = 0.05, high = 0.99;
+        for (var i = 0; i < 40; i++)
+        {
+            var third = (high - low) / 3;
+            if (Oklch.MaxChroma(low + third, h) < Oklch.MaxChroma(high - third, h))
+                low += third;
+            else
+                high -= third;
+        }
+        var peak = (low + high) / 2;
+        var most = Oklch.MaxChroma(peak, h);
+        if (most < chroma)
+            return (peak, most);
+        // Between l (too little room) and the peak (enough): the edge.
+        double outside = l, inside = peak;
+        for (var i = 0; i < 24; i++)
+        {
+            var mid = (outside + inside) / 2;
+            if (Oklch.InGamut(mid, chroma, h))
+                inside = mid;
+            else
+                outside = mid;
+        }
+        return (inside, chroma);
+    }
+
     /// <summary><paramref name="color"/>, or the least lightening of it towards
     /// white that reaches <see cref="MinTextContrast"/> against <see cref="Panel"/>.</summary>
     public static Rgb Readable(Rgb color)

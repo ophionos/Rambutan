@@ -135,6 +135,25 @@ public class AccentColorTests
     }
 
     [Fact]
+    public async Task APastelCover_GivesAClearAccentOfItsHue_WhileTheVisualizerKeepsItsPick()
+    {
+        var appearance = new AppearanceSettings
+        {
+            AccentSource = AccentSource.Artwork, VisualizerColorSource = VisualizerColorSource.Artwork,
+        };
+        var player = new PlayerBarViewModel { ArtworkUrl = "pastel" };
+        var colors = new ThemeColors(appearance, player, (_, _) => Task.FromResult(Png(new SKColor(0xD8, 0xCF, 0xA0))));
+
+        await colors.Pending;
+
+        var accent = Oklch.Of(colors.Accent);
+        Assert.True(accent.C >= AccentPalette.CoverMinChroma - 0.005, colors.Accent.ToString());
+        Assert.InRange(accent.H, 90, 106);
+        var pick = new Rgb(colors.Color!.Value.R, colors.Color.Value.G, colors.Color.Value.B);
+        Assert.True(Oklch.Of(pick).C < AccentPalette.CoverMinChroma, pick.ToString());
+    }
+
+    [Fact]
     public void ANewAccent_ReachesTheBrushesAndFluentsControls() => Headless.Run(() =>
     {
         ShellResources.Ensure();
