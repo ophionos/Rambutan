@@ -146,6 +146,14 @@ public partial class NavigationService : ViewModelBase
         _search!.RunFromLink(query);
     }
 
+    /// <summary>Opens Search and runs <paramref name="query"/> there as typed in
+    /// its box, so the search history keeps it (the title bar's field).</summary>
+    public void SearchFor(string query)
+    {
+        GoSearch();
+        _search!.RunTyped(query);
+    }
+
     public void GoLibrary() => GoLibrary(_library?.Source ?? LibrarySource.YouTubeMusic);
 
     private void GoLibrary(LibrarySource source)

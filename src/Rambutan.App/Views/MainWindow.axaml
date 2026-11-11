@@ -103,7 +103,11 @@
          decorations draw the caption buttons on the right: keep clear of them. -->
     <Border DockPanel.Dock="Top" x:Name="TitleBar" Classes="fullOnly frame" Height="40" Background="Transparent"
             KeyboardNavigation.TabNavigation="Local" KeyboardNavigation.TabIndex="0">
-      <StackPanel Orientation="Horizontal" Spacing="4" Margin="16,0,150,0" VerticalAlignment="Center">
+      <Panel>
+      <!-- Left-aligned, so its bounds end where its buttons do: the search field
+           is placed from there (TitleSearchFit). -->
+      <StackPanel x:Name="TitleBarItems" Orientation="Horizontal" Spacing="4" Margin="16,0,150,0"
+                  HorizontalAlignment="Left" VerticalAlignment="Center">
         <StackPanel Orientation="Horizontal" Spacing="8" Width="172" VerticalAlignment="Center">
           <Image Source="/Assets/rambutan.ico" Width="16" Height="16" VerticalAlignment="Center" />
           <TextBlock Text="Rambutan" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -130,6 +134,30 @@
           <PathIcon Data="{StaticResource Icon.ArrowForward}" Width="18" Height="18" />
         </Button>
       </StackPanel>
+
+      <!-- Search from any page: Enter opens Search with the query, Ctrl+K comes
+           here. Placed and shown by code-behind: in the free room after the
+           buttons, hidden where less than its minimum fits and while the Search
+           page (which has its own field) shows. Declared after the buttons, so
+           Tab reaches it after them. -->
+      <TextBox x:Name="TitleSearch" Classes="searchfield" IsVisible="False"
+               HorizontalAlignment="Left" VerticalAlignment="Center"
+               Height="30" MinHeight="0" Padding="8,4,8,4"
+               PlaceholderText="{l:T search.bar.placeholder}"
+               AutomationProperties.Name="{l:T search.bar.name}">
+        <TextBox.InnerLeftContent>
+          <PathIcon Data="{StaticResource Icon.Search}" Width="14" Height="14" Margin="12,0,0,0"
+                    Foreground="{StaticResource Token.Brush.Text.Muted}" />
+        </TextBox.InnerLeftContent>
+        <TextBox.InnerRightContent>
+          <Button x:Name="TitleSearchClear" Classes="icon subtle small" Margin="0,0,4,0"
+                  ToolTip.Tip="{l:T search.bar.clear}" AutomationProperties.Name="{l:T search.bar.clear}"
+                  IsVisible="{Binding #TitleSearch.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <PathIcon Data="{StaticResource Icon.Close}" Width="10" Height="10" />
+          </Button>
+        </TextBox.InnerRightContent>
+      </TextBox>
+      </Panel>
     </Border>
 
     <!-- Player bar: identity | transport over the seek line | lyrics, queue,
