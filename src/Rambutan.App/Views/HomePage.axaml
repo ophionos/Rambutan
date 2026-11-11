@@ -101,7 +101,12 @@
                     <Grid ColumnDefinitions="Auto,*">
                       <Border Classes="tileart" Classes.artist="{Binding Converter={x:Static vm:Converters.IsArtist}}"
                               ClipToBounds="True" Width="52" Height="52">
-                        <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                        <!-- A play without a thumbnail leaves the icon: the
+                             slot is never an empty hole beside the title. -->
+                        <Panel Background="{StaticResource Token.Brush.Overlay.0A}">
+                          <PathIcon Data="{StaticResource Icon.Album}" Width="20" Height="20" Opacity="0.35" />
+                          <controls:RemoteImage Url="{Binding ThumbnailUrl}" Stretch="UniformToFill" />
+                        </Panel>
                       </Border>
                       <TextBlock Grid.Column="1" Margin="12,0,4,0" VerticalAlignment="Center"
                                  Text="{Binding Title}" FontSize="{StaticResource Token.Font.Body}" FontWeight="SemiBold"

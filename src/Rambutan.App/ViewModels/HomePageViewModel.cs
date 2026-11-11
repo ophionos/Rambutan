@@ -52,7 +52,8 @@ public partial class HomePageViewModel : ViewModelBase
     // shelf keeps them until the log is read again.
     private bool _tilesFromLog;
 
-    /// <summary>Whether the account is signed in; signed out (or unset) there are no tiles.</summary>
+    /// <summary>Whether Home is asked for with an account's session; signed out
+    /// (or unset) there are no tiles.</summary>
     public Func<bool>? IsSignedIn { get; set; }
 
     /// <summary>Reads the play log for the tiles; returns null while recording is off.</summary>

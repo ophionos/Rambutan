@@ -122,6 +122,8 @@ public partial class App : Application
             _services.GetRequiredService<NavigationService>().SpotifyImports =
                 () => _services.GetRequiredService<SpotifyImports>();
             _services.GetRequiredService<NavigationService>().Account = () => session.AccountId;
+            _services.GetRequiredService<NavigationService>().HasSession = () =>
+                _services.GetRequiredService<InnerTubeClient>().Session is not null;
             _services.GetRequiredService<NavigationService>().RecentPlays = () =>
                 _services.GetRequiredService<AppSettings>().RecordPlays
                     ? _services.GetRequiredService<PlayLog>().ReadAsync()

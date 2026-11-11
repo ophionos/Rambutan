@@ -112,7 +112,7 @@ public partial class NavigationService : ViewModelBase
     {
         _home ??= new HomePageViewModel(_catalog, this, _stations, (tracks, start) => _coordinator.PlayQueueAsync(tracks, start))
         {
-            IsSignedIn = () => _actions?.IsSignedIn?.Invoke() == true,
+            IsSignedIn = () => HasSession?.Invoke() ?? _actions?.IsSignedIn?.Invoke() == true,
             RecentPlays = () => RecentPlays?.Invoke(),
         };
         NavigateRoot(_home, NavSection.Home);
@@ -214,6 +214,11 @@ public partial class NavigationService : ViewModelBase
 
     /// <summary>The signed-in account's id, for the imports it made; set by App.</summary>
     public Func<string?>? Account { get; set; }
+
+    /// <summary>Whether requests go out with the account's session; set by App.
+    /// Home asks this, not the checked sign-in state: at startup Home loads as
+    /// soon as the stored cookies are read, before their check has answered.</summary>
+    public Func<bool>? HasSession { get; set; }
 
     /// <summary>Reads the play log for Home's tiles, or returns null while
     /// recording is off; set by App. Unset, Home's tiles come only from
