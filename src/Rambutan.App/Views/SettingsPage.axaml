@@ -66,7 +66,7 @@
 
   <ScrollViewer x:Name="Scroller" Grid.Row="1" Classes="pagescroll">
    <Panel>
-    <StackPanel x:Name="Column" Classes="settings" Margin="4,0,4,24" MaxWidth="720" HorizontalAlignment="Left">
+    <StackPanel x:Name="Column" Classes="settings" Margin="4,0,4,24" MaxWidth="1040" HorizontalAlignment="Left">
 
       <!-- The sign-in, what state it's in, and when it was last checked. -->
       <StackPanel Spacing="8">
@@ -123,13 +123,16 @@
             </Border>
             <Border Classes="settingrow">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Classes="settinglabel" Text="{l:T settings.playback.crossfade}" />
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.playback.crossfade}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.playback.crossfadeHelp}" />
+                </StackPanel>
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding CrossfadeEnabled}"
                               AutomationProperties.Name="{l:T settings.playback.crossfade}" />
               </Grid>
             </Border>
-            <!-- Crossfade's own settings: indented under it, and dimmed while it is off. -->
-            <Border Classes="settingrow sub" IsEnabled="{Binding CrossfadeEnabled}">
+            <!-- Crossfade's own settings: indented under it, and shown only while it is on. -->
+            <Border Classes="settingrow sub" IsVisible="{Binding CrossfadeEnabled}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock x:Name="CrossfadeLabel" Classes="settinglabel" Text="{l:T settings.playback.crossfadeDuration}" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
@@ -142,7 +145,7 @@
                 </StackPanel>
               </Grid>
             </Border>
-            <Border Classes="settingrow sub" IsEnabled="{Binding CrossfadeEnabled}">
+            <Border Classes="settingrow sub" IsVisible="{Binding CrossfadeEnabled}">
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel>
                   <TextBlock Classes="settinglabel" Text="{l:T settings.playback.fadeOnSkip}" />
@@ -207,9 +210,9 @@
               </Grid>
             </Border>
             <!-- The bands in the label column, Reset in the control column, like the
-                 rows around it; dimmed while the equalizer is off. -->
-            <Border Classes="settingrow sub" IsEnabled="{Binding Equalizer.Enabled}"
-                    IsVisible="{Binding Equalizer, Converter={x:Static ObjectConverters.IsNotNull}}">
+                 rows around it; shown only while the equalizer is on. Without an
+                 equalizer the path fails, and the fallback keeps the row hidden. -->
+            <Border Classes="settingrow sub" IsVisible="{Binding Equalizer.Enabled, FallbackValue=False}">
               <Grid ColumnDefinitions="*,Auto">
                 <StackPanel>
                   <ItemsControl ItemsSource="{Binding Equalizer.Bands}">
@@ -692,32 +695,32 @@
                 <StackPanel>
                   <TextBlock Classes="settinglabel" Text="{l:T settings.discord.enabled}" />
                   <TextBlock Classes="settinghelp" Text="{Binding DiscordStatus}" />
+                  <!-- What is sent, also while off: the options below show only while on. -->
+                  <TextBlock Classes="settinghelp" Text="{Binding DiscordSharingNote}"
+                             IsVisible="{Binding DiscordAvailable}" />
                 </StackPanel>
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding DiscordEnabled}"
                               IsEnabled="{Binding DiscordAvailable}"
                               AutomationProperties.Name="{l:T settings.discord.enabled}" />
               </Grid>
             </Border>
-            <Border Classes="settingrow sub" IsVisible="{Binding DiscordAvailable}" IsEnabled="{Binding DiscordEnabled}">
+            <Border Classes="settingrow sub" IsVisible="{Binding DiscordOptionsVisible}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="settinglabel" Text="{l:T settings.discord.showTrack}" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding DiscordShowTrack}"
                               AutomationProperties.Name="{l:T settings.discord.showTrack}" />
               </Grid>
             </Border>
-            <Border Classes="settingrow sub" IsVisible="{Binding DiscordAvailable}" IsEnabled="{Binding DiscordEnabled}">
+            <Border Classes="settingrow sub" IsVisible="{Binding DiscordOptionsVisible}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="settinglabel" Text="{l:T settings.discord.showArtwork}" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding DiscordShowArtwork}"
                               AutomationProperties.Name="{l:T settings.discord.showArtwork}" />
               </Grid>
             </Border>
-            <Border Classes="settingrow sub" IsVisible="{Binding DiscordAvailable}" IsEnabled="{Binding DiscordEnabled}">
+            <Border Classes="settingrow sub" IsVisible="{Binding DiscordOptionsVisible}">
               <Grid ColumnDefinitions="*,Auto">
-                <StackPanel>
-                  <TextBlock Classes="settinglabel" Text="{l:T settings.discord.showElapsed}" />
-                  <TextBlock Classes="settinghelp" Text="{Binding DiscordSharingNote}" />
-                </StackPanel>
+                <TextBlock Classes="settinglabel" Text="{l:T settings.discord.showElapsed}" />
                 <ToggleSwitch Grid.Column="1" IsChecked="{Binding DiscordShowElapsed}"
                               AutomationProperties.Name="{l:T settings.discord.showElapsed}" />
               </Grid>
@@ -959,9 +962,9 @@
    </Panel>
   </ScrollViewer>
 
-    <!-- Left margin: the column's 4 + 720, and a 32 gap. -->
+    <!-- At the pane's right edge, inside the scroller's inset (SettingsColumnFit). -->
     <ListBox x:Name="SectionList" Grid.Row="1" Classes="sections" IsVisible="False"
-             HorizontalAlignment="Left" VerticalAlignment="Top" Width="200" Margin="756,0,0,0"
+             HorizontalAlignment="Right" VerticalAlignment="Top" Width="200" Margin="0,0,12,0"
              Background="Transparent" SelectionMode="Single" AutoScrollToSelectedItem="False"
              AutomationProperties.Name="{l:T settings.sections}" />
   </Grid>

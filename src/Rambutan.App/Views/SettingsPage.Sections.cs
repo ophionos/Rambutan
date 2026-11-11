@@ -24,16 +24,8 @@ namespace Rambutan.App.Views;
 /// </summary>
 public partial class SettingsPage
 {
-    /// <summary>The settings column's widest, as in the XAML.</summary>
-    public const double ColumnWidth = 720;
-
-    /// <summary>The narrowest page with room for the section list: the column
-    /// (4 + 720), a 32 gap, the 200-wide list, and the scroller's 12 inset on the
-    /// right. The list's left margin in the XAML is the first two.</summary>
-    public const double SectionListMinWidth = 4 + ColumnWidth + 32 + 200 + 12;
-
-    /// <summary>The column's side margins (4 each) and the scroller's inset.</summary>
-    private const double ColumnInsets = 4 + 4 + 12;
+    /// <summary>The narrowest page with room for the section list beside the column.</summary>
+    public const double SectionListMinWidth = SettingsColumnFit.ListMinPane;
 
     private static readonly TimeSpan ScrollDuration = TimeSpan.FromMilliseconds(200);
 
@@ -128,10 +120,11 @@ public partial class SettingsPage
 
     private void OnWidthChanged(double width)
     {
-        var column = Math.Max(0, Math.Min(ColumnWidth, width - ColumnInsets));
-        Header.Width = column;
-        NoMatch.Width = column;
-        _wide = width >= SectionListMinWidth;
+        var fit = SettingsColumnFit.For(width);
+        Column.Width = fit.Column;
+        Header.Width = fit.Column;
+        NoMatch.Width = fit.Column;
+        _wide = fit.ShowList;
         RefreshList();
     }
 
@@ -206,6 +199,9 @@ public partial class SettingsPage
         var texts = new List<string?> { heading };
         foreach (var member in unit)
         {
+            // A row its toggle collapsed isn't on the page: its words match nothing.
+            if (!OwnVisible(member))
+                continue;
             foreach (var text in member.GetLogicalDescendants().OfType<TextBlock>())
             {
                 if (text.IsVisible && (text.Classes.Contains("settinglabel") || text.Classes.Contains("settinghelp")))

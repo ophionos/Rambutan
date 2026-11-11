@@ -10,6 +10,7 @@ using Rambutan.App.Controls;
 using Rambutan.App.Services;
 using Rambutan.App.ViewModels;
 using Rambutan.App.Views;
+using Rambutan.Core.Layout;
 using Rambutan.Core.Settings;
 
 namespace Rambutan.App.Tests;
@@ -79,12 +80,21 @@ public class SettingsNavigationTests
         return shown;
     }
 
-    private static SettingsPageViewModel Page(Action<bool>? taskbar = null) =>
-        new(new PlaybackSettings { CrossfadeEnabled = true }, new AppSettings(), new AppearanceSettings(),
-            new Rambutan.Integrations.UpdateService(null), new SessionViewModel(), () => { })
+    private static SettingsPageViewModel Page(
+        Action<bool>? taskbar = null, bool crossfade = true, bool equalizer = false,
+        Rambutan.Integrations.Discord.DiscordPresenceService? discord = null, bool discordOn = false)
+    {
+        var app = new AppSettings { DiscordEnabled = discordOn };
+        return new(new PlaybackSettings { CrossfadeEnabled = crossfade }, app, new AppearanceSettings(),
+            new Rambutan.Integrations.UpdateService(null), new SessionViewModel(), () => { }, discord)
         {
             ApplyTaskbarControls = taskbar,
+            Equalizer = equalizer ? new EqualizerSettingsViewModel(app, (_, _) => { }, () => { }) : null,
         };
+    }
+
+    private static Button ResetButton(Shown s) =>
+        s.View.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "Reset");
 
     private static bool InAutomationTree(Control root, Control target)
     {
@@ -108,19 +118,37 @@ public class SettingsNavigationTests
         var wideX = wide.Column.TranslatePoint(default, wide.View)!.Value.X;
         var narrowX = narrow.Column.TranslatePoint(default, narrow.View)!.Value.X;
         Assert.Equal(wideX, narrowX);
-        Assert.Equal(SettingsPage.ColumnWidth, wide.Column.Bounds.Width);
-        Assert.Equal(wide.Column.Bounds.Width, narrow.Column.Bounds.Width);
+        Assert.Equal(SettingsColumnFit.For(Wide).Column, wide.Column.Bounds.Width);
+        Assert.Equal(SettingsColumnFit.For(Narrow).Column, narrow.Column.Bounds.Width);
+        Assert.Equal(wide.Column.Bounds.Width, wide.View.FindControl<Control>("Header")!.Bounds.Width);
 
-        // Beside the column, not over it.
+        // Beside the column, not over it, and at the pane's right edge.
         var listX = wide.List.TranslatePoint(default, wide.View)!.Value.X;
         Assert.True(listX >= wideX + wide.Column.Bounds.Width + 24, $"list at {listX}");
-        Assert.True(listX + wide.List.Bounds.Width <= Wide, "the list runs off the page");
+        Assert.Equal(Wide - SettingsColumnFit.RightInset, listX + wide.List.Bounds.Width, 0.5);
 
         // The filter stays in both.
         Assert.True(wide.Filter.IsEffectivelyVisible);
         Assert.True(narrow.Filter.IsEffectivelyVisible);
         wide.Window.Close();
         narrow.Window.Close();
+    });
+
+    [Fact]
+    public void AVeryWidePane_StopsTheColumnAtTheMaximum_AndKeepsTheListAtTheRightEdge() => Headless.Run(() =>
+    {
+        var s = Show(1720);
+
+        Assert.Equal(SettingsColumnFit.MaxColumn, s.Column.Bounds.Width);
+        Assert.Equal(SettingsColumnFit.MaxColumn, s.View.FindControl<Control>("Header")!.Bounds.Width);
+        var listX = s.List.TranslatePoint(default, s.View)!.Value.X;
+        Assert.Equal(1720 - SettingsColumnFit.RightInset, listX + s.List.Bounds.Width, 0.5);
+        Assert.True(listX >= 4 + s.Column.Bounds.Width + SettingsColumnFit.Gap);
+
+        // The empty state takes the column's width too.
+        s.Type("zqxjv");
+        Assert.Equal(SettingsColumnFit.MaxColumn, s.NoMatch.Bounds.Width);
+        s.Window.Close();
     });
 
     [Fact]
@@ -245,6 +273,108 @@ public class SettingsNavigationTests
 
         Assert.Equal(before, s.VisibleRows);
         Assert.Equal(s.VisibleHeadings.Select(h => h.Text), s.Entries);
+        s.Window.Close();
+    });
+
+    [Fact]
+    public void CrossfadesOptions_ShowOnlyWhileItsToggleIsOn() => Headless.Run(() =>
+    {
+        var page = Page(crossfade: false);
+        var s = Show(Wide, create: () => page);
+
+        Assert.True(s.Row("Crossfade between tracks").IsEffectivelyVisible);
+        Assert.False(s.Row("Crossfade duration").IsEffectivelyVisible);
+        Assert.False(s.Row("Fade when skipping tracks manually").IsEffectivelyVisible);
+
+        page.CrossfadeEnabled = true;
+        s.Settle();
+        Assert.True(s.Row("Crossfade duration").IsEffectivelyVisible);
+        Assert.True(s.Row("Fade when skipping tracks manually").IsEffectivelyVisible);
+
+        page.CrossfadeEnabled = false;
+        s.Settle();
+        Assert.False(s.Row("Crossfade duration").IsEffectivelyVisible);
+        s.Window.Close();
+    });
+
+    [Fact]
+    public void TheEqualizersBands_ShowOnlyWhileItIsOn() => Headless.Run(() =>
+    {
+        var page = Page(equalizer: true);
+        var s = Show(Wide, create: () => page);
+
+        Assert.False(ResetButton(s).IsEffectivelyVisible);
+
+        page.Equalizer!.Enabled = true;
+        s.Settle();
+        Assert.True(ResetButton(s).IsEffectivelyVisible);
+
+        page.Equalizer.Enabled = false;
+        s.Settle();
+        Assert.False(ResetButton(s).IsEffectivelyVisible);
+        s.Window.Close();
+    });
+
+    [Fact]
+    public void WithoutAnEqualizer_ItsBandsStayHidden() => Headless.Run(() =>
+    {
+        var s = Show(Wide, create: () => Page(equalizer: false));
+
+        Assert.False(ResetButton(s).IsEffectivelyVisible);
+        s.Window.Close();
+    });
+
+    [Fact]
+    public void DiscordsOptions_ShowOnlyWhileItIsOn_AndTheToggleSaysWhatIsSent() => Headless.Run(() =>
+    {
+        using var discord = new Rambutan.Integrations.Discord.DiscordPresenceService("1", _ => Task.FromResult<Stream?>(null));
+        var page = Page(discord: discord);
+        var s = Show(Wide, create: () => page);
+
+        Assert.False(s.Row("Track title, artist and album").IsEffectivelyVisible);
+        Assert.False(s.Row("Album artwork").IsEffectivelyVisible);
+        Assert.False(s.Row("Elapsed and remaining time").IsEffectivelyVisible);
+        // Hidden options leave the sentence of what would be sent on the toggle's row.
+        var sentence = s.Row("Show what I'm listening to on Discord").GetVisualDescendants().OfType<TextBlock>()
+            .Single(t => t.Text is { } x && x.StartsWith("Once on, this is sent"));
+        Assert.True(sentence.IsEffectivelyVisible);
+
+        page.DiscordEnabled = true;
+        s.Settle();
+        Assert.True(s.Row("Track title, artist and album").IsEffectivelyVisible);
+        Assert.True(s.Row("Album artwork").IsEffectivelyVisible);
+        Assert.True(s.Row("Elapsed and remaining time").IsEffectivelyVisible);
+        Assert.Contains(s.Row("Show what I'm listening to on Discord").GetVisualDescendants().OfType<TextBlock>(),
+            t => t.Text is { } x && x.StartsWith("Sent to the Discord app"));
+        s.Window.Close();
+    });
+
+    [Fact]
+    public void ARowItsToggleCollapsed_IsNotAFilterMatch_AndStaysCollapsedWhenTheFilterIsCleared() => Headless.Run(() =>
+    {
+        var page = Page(crossfade: false);
+        var s = Show(Wide, create: () => page);
+        var duration = s.Row("Crossfade duration");
+
+        // These words are only in a collapsed row: no match, and not a section.
+        s.Type("skipping tracks manually");
+        Assert.True(s.NoMatch.IsEffectivelyVisible);
+        Assert.Empty(s.Entries);
+
+        // "fade" matches the toggle's own help text, so its unit shows, minus the collapsed rows.
+        s.Type("fade");
+        Assert.True(s.Row("Crossfade between tracks").IsEffectivelyVisible);
+        Assert.False(duration.IsEffectivelyVisible);
+
+        s.Type("");
+        Assert.False(duration.IsVisible);
+        Assert.False(duration.IsEffectivelyVisible);
+
+        // Switched on while a filter hides the rest, the row returns with its unit.
+        s.Type("crossfade");
+        page.CrossfadeEnabled = true;
+        s.Settle();
+        Assert.True(duration.IsEffectivelyVisible);
         s.Window.Close();
     });
 
