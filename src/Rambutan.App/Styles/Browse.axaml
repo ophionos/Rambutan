@@ -123,6 +123,24 @@
     <Setter Property="TextTrimming" Value="CharacterEllipsis" />
   </Style>
 
+  <!-- The bar that takes the hero's place once the list is scrolled
+       (Controls/CollapsingHero): a card's wash on the page's panel, as the
+       settings groups are, so the page background still shows through. -->
+  <Style Selector="Border.herobar">
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Surface.Card}" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Card}" />
+  </Style>
+  <Style Selector="Border.herobarart">
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Small}" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+  <Style Selector="TextBlock.herobartitle">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Group}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="MaxLines" Value="1" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+
   <!-- Track rows: a 40px cover, then the title over its artist, both on the
        type scale. The stock item padding (12,9,12,12) would add most of a row's
        height again around the cover. -->
