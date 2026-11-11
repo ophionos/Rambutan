@@ -6,6 +6,8 @@ using CommunityToolkit.Mvvm.Input;
 using Rambutan.App.Services;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Playlists;
+using Rambutan.Core.Sidebar;
 using Rambutan.InnerTube;
 using Rambutan.App.Localization;
 
@@ -135,6 +137,10 @@ public partial class MainViewModel : ViewModelBase
     /// and Settings all read it.</summary>
     public SessionViewModel Session { get; }
 
+    /// <summary>The sidebar's Pinned section; null where pins aren't composed
+    /// (the designer), and then the section doesn't show.</summary>
+    public SidebarPinsViewModel? SidebarPins { get; init; }
+
     /// <summary>The profiles, for the account menu; set by the app before
     /// the window exists, null in the designer.</summary>
     public ProfilesViewModel? Profiles { get; set; }
@@ -206,6 +212,7 @@ public partial class MainViewModel : ViewModelBase
         {
             if (e.PropertyName != nameof(NavigationService.Current))
                 return;
+            SidebarPins?.SetCurrent(Navigation.Current);
             NowPlaying.IsOpen = false;
             if (hadPage)
                 IsMiniPlayer = false;
@@ -225,9 +232,17 @@ public partial class MainViewModel : ViewModelBase
         Func<SettingsPageViewModel> settingsFactory,
         AppSettings settings,
         AppearanceSettings appearance,
-        LocalFileOpener? opener = null)
+        LocalFileOpener? opener = null,
+        SidebarPinLibrary? pins = null,
+        LocalPlaylistLibrary? localPlaylists = null)
     {
         Opener = opener;
+        if (pins is not null)
+        {
+            SidebarPins = new SidebarPinsViewModel(pins, localPlaylists, navigation.OpenPin);
+            // Collapsed to the rail, the sidebar can't show a pin's result.
+            navigation.Collections.IsSidebarOpen = () => IsSidebarOpen;
+        }
         Appearance = appearance;
         Navigation = navigation;
         Player = player;

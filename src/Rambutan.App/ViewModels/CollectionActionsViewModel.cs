@@ -11,6 +11,7 @@ using Rambutan.Core.Links;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Playlists;
+using Rambutan.Core.Sidebar;
 
 namespace Rambutan.App.ViewModels;
 
@@ -66,6 +67,56 @@ public sealed partial class CollectionActionsViewModel
     /// <summary>Whether an artist's Last.fm station can open: only while Last.fm
     /// stations are on and connected, as on the artist's page.</summary>
     public bool CanOpenStation => _stations?.User is not null && _openStation is not null;
+
+    /// <summary>The sidebar's pins; set at composition. Null (tests, the designer)
+    /// offers no pinning anywhere.</summary>
+    public SidebarPinLibrary? Pins { get; set; }
+
+    /// <summary>Set at composition: whether the sidebar shows its pins. Collapsed
+    /// to the rail it doesn't, so a pin or unpin says so in a toast; null reads
+    /// as shown.</summary>
+    public Func<bool>? IsSidebarOpen { get; set; }
+
+    /// <summary>Pins can be added and removed: a library is composed and its file
+    /// is one this build may write.</summary>
+    public bool CanPin => Pins is { IsReadOnly: false };
+
+    /// <summary>The form a playlist's id is pinned under: the bare id that
+    /// <see cref="NavigationService.OpenPlaylist"/> takes, never YouTube Music's
+    /// browse form ("VL…"), so one playlist never pins twice.</summary>
+    public static string PlaylistPinId(string playlistId) =>
+        playlistId.StartsWith("VL", StringComparison.Ordinal) ? playlistId[2..] : playlistId;
+
+    /// <summary>What pinning the card's album or playlist pins; null for an
+    /// artist or a song, which are never pinned.</summary>
+    public static SidebarPin? PinFor(CatalogEntry entry) => entry switch
+    {
+        AlbumEntry album => new SidebarPin(PinKind.Album, album.BrowseId, album.Title, album.ThumbnailUrl),
+        PlaylistEntry playlist => new SidebarPin(PinKind.Playlist, PlaylistPinId(playlist.PlaylistId), playlist.Title, playlist.ThumbnailUrl),
+        _ => null,
+    };
+
+    public bool IsPinned(PinKind kind, string? id) => Pins?.IsPinned(kind, id) == true;
+
+    /// <summary>Pins the card's album or playlist to the sidebar, or unpins it.</summary>
+    [RelayCommand]
+    private void TogglePin(CatalogEntry? entry)
+    {
+        if (entry is not null && PinFor(entry) is { } pin)
+            PinOrUnpin(pin);
+    }
+
+    /// <summary>Pins <paramref name="pin"/>, or unpins it when it is pinned. The
+    /// sidebar shows the result; collapsed to the rail it can't, so a toast says it.</summary>
+    public void PinOrUnpin(SidebarPin pin)
+    {
+        if (Pins is not { IsReadOnly: false } pins)
+            return;
+        var unpin = pins.IsPinned(pin.Kind, pin.Id);
+        var changed = unpin ? pins.Unpin(pin.Kind, pin.Id) : pins.Pin(pin);
+        if (changed && IsSidebarOpen?.Invoke() == false)
+            _actions.Report(Strings.Get(unpin ? "toast.sidebar.unpinned" : "toast.sidebar.pinned"));
+    }
 
     public bool IsLoading(CatalogEntry? entry) => entry is not null && Key(entry) is { } key && _loading.Contains(key);
 

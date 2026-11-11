@@ -14,6 +14,7 @@ using Rambutan.App.Services;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Playlists;
+using Rambutan.Core.Sidebar;
 using Rambutan.LocalLibrary;
 
 namespace Rambutan.App.ViewModels;
@@ -58,7 +59,7 @@ public sealed class LocalPlaylistTrackRow(LocalPlaylistItem item, bool isMissing
 /// one that can't be saved is a toast, and the page shows what is kept. While
 /// it shows, it follows the playlists' file and the scans.
 /// </summary>
-public partial class LocalPlaylistPageViewModel : ViewModelBase, ITrackMenuHost
+public partial class LocalPlaylistPageViewModel : ViewModelBase, ITrackMenuHost, IPinnablePage
 {
     private readonly LocalPlaylistLibrary _library;
     private readonly LocalLibraryScans _scans;
@@ -123,6 +124,18 @@ public partial class LocalPlaylistPageViewModel : ViewModelBase, ITrackMenuHost
         _actions = actions;
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
     }
+
+    public PinKind PinKind => PinKind.LocalPlaylist;
+    public string PinId => Id;
+
+    private SidebarPinToggle? _pin;
+
+    /// <summary>The header's Pin entry; null where pins aren't composed. A
+    /// playlist on this computer has no cover link: its row draws its first track's.</summary>
+    public SidebarPinToggle? Pin =>
+        _pin ??= _navigation?.Collections is { Pins: not null } collections
+            ? new SidebarPinToggle(collections, PinKind.LocalPlaylist, Id, () => IsGone ? null : Title, () => null)
+            : null;
 
     /// <summary>The page is on screen: reads the playlist again and follows changes. UI thread only.</summary>
     public Task ShowAsync()
@@ -189,6 +202,8 @@ public partial class LocalPlaylistPageViewModel : ViewModelBase, ITrackMenuHost
             ReadOnlyNote = _library.IsReadOnly ? TrackActionsViewModel.ReadOnlyNote(_library) : null;
             IsLoading = false;
             UpdateSummary();
+            // Its pin's name follows the playlist through the sidebar's own view.
+            Pin?.Update();
         } while (_refreshAgain);
     }
 

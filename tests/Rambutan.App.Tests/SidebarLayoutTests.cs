@@ -1,9 +1,13 @@
 using System.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.VisualTree;
 using Rambutan.App.ViewModels;
 using Rambutan.App.Views;
+using Rambutan.Core.Sidebar;
 
 namespace Rambutan.App.Tests;
 
@@ -66,6 +70,73 @@ public class SidebarLayoutTests
 
         Assert.NotEqual(before, window.SidebarMinHeight);
         Assert.Equal(signIn.IsVisible, window.SidebarMinHeight > before);
+        window.Close();
+    });
+
+    private static (MainWindow Window, MainViewModel Vm, SidebarPinLibrary Pins) WithPins(int count)
+    {
+        ShellResources.Ensure();
+        var pins = new SidebarPinLibrary(new MemorySidebarPinStore());
+        for (var i = 0; i < count; i++)
+            pins.Pin(new SidebarPin(PinKind.Playlist, "PL" + i, "Playlist " + i));
+        var vm = new MainViewModel { SidebarPins = new SidebarPinsViewModel(pins, null, _ => { }, action => action()) };
+        var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
+        window.Show();
+        Settle(window);
+        return (window, vm, pins);
+    }
+
+    private static List<Button> PinRows(Window window) =>
+        window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("pin")).ToList();
+
+    [Fact]
+    public void ThePins_NeverRaiseTheMinimum_AndHideInTheRail() => Headless.Run(() =>
+    {
+        var (window, vm, pins) = WithPins(0);
+        var nav = Named<StackPanel>(window, "SidebarNav");
+        var section = Named<Panel>(window, "SidebarPinsSection");
+        Assert.True(section.IsEffectivelyVisible);
+        var navHeight = nav.DesiredSize.Height;
+        var minimum = window.SidebarMinHeight;
+
+        for (var i = 0; i < 12; i++)
+            pins.Pin(new SidebarPin(PinKind.Playlist, "PL" + i, "Playlist " + i));
+        Settle(window);
+
+        // The minimum counts the destinations only; the pins scroll.
+        Assert.Equal(navHeight, nav.DesiredSize.Height);
+        Assert.Equal(minimum, window.SidebarMinHeight);
+        var rows = PinRows(window);
+        Assert.Equal(12, rows.Count);
+        Assert.Equal("Playlist 0", AutomationProperties.GetName(rows[0]));
+        Assert.All(rows, r => Assert.True(r.IsTabStop && r.Focusable));
+
+        vm.IsSidebarOpen = false;
+        Settle(window);
+        Assert.False(section.IsEffectivelyVisible);
+        window.Close();
+    });
+
+    [Fact]
+    public void APinRow_OpensItsMenuFromTheKeyboard_AndAltArrowsMoveIt_KeepingTheFocus() => Headless.Run(() =>
+    {
+        var (window, _, pins) = WithPins(3);
+        var first = PinRows(window)[0];
+        first.Focus();
+
+        first.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent, Source = first });
+        var flyout = Assert.IsType<MenuFlyout>(first.ContextFlyout);
+        Assert.True(flyout.IsOpen);
+        Assert.Equal("Open", ((MenuItem)flyout.Items[0]!).Header);
+        flyout.Hide();
+
+        window.KeyPress(Key.Down, RawInputModifiers.Alt, PhysicalKey.ArrowDown, null);
+        Settle(window);
+
+        Assert.Equal(["PL1", "PL0", "PL2"], pins.Pins.Select(p => p.Id));
+        var focused = Assert.IsAssignableFrom<Button>(window.FocusManager?.GetFocusedElement());
+        Assert.Equal("Playlist 0", AutomationProperties.GetName(focused));
+        Assert.Same(PinRows(window)[1], focused);
         window.Close();
     });
 

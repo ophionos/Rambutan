@@ -10,10 +10,11 @@ using Rambutan.Core.Catalog;
 using Rambutan.Core.Downloads;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Sidebar;
 
 namespace Rambutan.App.ViewModels;
 
-public partial class AlbumPageViewModel : ViewModelBase
+public partial class AlbumPageViewModel : ViewModelBase, IPinnablePage
 {
     private readonly ICatalog _catalog;
     private readonly PlaybackCoordinator _coordinator;
@@ -75,6 +76,20 @@ public partial class AlbumPageViewModel : ViewModelBase
                 () => Title, "album.downloadTip")
             : null;
 
+    /// <summary>Set by navigation; null (tests) offers no pinning.</summary>
+    public CollectionActionsViewModel? Collections { get; init; }
+
+    public PinKind PinKind => PinKind.Album;
+    public string PinId => _browseId;
+
+    private SidebarPinToggle? _pin;
+
+    /// <summary>The header's Pin entry; null where pins aren't composed.</summary>
+    public SidebarPinToggle? Pin =>
+        _pin ??= Collections is { Pins: not null } collections
+            ? new SidebarPinToggle(collections, PinKind.Album, _browseId, () => Title, () => ThumbnailUrl)
+            : null;
+
     public AlbumPageViewModel(ICatalog catalog, PlaybackCoordinator coordinator, string browseId)
     {
         _catalog = catalog;
@@ -107,6 +122,7 @@ public partial class AlbumPageViewModel : ViewModelBase
             // An album page holds every track, so the count and running time are
             // ours to add up, in the same format the rows use.
             Summary = DurationFormat.Summary(Tracks);
+            Pin?.Refresh();
         }
         catch (Exception ex)
         {

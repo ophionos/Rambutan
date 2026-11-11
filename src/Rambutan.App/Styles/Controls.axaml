@@ -188,6 +188,42 @@
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
+  <!-- A pinned album or playlist under the destinations: a nav entry (same
+       hover, press and active fills) with a small cover for an icon, in a
+       shorter row. -->
+  <Style Selector="Button.nav.pin">
+    <Setter Property="Padding" Value="8,6" />
+  </Style>
+  <Style Selector="Border.pinart">
+    <Setter Property="Width" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Small}" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
+  </Style>
+  <Style Selector="Button.nav.pin.active TextBlock">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <!-- A playlist on this computer that is gone: still listed, so it can be
+       unpinned, and as quiet as a missing row on its page. -->
+  <Style Selector="Button.nav.pin.missing > Grid">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+  <!-- The Pinned section's caption, and the line under it when there is
+       nothing to list. -->
+  <Style Selector="TextBlock.sidebarcaption">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Caption}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Margin" Value="12,0,12,4" />
+  </Style>
+  <Style Selector="TextBlock.sidebarnote">
+    <Setter Property="FontSize" Value="{StaticResource Token.Font.Caption}" />
+    <Setter Property="Foreground" Value="{StaticResource Token.Brush.Text.Muted}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Margin" Value="12,0" />
+  </Style>
+
   <!-- The sidebar's account chip: avatar, name and state, flat at rest like the
        nav entries above it, with the same soft fill under the pointer. -->
   <Style Selector="Button.account">
@@ -371,6 +407,10 @@
   </Style>
   <Style Selector="Border#Sidebar.rail Button.account Grid">
     <Setter Property="ColumnSpacing" Value="0" />
+  </Style>
+  <!-- The rail shows the destinations only: no pins. -->
+  <Style Selector="Border#Sidebar.rail Panel#SidebarPinsSection">
+    <Setter Property="IsVisible" Value="False" />
   </Style>
   <Style Selector="Border#Sidebar.rail Button.account">
     <Setter Property="Padding" Value="6" />

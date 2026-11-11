@@ -252,6 +252,21 @@ file sink), never to files directly.
   a rebuilt Library) takes its place. The history is cleared when requests
   go out as someone else (`OnSignInChanged`), and a `rambutan://search`
   link starts without one.
+- Sidebar pins: albums, YouTube Music playlists and local playlists the user
+  pinned (never artists or songs), under the destinations in the expanded
+  sidebar; the rail shows destinations only. The rules are
+  `Core/Sidebar/SidebarPinLibrary`, the file `sidebar-pins.json`
+  (`App/Services/SidebarPinStore`, versioned, per profile; a newer or
+  unreadable file is left in place and the section says pins can't be
+  changed), the section `ViewModels/SidebarPinsViewModel`. A pin keeps the
+  title and cover it had, so it draws signed out and offline, and takes new
+  ones when its page loads; a playlist pins under its bare id, never the
+  `VL` browse form. A pin only navigates (`NavigationService.OpenPin`). Pin
+  and Unpin are in the card menu, the hero's More and the row's own menu,
+  which also moves it (Alt+Up, Alt+Down). A local playlist that is gone stays
+  as a dimmed row that can be unpinned. The pins never raise the window's
+  minimum height (`MainWindow.FitSidebar` counts the destinations); they
+  scroll.
 - Mini player: the main window itself, not a second window.
   `MainWindow.ApplyMiniPlayer` changes its shape, the `mini` class hides what
   it has no room for (`fullOnly` / `miniOnly` in `Controls.axaml`), and
