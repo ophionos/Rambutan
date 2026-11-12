@@ -247,6 +247,47 @@ public class SearchGroupingTests
     });
 
     [Fact]
+    public void AHeading_IsMarkedSoItTakesNoRowHighlight_AndARowIsNot() => Headless.Run(() =>
+    {
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+        var view = new Rambutan.App.Views.SearchPage { DataContext = Searched(Interleaved) };
+        var window = Settled(new Window { Width = 1000, Height = 1400, DataContext = new MainViewModel(), Content = view });
+
+        var containers = ResultsList(view).GetRealizedContainers().OfType<ListBoxItem>().ToList();
+        Assert.All(containers, c =>
+            Assert.Equal(c.DataContext is SearchResultHeading, c.Classes.Contains("heading")));
+        window.Close();
+    });
+
+    [Fact]
+    public void OnAWideWindow_TheBoxTheCardAndTheRows_EndAtOneEdge() => Headless.Run(() =>
+    {
+        AccessibleNames.Install();
+        ShellResources.Ensure();
+        var top = new TopResult { Entry = Artist("Daft Punk"), Related = [Song("One More Time")] };
+        var view = new Rambutan.App.Views.SearchPage { DataContext = Searched(Interleaved, top) };
+        var window = Settled(new Window { Width = 2600, Height = 1400, DataContext = new MainViewModel(), Content = view });
+
+        double Right(Visual visual) =>
+            visual.TranslatePoint(new Point(visual.Bounds.Width, 0), view)!.Value.X;
+
+        var box = view.GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "SearchBox");
+        var card = view.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("topresult"));
+        var row = ResultsList(view).GetRealizedContainers().OfType<ListBoxItem>()
+            .First(c => c.DataContext is SongEntry);
+        var cardRow = card.GetVisualDescendants().OfType<ListBoxItem>().First();
+
+        // A pixel of rounding between the box's column and the lists' items.
+        Assert.Equal(Rambutan.App.Views.SearchPage.FieldMaxWidth, box.Bounds.Width, 1.0);
+        Assert.Equal(Right(box), Right(card), 1.0);
+        Assert.Equal(Right(box), Right(row), 1.0);
+        Assert.Equal(Right(box), Right(cardRow), 1.0);
+        Assert.True(Right(box) < 1200);
+        window.Close();
+    });
+
+    [Fact]
     public void ArrowDown_FromAGroupsLastRow_ReachesTheNextGroupsFirstRow() => Headless.Run(() =>
     {
         AccessibleNames.Install();

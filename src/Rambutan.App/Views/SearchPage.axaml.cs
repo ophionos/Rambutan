@@ -8,11 +8,18 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Rambutan.App.Controls;
 using Rambutan.App.ViewModels;
+using Rambutan.Core.Layout;
 
 namespace Rambutan.App.Views;
 
 public partial class SearchPage : UserControl
 {
+    /// <summary>The search box's width at most: a results item at its widest (the
+    /// list's FixedWidth, the title's maximum, the liked mark, the album with its
+    /// gap, and the item's padding).</summary>
+    public const double FieldMaxWidth =
+        234 + TrackRowColumns.MaxTitle + TrackRowColumns.Liked + TrackRowColumns.AlbumGap + TrackRowColumns.MaxAlbum + 16;
+
     private SearchPageViewModel? _vm;
     private Window? _window;
 
@@ -98,7 +105,8 @@ public partial class SearchPage : UserControl
     private void OnWindowDeactivated(object? sender, System.EventArgs e) => _vm?.CloseDropdown();
 
     // As History's headings (LibraryPage), except that a heading stays
-    // hit-testable for its See all. Containers are recycled between headings and
+    // hit-testable for its See all, so its class takes the rows' hover and
+    // selection highlight from it (Styles/Browse.axaml). Containers are recycled between headings and
     // rows, so each one is set both ways. A heading takes no focus (the arrow
     // keys pass over it); a screen reader hears it as a heading, named by
     // AccessibleNames from its IHasAccessibleName.
@@ -108,10 +116,12 @@ public partial class SearchPage : UserControl
         if (ResultsList.Items[e.Index] is SearchResultHeading)
         {
             container.Focusable = false;
+            container.Classes.Add("heading");
             AutomationProperties.SetHeadingLevel(container, 2);
         }
         else
         {
+            container.Classes.Remove("heading");
             container.ClearValue(FocusableProperty);
             container.ClearValue(AutomationProperties.HeadingLevelProperty);
         }
