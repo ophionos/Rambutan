@@ -2,7 +2,7 @@ using Rambutan.Core.Appearance;
 
 namespace Rambutan.Core.Tests;
 
-/// <summary>Lyrics keep 4.5:1 against the brightest bar behind the scrim.</summary>
+/// <summary>Lyrics keep 4.5:1 against the brightest bar of the dimmed stage.</summary>
 public class LyricsLegibilityTests
 {
     public static TheoryData<string, byte, byte, byte> Bars => new()
@@ -33,8 +33,8 @@ public class LyricsLegibilityTests
                     && LyricsLegibility.NearLineOpacity < 1);
 
     [Fact]
-    public void TheScrim_LeavesTheVisualizerVisible() =>
-        Assert.InRange(LyricsLegibility.ScrimOpacity, 0.3, 0.7);
+    public void TheStageDim_LeavesTheVisualizerVisible() =>
+        Assert.InRange(LyricsLegibility.StageDim, 0.12, 0.3);
 
     [Fact]
     public void TheOldInactiveOpacity_DidNotReachIt() =>
