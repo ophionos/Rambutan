@@ -13,8 +13,14 @@
 
   <!-- 4px side inset matches every other page's content edge. -->
   <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="4,0">
-    <!-- Enter searches: there is no Search button. -->
+    <!-- Enter searches: there is no Search button. The box is at most as wide as
+         the results' column (FieldMaxWidth), so on a wide window it ends where
+         they do instead of at the far edge. -->
     <Grid Margin="0,0,12,0" Grid.Row="0">
+      <!-- The maximum is the column's: on the box itself it would centre it. -->
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MaxWidth="{x:Static views:SearchPage.FieldMaxWidth}" />
+      </Grid.ColumnDefinitions>
       <TextBox x:Name="SearchBox" Classes="searchfield" PlaceholderText="{l:T search.placeholder}"
                Text="{Binding Query}"
                KeyDown="OnSearchKeyDown">
@@ -519,7 +525,10 @@
 
       <!-- YTM's top result: the entity it thinks you meant, then
            the rows it shows inside the card, such as an artist's top songs. -->
-      <Border Classes="topresult" Margin="0,0,0,8"
+      <!-- As wide as the results' items below (auto, the whole width, until
+           that list has one), so the card and the groups share one right edge. -->
+      <Border Classes="topresult" Margin="0,0,0,8" HorizontalAlignment="Left"
+              Width="{Binding #ResultsList.(controls:TrackColumns.ItemWidth)}"
               AutomationProperties.Name="{l:T search.topResult}"
               IsVisible="{Binding TopResult, Converter={x:Static ObjectConverters.IsNotNull}}">
         <StackPanel Spacing="10">
@@ -550,11 +559,12 @@
                    IsVisible="{Binding !!TopResult.Related.Count}"
                    ItemsSource="{Binding TopResult.Related}"
                    controls:ItemActivation.Command="{Binding OpenCommand}"
+                   controls:TrackColumns.HasAlbum="True"
                    controls:TrackColumns.HasLiked="True"
                    controls:TrackColumns.ItemInset="16"
                    controls:TrackColumns.FixedWidth="234">
-            <!-- No album column in the card (HasAlbum off); the liked mark and
-                 the title's maximum are the results' (Controls/TrackColumns). -->
+            <!-- The results' columns (Controls/TrackColumns), so the card's rows
+                 end where theirs do. -->
             <ListBox.ItemsPanel>
               <ItemsPanelTemplate>
                 <StackPanel />

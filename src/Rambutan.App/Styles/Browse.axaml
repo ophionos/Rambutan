@@ -181,6 +181,17 @@
     <Setter Property="HorizontalAlignment" Value="Left" />
     <Setter Property="Width" Value="{Binding $parent[ListBox].(controls:TrackColumns.ItemWidth)}" />
   </Style>
+  <!-- A group's heading among the rows (Search's All tab): no row, so it takes
+       no hover, press or selection highlight; only its See all answers the
+       pointer. -->
+  <Style Selector="ListBox.tracks ListBoxItem.heading /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBox.tracks ListBoxItem.heading:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBox.tracks ListBoxItem.heading:pressed /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBox.tracks ListBoxItem.heading:selected /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBox.tracks ListBoxItem.heading:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
   <Style Selector="Border.rowart">
     <Setter Property="Width" Value="40" />
     <Setter Property="Height" Value="40" />
