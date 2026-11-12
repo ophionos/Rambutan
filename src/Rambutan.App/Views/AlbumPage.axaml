@@ -3,6 +3,7 @@
              xmlns:l="using:Rambutan.App.Localization"
              xmlns:vm="using:Rambutan.App.ViewModels"
              xmlns:controls="using:Rambutan.App.Controls"
+             xmlns:views="using:Rambutan.App.Views"
              xmlns:core="using:Rambutan.Core.Models"
              xmlns:conv="using:Rambutan.App.Converters"
              x:Class="Rambutan.App.Views.AlbumPage"
@@ -231,6 +232,61 @@
         </DataTemplate>
       </ListBox.ItemTemplate>
     </ListBox>
+
+    <!-- More by the album's artist, beside the rows on a pane with room for
+         both (Core/Layout/SideColumnFit; the code-behind places it past the
+         rows' widest). It lies over the list's empty right part, level with
+         the first row, and scrolls by itself, since it is often taller than
+         the pane. After the list, so Tab reaches it last. -->
+    <ScrollViewer x:Name="SideColumn" Grid.Row="1" HorizontalAlignment="Left"
+                  HorizontalScrollBarVisibility="Disabled"
+                  IsVisible="{Binding ShowsSideColumn}">
+      <StackPanel Spacing="14" Margin="0,0,12,16">
+        <!-- A failure stays in the column, never over the tracks. -->
+        <Grid ColumnDefinitions="*,Auto"
+              IsVisible="{Binding ArtistError, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <ContentControl Content="{Binding ArtistError}" HorizontalAlignment="Left"
+                          ContentTemplate="{StaticResource ErrorState.Compact}"
+                          AutomationProperties.LiveSetting="Polite" />
+          <Button Grid.Column="1" Classes="icon subtle small" Command="{Binding DismissArtistErrorCommand}"
+                  ToolTip.Tip="{l:T common.dismiss}" AutomationProperties.Name="{l:T common.dismiss}">
+            <PathIcon Data="{StaticResource Icon.Close}" Width="14" Height="14" />
+          </Button>
+        </Grid>
+
+        <StackPanel Spacing="8" IsVisible="{Binding IsLoadingArtist}"
+                    AutomationProperties.Name="{l:T common.loading}">
+          <Border Classes="skeleton" Height="24" Width="220" CornerRadius="6" HorizontalAlignment="Left" />
+          <Border Classes="skeleton" Height="48" CornerRadius="8" />
+          <Border Classes="skeleton" Height="48" CornerRadius="8" />
+          <Border Classes="skeleton" Height="48" CornerRadius="8" />
+          <Border Classes="skeleton" Height="48" CornerRadius="8" />
+          <Border Classes="skeleton" Height="48" CornerRadius="8" />
+          <Border Classes="skeleton" Height="24" Width="120" CornerRadius="6" HorizontalAlignment="Left" Margin="0,14,0,0" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <Border Classes="skeleton" Width="168" Height="168" CornerRadius="8" />
+            <Border Classes="skeleton" Width="168" Height="168" CornerRadius="8" />
+            <Border Classes="skeleton" Width="168" Height="168" CornerRadius="8" />
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel Spacing="14" IsVisible="{Binding !!ArtistSongs.Count}">
+          <TextBlock Text="{Binding ArtistSongsTitle}" FontSize="{StaticResource Token.Font.Section}" FontWeight="Bold" />
+          <views:TopSongRows Songs="{Binding ArtistSongs}" ListName="{Binding ArtistSongsTitle}"
+                             PlayFromCommand="{Binding PlayArtistSongFromCommand}" />
+        </StackPanel>
+
+        <ItemsControl ItemsSource="{Binding ArtistShelves}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="core:Shelf">
+              <views:ShelfView Margin="0,6,0,14"
+                               OpenCommand="{Binding #Root.((vm:AlbumPageViewModel)DataContext).OpenEntryCommand}"
+                               PlayCommand="{Binding #Root.((vm:AlbumPageViewModel)DataContext).PlayEntryCommand}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
 
     <!-- Load failed with nothing to show: the failure takes the page. Declared last so it sits above the
          (empty, but hit-testable) list in the same cell, which would otherwise

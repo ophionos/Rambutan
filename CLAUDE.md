@@ -389,6 +389,18 @@ file sink), never to files directly.
   moves those groups between `Rows` and `SideShelves`; an answer without
   such a group has no second column. The left column comes first in the
   tree, so Tab and a screen reader go through it, then down the shelves.
+  The album page uses it too: beside the track rows at their widest
+  (`AlbumPage.RowsMaxWidth`), level with the first row, it shows more by the
+  album's artist (`Core/Catalog/MoreByArtist`: the artist page's top songs
+  as rows, `Views/TopSongRows`, shared with the artist page; then its
+  Albums, without the album shown, Singles & EPs and "Fans might also
+  like"). The artist page is asked for only when the column will show (room,
+  a live page, an artist link, the tracks on screen), and a request still
+  running when the page leaves the screen or loses the room is cancelled
+  and asked again later. A failure is a dismissible line in the column,
+  never over the tracks; an album without an artist link, the copy kept
+  with the downloads, and an artist with none of these have no column. The
+  column scrolls by itself and comes after the rows in the tree.
 - Offline pages: `Core/Downloads/OfflineCatalog` wraps the `ICatalog` that App
   registers. When an album or playlist page, or the Library's Albums or Playlists
   tab, can't load, it serves the copy that "Download all" kept
