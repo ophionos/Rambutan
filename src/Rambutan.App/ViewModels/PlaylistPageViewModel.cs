@@ -62,6 +62,69 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost, IPin
 
     public ObservableCollection<TrackInfo> Tracks { get; } = [];
 
+    /// <summary>The pane has room for a column beside the rows (the view says
+    /// so, from <see cref="Rambutan.Core.Layout.SideColumnFit"/>). The related
+    /// playlists are asked for only once it has.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSideColumn))]
+    private bool _hasSideRoom;
+
+    /// <summary>YouTube Music's related playlists; null until they arrive, and
+    /// when it has none, the request failed or the page is a kept copy.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSideColumn))]
+    private Shelf? _related;
+
+    public bool ShowsSideColumn => HasSideRoom && Related is not null;
+
+    private ContinuationToken? _relatedContinuation;
+    private bool _relatedAsked;
+
+    /// <summary>Counts the loads, so an answer for a page since reloaded is dropped.</summary>
+    private int _load;
+
+    partial void OnHasSideRoomChanged(bool value)
+    {
+        if (value)
+            _ = LoadRelatedAsync();
+    }
+
+    /// <summary>Asks once per load for the related playlists. A failure leaves
+    /// the page without them and says nothing: they are an extra.</summary>
+    private async Task LoadRelatedAsync()
+    {
+        if (_relatedAsked || !HasSideRoom || _relatedContinuation is not { } token)
+            return;
+        _relatedAsked = true;
+        var load = _load;
+        try
+        {
+            var page = await _catalog.GetPlaylistContinuationAsync(_playlistId, token);
+            if (load != _load)
+                return;
+            Related = page.Related;
+            // A playlist whose tracks have no next page pages with this token
+            // too: the answer is that page, so it isn't asked for again.
+            if (token == _continuation && !IsLoadingMore)
+            {
+                _continuation = page.Continuation;
+                HasMore = _continuation is not null;
+                foreach (var track in page.Tracks)
+                    Tracks.Add(track);
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("playlist", $"couldn't load the related playlists of {_playlistId}: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private Task OpenEntryAsync(CatalogEntry entry) => _navigation.OpenEntryAsync(entry);
+
+    [RelayCommand]
+    private Task PlayEntryAsync(CatalogEntry entry) => _navigation.PlayEntryAsync(entry);
+
     /// <summary>What the list hands to Controls/DragReorder: null on a playlist that
     /// can't be reordered, so a row never looks draggable and then refuses the drop.</summary>
     public IAsyncRelayCommand<ReorderRequest>? DragReorderCommand => IsEditable ? ReorderCommand : null;
@@ -95,11 +158,16 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost, IPin
     {
         IsLoading = true;
         LoadError = null;
+        _load++;
         try
         {
             var playlist = await _catalog.GetPlaylistAsync(_playlistId);
             // A retry from a kept copy loads over it.
             Tracks.Clear();
+            Related = null;
+            // The copy kept with the downloads has no related playlists.
+            _relatedContinuation = playlist.KeptAt is null ? playlist.RelatedContinuation : null;
+            _relatedAsked = false;
             KeptAt = playlist.KeptAt;
             _subtitleInfo = playlist.SubtitleInfo;
             Title = playlist.Title;
@@ -115,6 +183,8 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost, IPin
                 ? DurationFormat.Summary(Tracks)
                 : playlist.SecondSubtitle;
             Pin?.Refresh();
+            // After the tracks are on the page: the column is an extra.
+            _ = LoadRelatedAsync();
         }
         catch (Exception ex)
         {
@@ -148,6 +218,12 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost, IPin
             var page = await _catalog.GetPlaylistContinuationAsync(_playlistId, _continuation);
             _continuation = page.Continuation;
             HasMore = _continuation is not null;
+            // The last page of a short playlist carries the related playlists.
+            if (page.Related is { } related && KeptAt is null)
+            {
+                Related = related;
+                _relatedAsked = true;
+            }
             foreach (var track in page.Tracks)
                 Tracks.Add(track);
         }
