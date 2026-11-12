@@ -98,15 +98,10 @@
     </Style>
   </UserControl.Styles>
 
+  <!-- No panel behind the lines: they sit on the dimmed visualizer itself, and
+       the stage's dim and the lines' opacities (LyricsLegibility) keep them
+       readable. -->
   <Panel>
-  <!-- The scrim: the page's ground over the visualizer, behind the column only,
-       so the lines read over the bars and the bars still show as movement
-       (LyricsLegibility holds the numbers). The switch above and the footer
-       below sit on it as plain strips: no line is drawn over them. -->
-  <Border x:Name="Scrim" IsHitTestVisible="False"
-          CornerRadius="{StaticResource Token.Radius.Panel}"
-          Background="{StaticResource Token.Brush.Ground}"
-          Opacity="{x:Static legibility:LyricsLegibility.ScrimOpacity}" />
   <DockPanel>
   <!-- The online source: both in view, chosen here and remembered. Hidden
        while the lyrics are the user's own or the track's, which win whatever
