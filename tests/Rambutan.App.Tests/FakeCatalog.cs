@@ -172,10 +172,14 @@ internal sealed class FakeCatalog : ICatalog
     /// <summary>Holds artist fetches until it completes; unset, they answer at once.</summary>
     public Task? ArtistGate { get; set; }
 
+    /// <summary>The artists fetched, in order.</summary>
+    public List<string> ArtistAsked { get; } = [];
+
     public async Task<ArtistPage> GetArtistAsync(string browseId, CancellationToken ct = default)
     {
+        ArtistAsked.Add(browseId);
         if (ArtistGate is { } gate)
-            await gate;
+            await gate.WaitAsync(ct);
         return Artist ?? throw new NotSupportedException();
     }
     public Func<string, Task<IReadOnlyList<TrackInfo>>>? Radio { get; set; }

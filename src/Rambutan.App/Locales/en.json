@@ -11,6 +11,7 @@
     "album.downloadTip": "Download every song on the album",
     "album.remove": "Remove from library",
     "album.save": "Save to library",
+    "album.topSongsBy": "Top songs by {artist}",
     "artist.lastFmStation": "Last.fm station",
     "artist.playTopSongs": "Play top songs",
     "artist.shuffleSongs": "Shuffle all songs",

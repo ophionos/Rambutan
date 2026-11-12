@@ -236,7 +236,7 @@ public partial class NavigationService : ViewModelBase
 
     public void OpenAlbum(string browseId)
     {
-        var page = new AlbumPageViewModel(_catalog, _coordinator, browseId) { Actions = _actions, Collections = Collections };
+        var page = new AlbumPageViewModel(_catalog, _coordinator, browseId) { Actions = _actions, Collections = Collections, Navigation = this };
         Push(page);
         _ = page.LoadAsync();
     }

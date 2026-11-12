@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -90,17 +91,155 @@ public partial class AlbumPageViewModel : ViewModelBase, IPinnablePage
             ? new SidebarPinToggle(collections, PinKind.Album, _browseId, () => Title, () => ThumbnailUrl)
             : null;
 
+    /// <summary>Set by navigation; null (tests) leaves the side column's cards inert.</summary>
+    public NavigationService? Navigation { get; init; }
+
+    // ---- The side column: more by the album's artist, beside the rows. ----
+
+    /// <summary>Whether the pane has room for a column beside the rows; the view
+    /// says so, and says false when the page leaves the screen. The artist is
+    /// asked for only while this holds, and a request still running when it
+    /// stops holding is cancelled.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSideColumn))]
+    private bool _hasSideRoom;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSideColumn))]
+    private bool _isLoadingArtist;
+
+    /// <summary>The artist couldn't be loaded: a line in the column, with Try
+    /// again, until it is dismissed. Never the page's own error.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSideColumn))]
+    private LoadError? _artistError;
+
+    /// <summary>The artist's top songs, as the artist page lists them.</summary>
+    public ObservableCollection<TrackInfo> ArtistSongs { get; } = [];
+
+    /// <summary>The artist's shelves the column shows (<see cref="MoreByArtist"/>).</summary>
+    public ObservableCollection<Shelf> ArtistShelves { get; } = [];
+
+    /// <summary>"Top songs by Daft Punk".</summary>
+    public string ArtistSongsTitle => Strings.Format("album.topSongsBy", ("artist", Artist?.Name ?? ""));
+
+    /// <summary>A live page whose header links its artist, with its tracks on
+    /// screen. Various Artists has no link, and the copy kept with the downloads
+    /// is shown because YouTube Music can't be reached.</summary>
+    private bool CanAskArtist => !IsLoading && KeptAt is null && Tracks.Count > 0 && Artist?.BrowseId is not null;
+
+    /// <summary>The column shows while it has something to say: skeletons, the
+    /// failure line, or the artist's songs and shelves. An artist page with none
+    /// of them leaves no column.</summary>
+    public bool ShowsSideColumn =>
+        HasSideRoom && CanAskArtist &&
+        (IsLoadingArtist || ArtistError is not null || ArtistSongs.Count > 0 || ArtistShelves.Count > 0);
+
+    private CancellationTokenSource? _artistRequest;
+    private bool _artistAsked;
+
+    partial void OnHasSideRoomChanged(bool value)
+    {
+        if (value)
+            _ = LoadArtistAsync();
+        else
+            _artistRequest?.Cancel();
+    }
+
+    /// <summary>Asks for the artist once per load of the page, and only when the
+    /// column will show. A request the page cancelled is asked again when the
+    /// room comes back.</summary>
+    private async Task LoadArtistAsync()
+    {
+        if (!HasSideRoom || !CanAskArtist || _artistAsked || Artist?.BrowseId is not { } artistId)
+            return;
+
+        _artistAsked = true;
+        var request = _artistRequest = new CancellationTokenSource();
+        ArtistError = null;
+        IsLoadingArtist = true;
+        try
+        {
+            var artist = await _catalog.GetArtistAsync(artistId, request.Token);
+            if (!ReferenceEquals(request, _artistRequest))
+                return;
+            var more = MoreByArtist.From(artist, _browseId);
+            foreach (var song in more.TopSongs)
+                ArtistSongs.Add(song);
+            foreach (var shelf in more.Shelves)
+                ArtistShelves.Add(shelf);
+        }
+        catch (OperationCanceledException) when (request.IsCancellationRequested)
+        {
+            if (ReferenceEquals(request, _artistRequest))
+                _artistAsked = false;
+        }
+        catch (Exception ex)
+        {
+            if (ReferenceEquals(request, _artistRequest))
+                ArtistError = LoadError.From(ex, LoadSubject.Artist, RetryArtistCommand);
+        }
+        finally
+        {
+            if (ReferenceEquals(request, _artistRequest))
+            {
+                _artistRequest = null;
+                IsLoadingArtist = false;
+            }
+            request.Dispose();
+        }
+    }
+
+    /// <summary>Forgets the artist, for a load of the page over this one.</summary>
+    private void ResetArtist()
+    {
+        _artistRequest?.Cancel();
+        _artistRequest = null;
+        _artistAsked = false;
+        ArtistSongs.Clear();
+        ArtistShelves.Clear();
+        ArtistError = null;
+        IsLoadingArtist = false;
+    }
+
+    [RelayCommand]
+    private Task RetryArtistAsync()
+    {
+        _artistAsked = false;
+        ArtistError = null;
+        return LoadArtistAsync();
+    }
+
+    /// <summary>Takes the failure line away; the column goes with it, until the
+    /// page loads again.</summary>
+    [RelayCommand]
+    private void DismissArtistError() => ArtistError = null;
+
+    [RelayCommand]
+    private Task PlayArtistSongFromAsync(TrackInfo track) =>
+        _coordinator.PlayQueueAsync(ArtistSongs.ToList(), Math.Max(0, ArtistSongs.IndexOf(track)));
+
+    [RelayCommand]
+    private Task OpenEntryAsync(CatalogEntry entry) => Navigation?.OpenEntryAsync(entry) ?? Task.CompletedTask;
+
+    /// <summary>A card's hover play button: plays without opening the page.</summary>
+    [RelayCommand]
+    private Task PlayEntryAsync(CatalogEntry entry) => Navigation?.PlayEntryAsync(entry) ?? Task.CompletedTask;
+
     public AlbumPageViewModel(ICatalog catalog, PlaybackCoordinator coordinator, string browseId)
     {
         _catalog = catalog;
         _coordinator = coordinator;
         _browseId = browseId;
+        ArtistSongs.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowsSideColumn));
+        ArtistShelves.CollectionChanged += (_, _) => OnPropertyChanged(nameof(ShowsSideColumn));
     }
 
     public async Task LoadAsync()
     {
         IsLoading = true;
         LoadError = null;
+        ResetArtist();
         try
         {
             var album = await _catalog.GetAlbumAsync(_browseId);
@@ -132,6 +271,11 @@ public partial class AlbumPageViewModel : ViewModelBase, IPinnablePage
         {
             IsLoading = false;
         }
+
+        // The artist comes after the album's own tracks are on screen.
+        OnPropertyChanged(nameof(ArtistSongsTitle));
+        OnPropertyChanged(nameof(ShowsSideColumn));
+        _ = LoadArtistAsync();
     }
 
     [RelayCommand]
