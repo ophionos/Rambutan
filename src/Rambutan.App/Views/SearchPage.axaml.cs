@@ -20,6 +20,13 @@ public partial class SearchPage : UserControl
     public const double FieldMaxWidth =
         234 + TrackRowColumns.MaxTitle + TrackRowColumns.Liked + TrackRowColumns.AlbumGap + TrackRowColumns.MaxAlbum + 16;
 
+    /// <summary>The side column's left margin: the gap between the two columns.</summary>
+    public static readonly Thickness SideColumnMargin = new(SideColumnFit.Gap, 0, 0, 0);
+
+    /// <summary>What the results' scroller keeps of the page's width: the page's
+    /// 4 at the left, and the scroller's 16 padding at the right.</summary>
+    private const double PaneInsets = 20;
+
     private SearchPageViewModel? _vm;
     private Window? _window;
 
@@ -35,11 +42,21 @@ public partial class SearchPage : UserControl
         DataContextChanged += (_, _) =>
         {
             if (_vm is not null)
+            {
                 _vm.FocusRequested -= FocusSearchBox;
+                _vm.PropertyChanged -= OnViewModelPropertyChanged;
+            }
             _vm = DataContext as SearchPageViewModel;
             if (_vm is not null)
+            {
                 _vm.FocusRequested += FocusSearchBox;
+                _vm.PropertyChanged += OnViewModelPropertyChanged;
+            }
+            ApplyColumns();
         };
+        // The page's width, not the results scroller's: that one has none
+        // before the first search, whose skeletons already need the answer.
+        SizeChanged += (_, _) => ApplyColumns();
 
         // The drop-down shows while the box or the list under it
         // has focus. LostFocus fires before the new element gets focus, so the
@@ -97,9 +114,32 @@ public partial class SearchPage : UserControl
         if (_vm is not null)
         {
             _vm.FocusRequested -= FocusSearchBox;
+            _vm.PropertyChanged -= OnViewModelPropertyChanged;
             _vm.SetFieldActive(false);
         }
         _vm = null;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SearchPageViewModel.ShowsSideColumn))
+            ApplyColumns();
+    }
+
+    /// <summary>Tells the view model whether the pane has room for the side
+    /// column, and gives the two columns their widths while it shows. Without
+    /// it the first column has the pane, as before there was a second.</summary>
+    private void ApplyColumns()
+    {
+        if (Bounds.Width <= 0)
+            return;
+        var fit = SideColumnFit.For(Bounds.Width - PaneInsets, FieldMaxWidth);
+        if (_vm is not null)
+            _vm.HasSideRoom = fit.Show;
+        var show = fit.Show && _vm is { ShowsSideColumn: true };
+        var definitions = Columns.ColumnDefinitions;
+        definitions[0].Width = show ? new GridLength(fit.Main) : GridLength.Star;
+        definitions[1].Width = show ? new GridLength(SideColumnFit.Gap + fit.Side) : new GridLength(0);
     }
 
     private void OnWindowDeactivated(object? sender, System.EventArgs e) => _vm?.CloseDropdown();

@@ -527,6 +527,23 @@
            the rows it shows inside the card, such as an artist's top songs. -->
       <!-- As wide as the results' items below (auto, the whole width, until
            that list has one), so the card and the groups share one right edge. -->
+      <!-- Two columns on a pane with room for both (Core/Layout/SideColumnFit;
+           the code-behind sets the widths): the card and the rows keep their
+           width at the left, and the All tab's albums, artists and playlists
+           are shelves of cards at the right, level with the card. Otherwise
+           the second column has no width and the first has the pane. The left
+           column comes first, so Tab and a screen reader go through it, then
+           down the shelves. -->
+      <Grid x:Name="Columns" ColumnDefinitions="*,0">
+      <StackPanel>
+      <!-- A first search on the two-column pane: the card's and the rows' shapes. -->
+      <StackPanel Spacing="8" Margin="4,0,4,20" IsVisible="{Binding ShowsColumnSkeletons}">
+        <Border Classes="skeleton" Height="150" CornerRadius="12" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+        <Border Classes="skeleton" Height="48" CornerRadius="8" />
+      </StackPanel>
       <Border Classes="topresult" Margin="0,0,0,8" HorizontalAlignment="Left"
               Width="{Binding #ResultsList.(controls:TrackColumns.ItemWidth)}"
               AutomationProperties.Name="{l:T search.topResult}"
@@ -608,6 +625,40 @@
                       ContentTemplate="{StaticResource ErrorState.Compact}"
                       HorizontalAlignment="Left" Margin="4,8,4,20"
                       IsVisible="{Binding MoreError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      </StackPanel>
+
+      <StackPanel x:Name="SideColumn" Grid.Column="1" IsVisible="{Binding ShowsSideColumn}"
+                  Margin="{x:Static views:SearchPage.SideColumnMargin}">
+        <ItemsControl ItemsSource="{Binding SideShelves}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:SearchSideShelf">
+              <Panel x:Name="Row">
+                <views:ShelfView Margin="0,0,0,14" DataContext="{Binding Shelf}"
+                                 OpenCommand="{Binding #Root.((vm:SearchPageViewModel)DataContext).OpenCommand}"
+                                 PlayCommand="{Binding #Root.((vm:SearchPageViewModel)DataContext).PlayEntryCommand}"
+                                 SeeAllCommand="{Binding #Root.((vm:SearchPageViewModel)DataContext).ShowTabCommand}"
+                                 SeeAllCommandParameter="{Binding #Row.((vm:SearchSideShelf)DataContext).SeeAll}" />
+              </Panel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <!-- Two shelf shapes while a first search loads. -->
+        <StackPanel Spacing="12" IsVisible="{Binding ShowsColumnSkeletons}">
+          <Border Classes="skeleton" Width="130" Height="16" HorizontalAlignment="Left" />
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+          </StackPanel>
+          <Border Classes="skeleton" Width="170" Height="16" HorizontalAlignment="Left" />
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+            <Border Classes="skeleton" Width="176" Height="262" CornerRadius="12" />
+          </StackPanel>
+        </StackPanel>
+      </StackPanel>
+      </Grid>
       </StackPanel>
     </ScrollViewer>
 
