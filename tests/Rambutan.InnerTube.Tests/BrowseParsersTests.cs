@@ -146,6 +146,46 @@ public class BrowseParsersTests
         Assert.Null(page.Continuation);
     }
 
+    [Fact]
+    public void ParsePlaylistContinuation_RelatedOnlyResponse_YieldsTheRelatedPlaylists()
+    {
+        using var doc = LoadFixture("browse-playlist-continuation.related-only.json");
+
+        var related = BrowseParsers.ParsePlaylistContinuation("x", doc.RootElement).Related;
+
+        Assert.NotNull(related);
+        Assert.Equal("Related playlists", related.Title);
+        Assert.Equal(10, related.Entries.Count);
+        var first = Assert.IsType<PlaylistEntry>(related.Entries[0]);
+        Assert.Equal("80s Pop Party", first.Title);
+        Assert.Equal("Playlist • YouTube Music", first.Subtitle);
+        Assert.Equal("RDCLAK5uy_lEJSMz3ixa8UNloLg1geQT_DsB0C9a02g", first.PlaylistId);
+        Assert.False(string.IsNullOrEmpty(first.ThumbnailUrl));
+        Assert.All(related.Entries, e => Assert.False(string.IsNullOrEmpty(Assert.IsType<PlaylistEntry>(e).PlaylistId)));
+    }
+
+    [Fact]
+    public void ParsePlaylistContinuation_ATracksPage_HasNoRelatedPlaylists()
+    {
+        using var doc = LoadFixture("browse-playlist-continuation.tracks.json");
+
+        Assert.Null(BrowseParsers.ParsePlaylistContinuation("x", doc.RootElement).Related);
+    }
+
+    [Fact]
+    public void ParsePlaylist_KeepsTheTokenForWhatIsUnderTheTracks_ApartFromTheTracksOwn()
+    {
+        using var doc = LoadFixture("browse-playlist.80s-pop.json");
+
+        var page = BrowseParsers.ParsePlaylist("x", doc.RootElement);
+
+        Assert.NotNull(page.Continuation);
+        Assert.NotNull(page.RelatedContinuation);
+        Assert.NotEqual(page.Continuation, page.RelatedContinuation);
+        Assert.StartsWith("4qmFsgI9", page.RelatedContinuation.Value);
+        Assert.Null(page.Related);
+    }
+
     // ---- Handcrafted shapes (per-item behavior not covered by fixtures) --------
 
     private static JsonDocument HomeWithCarouselItems(string itemsJson) => JsonDocument.Parse(

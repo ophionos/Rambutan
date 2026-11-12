@@ -208,6 +208,9 @@
                      IsVisible="{Binding IsPeriodEmpty}" />
 
           <StackPanel IsVisible="{Binding HasPlays}">
+            <!-- The two charts: side by side on a wide pane, the per-day chart first. -->
+            <controls:StatsChartsPanel x:Name="Charts">
+            <StackPanel>
             <TextBlock Classes="statheader" Text="{l:T stats.perDay}" />
             <!-- The scale: the top line is the busiest day, the baseline under each bar is zero. -->
             <TextBlock Classes="rowmeta" Text="{Binding ScaleText}" Margin="0,0,0,2" />
@@ -243,8 +246,11 @@
                           Focusable="False" IsTabStop="False" IsHitTestVisible="False"
                           AutomationProperties.AccessibilityView="Raw">
               <ItemsControl.ItemsPanel>
+                <!-- The bars' own panel, so a label is under its bar at any
+                     width: a uniform grid rounds each cell's width, and a
+                     year's labels drift from the bars or run off the edge. -->
                 <ItemsPanelTemplate>
-                  <UniformGrid Rows="1" />
+                  <controls:GridNavigationPanel Columns="{Binding AxisLabels.Count}" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
@@ -260,7 +266,9 @@
             </ItemsControl>
             <TextBlock Classes="rowmeta" Margin="0,6,0,0" Text="{Binding SelectedDay.Name}"
                        AutomationProperties.LiveSetting="Polite" />
+            </StackPanel>
 
+            <StackPanel>
             <TextBlock Classes="statheader" Text="{l:T stats.heatmap}" />
             <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
               <UniformGrid Grid.Column="1" Columns="4" Margin="1,0,0,4">
@@ -301,6 +309,8 @@
             </Grid>
             <TextBlock Classes="rowmeta" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"
                        Text="{Binding SelectedCellText}" />
+            </StackPanel>
+            </controls:StatsChartsPanel>
 
             <UniformGrid Columns="3" Margin="0,8,0,0">
               <StackPanel Margin="0,0,16,0">

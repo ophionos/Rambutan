@@ -147,6 +147,13 @@ file sink), never to files directly.
   class persisted as JSON. Add fields with sensible defaults; a rename or change of
   meaning needs a migration. The model lives in App; a feature library that needs
   a setting gets the value passed in by App, not the model.
+- The Settings page: sections of rows in one column, and from a pane with
+  room for two columns beside the section list, two
+  (`Core/Layout/SettingsColumnFit`, `Controls/SettingsColumnsPanel`). The
+  sections keep their order, down the first column and then the second,
+  split where the two heights are nearest, and Tab follows that order. The
+  section list marks the section in view (`Core/Layout/SectionInView`; in
+  two columns, the first in order that is in view).
 - Credentials: `App/Services/CookieVault.cs`, `LastFmSessionVault.cs` and
   `RemoteTokenVault.cs` (the phone remote's pairing), all through `StoredCredential`: DPAPI on Windows; on Linux the Secret Service
   (`Integrations/Linux/SecretServiceStore`, D-Bus via Tmds.DBus.Protocol, no
@@ -339,7 +346,10 @@ file sink), never to files directly.
   month, a month's name under its first day for a year) are for sight only
   and not in the bars' names; its top line is the busiest day, and a bar is
   at most 48 px wide and at least 3 px high. The four summary tiles are one
-  width (`Controls/StatTileGrid`).
+  width (`Controls/StatTileGrid`). On a wide pane the two charts sit side by
+  side, the per-day chart first, each half the width
+  (`Core/Layout/StatsChartsFit`, `Controls/StatsChartsPanel`); narrower, the
+  heatmap goes under the chart.
 - Home's leading block: two rows of tiles above the shelves
   (`Core/Home/LeadingBlock`, columns by `Core/Layout/TileGridFit`), on plain
   Home signed in only. Their source is YouTube Music's own Listen again or
@@ -389,6 +399,16 @@ file sink), never to files directly.
   moves those groups between `Rows` and `SideShelves`; an answer without
   such a group has no second column. The left column comes first in the
   tree, so Tab and a screen reader go through it, then down the shelves.
+  The playlist page uses it for YouTube Music's related playlists
+  (`PlaylistPage.Related`, a carousel in the answer to the first page's
+  section-level token, `RelatedContinuation`): asked for only once the pane
+  has room, after the tracks, and never for a kept copy, whose file has no
+  such shelf. The column lies over the list's empty right part, level with
+  the first row (`PlaylistPage.RowsMaxWidth` and the gap from the left); it
+  stays while the rows scroll and follows the list's top when the hero
+  collapses, and the wheel over it scrolls the list. A failed request, or
+  an answer without the carousel, leaves the page with one column and no
+  error.
   The album page uses it too: beside the track rows at their widest
   (`AlbumPage.RowsMaxWidth`), level with the first row, it shows more by the
   album's artist (`Core/Catalog/MoreByArtist`: the artist page's top songs

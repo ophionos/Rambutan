@@ -171,6 +171,15 @@ public sealed class DemoInnerTubeHandler(DemoOptions options) : HttpMessageHandl
                 return ("home-more", null);
 
             case "browse" when String(root, "continuation") is { } token:
+                // A playlist's first page issues two tokens: the tracks' own, and
+                // the section list's (a nextContinuationData), which asks for
+                // what is under the tracks.
+                if (Fixture("browse-playlist.80s-pop.json") is { } playlist &&
+                    System.Text.RegularExpressions.Regex.IsMatch(
+                        playlist, "\"continuation\"\\s*:\\s*\"" + System.Text.RegularExpressions.Regex.Escape(token) + "\""))
+                {
+                    return ("playlist-more", Fixture("browse-playlist-continuation.related-only.json"));
+                }
                 foreach (var (issuedBy, answer) in Continuations)
                 {
                     if (Fixture(issuedBy).Contains(token, StringComparison.Ordinal))

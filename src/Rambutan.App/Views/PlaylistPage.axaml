@@ -5,6 +5,7 @@
              xmlns:controls="using:Rambutan.App.Controls"
              xmlns:core="using:Rambutan.Core.Models"
              xmlns:conv="using:Rambutan.App.Converters"
+             xmlns:views="using:Rambutan.App.Views"
              x:Class="Rambutan.App.Views.PlaylistPage"
              x:Name="Root"
              x:DataType="vm:PlaylistPageViewModel">
@@ -277,6 +278,18 @@
         </DataTemplate>
       </ListBox.ItemTemplate>
     </ListBox>
+
+    <!-- YouTube Music's related playlists, beside the rows on a pane with room
+         for both (Core/Layout/SideColumnFit; the code-behind places it past
+         the rows' widest). It lies over the list's empty right part, level
+         with the first row, and stays there while the rows scroll; the wheel
+         over it scrolls the list. After the list, so Tab reaches it last. -->
+    <Panel x:Name="SideColumn" Grid.Row="1" HorizontalAlignment="Left" VerticalAlignment="Top"
+           IsVisible="{Binding ShowsSideColumn}">
+      <views:ShelfView DataContext="{Binding Related}"
+                       OpenCommand="{Binding #Root.((vm:PlaylistPageViewModel)DataContext).OpenEntryCommand}"
+                       PlayCommand="{Binding #Root.((vm:PlaylistPageViewModel)DataContext).PlayEntryCommand}" />
+    </Panel>
 
     <!-- The next page loads as the list nears its end (code-behind); this
          only says so while it does. A failed page shows its Try again above. -->
