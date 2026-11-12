@@ -214,6 +214,13 @@ public sealed record PlaylistPage
     public string? ThumbnailUrl { get; init; }
     public required IReadOnlyList<TrackInfo> Tracks { get; init; }
     public ContinuationToken? Continuation { get; init; }
+    /// <summary>On a first page: the token that asks for what YouTube Music shows
+    /// under the tracks (its related playlists). The same as
+    /// <see cref="Continuation"/> when the tracks have no next page of their own.</summary>
+    public ContinuationToken? RelatedContinuation { get; init; }
+    /// <summary>On a continuation page: YouTube Music's related playlists, when
+    /// the page carries them. Never on a first page or a kept copy.</summary>
+    public Shelf? Related { get; init; }
     /// <summary>The account owns the playlist, so its rows can be moved. False when
     /// the page doesn't say, so an edit is never offered on a playlist that refuses it.</summary>
     public bool IsEditable { get; init; }

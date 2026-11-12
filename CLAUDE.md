@@ -389,6 +389,16 @@ file sink), never to files directly.
   moves those groups between `Rows` and `SideShelves`; an answer without
   such a group has no second column. The left column comes first in the
   tree, so Tab and a screen reader go through it, then down the shelves.
+  The playlist page uses it for YouTube Music's related playlists
+  (`PlaylistPage.Related`, a carousel in the answer to the first page's
+  section-level token, `RelatedContinuation`): asked for only once the pane
+  has room, after the tracks, and never for a kept copy, whose file has no
+  such shelf. The column lies over the list's empty right part, level with
+  the first row (`PlaylistPage.RowsMaxWidth` and the gap from the left); it
+  stays while the rows scroll and follows the list's top when the hero
+  collapses, and the wheel over it scrolls the list. A failed request, or
+  an answer without the carousel, leaves the page with one column and no
+  error.
 - Offline pages: `Core/Downloads/OfflineCatalog` wraps the `ICatalog` that App
   registers. When an album or playlist page, or the Library's Albums or Playlists
   tab, can't load, it serves the copy that "Download all" kept

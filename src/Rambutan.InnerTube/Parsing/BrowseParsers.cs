@@ -348,12 +348,13 @@ public static class BrowseParsers
 
         var tracks = new List<TrackInfo>();
         ContinuationToken? continuation = null;
+        ContinuationToken? related = null;
 
         if (root.TryGetPath(out var sectionList,
                 "contents", "twoColumnBrowseResultsRenderer", "secondaryContents",
                 "sectionListRenderer"))
         {
-            continuation = ParseHelpers.ParseContinuation(sectionList);
+            continuation = related = ParseHelpers.ParseContinuation(sectionList);
 
             if (sectionList.TryGetProperty("contents", out var sections))
             {
@@ -391,6 +392,7 @@ public static class BrowseParsers
             ThumbnailUrl = header is { } h5 ? ParseHelpers.Thumbnail(h5) : null,
             Tracks = tracks,
             Continuation = continuation,
+            RelatedContinuation = related,
             IsEditable = editable,
         };
     }
@@ -465,12 +467,14 @@ public static class BrowseParsers
     /// <summary>
     /// Continuation responses carry either musicPlaylistShelfContinuation or a
     /// sectionListContinuation whose sections may include more playlist shelves
-    /// (track-less "related" carousels simply contribute nothing).
+    /// and the "Related playlists" carousel, which has no tracks: its playlists
+    /// are the page's <see cref="PlaylistPage.Related"/>.
     /// </summary>
     public static PlaylistPage ParsePlaylistContinuation(string playlistId, JsonElement root)
     {
         var tracks = new List<TrackInfo>();
         ContinuationToken? continuation = null;
+        Shelf? related = null;
 
         // Modern shape: appended items arrive as response actions.
         if (root.TryGetPath(out var actions, "onResponseReceivedActions"))
@@ -500,6 +504,8 @@ public static class BrowseParsers
                 {
                     if (section.TryGetProperty("musicPlaylistShelfRenderer", out var shelf))
                         continuation = AppendShelfTracks(shelf, tracks) ?? continuation;
+                    else
+                        related ??= RelatedPlaylists(section);
                 }
             }
         }
@@ -510,7 +516,18 @@ public static class BrowseParsers
             Title = "",
             Tracks = tracks,
             Continuation = continuation,
+            Related = related,
         };
+    }
+
+    /// <summary>A carousel's playlists under its own title; null when the section
+    /// is no carousel or has no playlist.</summary>
+    private static Shelf? RelatedPlaylists(JsonElement section)
+    {
+        if (ParseCarousel(section) is not { } carousel)
+            return null;
+        var playlists = carousel.Entries.OfType<PlaylistEntry>().ToList<CatalogEntry>();
+        return playlists.Count > 0 ? new Shelf(carousel.Title, playlists) : null;
     }
 
     public static ArtistPage ParseArtist(string browseId, JsonElement root)
