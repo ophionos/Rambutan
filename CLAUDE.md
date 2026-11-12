@@ -339,7 +339,10 @@ file sink), never to files directly.
   month, a month's name under its first day for a year) are for sight only
   and not in the bars' names; its top line is the busiest day, and a bar is
   at most 48 px wide and at least 3 px high. The four summary tiles are one
-  width (`Controls/StatTileGrid`).
+  width (`Controls/StatTileGrid`). On a wide pane the two charts sit side by
+  side, the per-day chart first, each half the width
+  (`Core/Layout/StatsChartsFit`, `Controls/StatsChartsPanel`); narrower, the
+  heatmap goes under the chart.
 - Home's leading block: two rows of tiles above the shelves
   (`Core/Home/LeadingBlock`, columns by `Core/Layout/TileGridFit`), on plain
   Home signed in only. Their source is YouTube Music's own Listen again or
