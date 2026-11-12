@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -266,6 +267,71 @@ public class ListeningStatsViewTests
             Assert.False(labels.Focusable);
             Assert.False(labels.IsTabStop);
             Assert.Equal(AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(labels));
+            window.Close();
+        });
+    }
+
+    [Theory]
+    [InlineData(1500)]
+    [InlineData(1701)]
+    [InlineData(2400)]
+    public async Task A_years_labels_stay_under_their_bars_at_any_width(double width)
+    {
+        var vm = await BusyWeekAsync();
+        vm.SelectedPeriod = vm.Periods[2];
+        await vm.LoadAsync();
+
+        Headless.Run(() =>
+        {
+            var (window, view) = Show(vm, width);
+            var chart = view.GetVisualDescendants().OfType<ListBox>().First(l => l.Classes.Contains("chart"));
+            var labels = view.FindControl<ItemsControl>("DayLabels")!;
+
+            Assert.Equal(365, vm.AxisLabels.Count);
+            foreach (var day in new[] { 0, 100, 250, 364 })
+            {
+                var bar = chart.ContainerFromIndex(day)!;
+                var label = labels.ContainerFromIndex(day)!;
+                Assert.Equal(bar.TranslatePoint(default, view)!.Value.X, label.TranslatePoint(default, view)!.Value.X);
+            }
+            window.Close();
+        });
+    }
+
+    [Theory]
+    [InlineData(1600, false)]
+    [InlineData(2400, true)]
+    public async Task The_two_charts_sit_side_by_side_only_on_a_wide_pane(double width, bool sideBySide)
+    {
+        var vm = await BusyWeekAsync();
+
+        Headless.Run(() =>
+        {
+            var (window, view) = Show(vm, width);
+            var charts = view.FindControl<StatsChartsPanel>("Charts")!;
+            var perDay = charts.Children[0];
+            var heatmap = charts.Children[1];
+
+            Assert.Equal(sideBySide, charts.IsSideBySide);
+            if (sideBySide)
+            {
+                Assert.Equal(perDay.Bounds.Top, heatmap.Bounds.Top);
+                Assert.Equal(perDay.Bounds.Width, heatmap.Bounds.Width);
+                Assert.Equal(perDay.Bounds.Right + Rambutan.Core.Layout.StatsChartsFit.Gap, heatmap.Bounds.Left);
+                Assert.Equal(charts.Bounds.Width, heatmap.Bounds.Right);
+            }
+            else
+            {
+                Assert.Equal(perDay.Bounds.Bottom, heatmap.Bounds.Top);
+                Assert.Equal(charts.Bounds.Width, perDay.Bounds.Width);
+                Assert.Equal(charts.Bounds.Width, heatmap.Bounds.Width);
+            }
+
+            // The chart comes before the heatmap in the tab order at any width.
+            var lists = view.GetVisualDescendants().OfType<ListBox>().Where(l => l.Classes.Contains("chart")).ToList();
+            Assert.Equal(2, lists.Count);
+            Assert.True(perDay.IsVisualAncestorOf(lists[0]));
+            Assert.True(heatmap.IsVisualAncestorOf(lists[1]));
             window.Close();
         });
     }
