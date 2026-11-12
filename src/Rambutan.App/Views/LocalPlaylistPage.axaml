@@ -61,6 +61,15 @@
                   AutomationProperties.Name="{l:T common.delete}">
             <PathIcon Data="{StaticResource Icon.Delete}" Width="18" Height="18" />
           </Button>
+          <!-- In More; its name says what a press does now. -->
+          <Button Classes="icon outline" controls:ActionRow.InMenu="True" Command="{Binding Pin.ToggleCommand, FallbackValue={x:Null}}"
+                  IsVisible="{Binding Pin.CanPin, FallbackValue=False}"
+                  AutomationProperties.Name="{Binding Pin.Name, FallbackValue={x:Static vm:SidebarPinToggle.FallbackName}}">
+            <Panel>
+              <PathIcon Data="{StaticResource Icon.Pin}" Width="18" Height="18" IsVisible="{Binding !Pin.IsPinned, FallbackValue=True}" />
+              <PathIcon Data="{StaticResource Icon.PinFilled}" Width="18" Height="18" IsVisible="{Binding Pin.IsPinned, FallbackValue=False}" />
+            </Panel>
+          </Button>
         </controls:ActionRow>
       </StackPanel>
     </Grid>

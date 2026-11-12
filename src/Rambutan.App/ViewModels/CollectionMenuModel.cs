@@ -53,6 +53,11 @@ public static class CollectionMenuModel
                 if (entry is PlaylistEntry && actions.CanCopyToLocal)
                     library.Add(new(Strings.Get("menu.copyToLocalPlaylist"), "Icon.AddToPlaylist",
                         actions.CopyToLocalCommand, entry, idle));
+                // Pinning only reads, so it is offered signed out too.
+                if (actions.CanPin && CollectionActionsViewModel.PinFor(entry) is { } pin)
+                    library.Add(actions.IsPinned(pin.Kind, pin.Id)
+                        ? new(Strings.Get("sidebar.unpin"), "Icon.PinFilled", actions.TogglePinCommand, entry)
+                        : new(Strings.Get("sidebar.pin"), "Icon.Pin", actions.TogglePinCommand, entry));
                 break;
 
             case ArtistEntry:

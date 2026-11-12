@@ -84,7 +84,7 @@ public class HeroActionsTests
         var view = new Views.AlbumPage { DataContext = page };
         var window = Show(view);
 
-        AssertPattern(view, new Hero(T("common.play"), [T("common.shuffle"), Download, T("album.save")], []));
+        AssertPattern(view, new Hero(T("common.play"), [T("common.shuffle"), Download, T("album.save")], [T("sidebar.pin")]));
         window.Close();
     });
 
@@ -112,7 +112,7 @@ public class HeroActionsTests
         AssertPattern(view, new Hero(
             T("common.play"),
             [T("common.shuffle"), Download, T("menu.copyToLocalPlaylist")],
-            [T("common.rename"), T("common.delete")]));
+            [T("common.rename"), T("common.delete"), T("sidebar.pin")]));
         window.Close();
     });
 
@@ -125,7 +125,7 @@ public class HeroActionsTests
         AssertPattern(view, new Hero(
             T("common.play"),
             [T("common.shuffle"), T("localPlaylist.export")],
-            [T("common.rename"), T("common.delete")]));
+            [T("common.rename"), T("common.delete"), T("sidebar.pin")]));
         window.Close();
     });
 

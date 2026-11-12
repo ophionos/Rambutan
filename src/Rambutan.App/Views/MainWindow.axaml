@@ -694,11 +694,13 @@
           </Button>
         </StackPanel>
 
-        <!-- The window's minimum height fits the whole list (MainWindow.FitSidebar);
+        <!-- The window's minimum height fits the destinations (MainWindow.FitSidebar);
              a window manager that ignores it gets a list that scrolls, never
-             one drawn under the account chip. -->
+             one drawn under the account chip. The pins below them never raise
+             the minimum: they scroll when there is no room. -->
         <ScrollViewer x:Name="SidebarNavScroll" Margin="0,0,0,8"
                       HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel>
           <StackPanel x:Name="SidebarNav" Spacing="2">
             <Button Classes="nav" Command="{Binding GoHomeCommand}" ToolTip.Tip="{l:T nav.home}"
                     Classes.active="{Binding Navigation.Section, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static vm:NavSection.Home}}">
@@ -735,6 +737,53 @@
                 <TextBlock Text="{l:T nav.settings}" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
+          </StackPanel>
+
+          <!-- Pinned albums and playlists, in the user's order. The rail hides
+               the whole section (the style is on this panel, which has no
+               IsVisible of its own); without pins composed it never shows. -->
+          <Panel x:Name="SidebarPinsSection">
+            <StackPanel Margin="0,16,0,0" Spacing="2"
+                        IsVisible="{Binding SidebarPins, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <TextBlock Classes="sidebarcaption" Text="{l:T sidebar.pinned}" />
+              <TextBlock Classes="sidebarnote" Text="{l:T sidebar.pins.empty}"
+                         IsVisible="{Binding SidebarPins.ShowsEmpty, FallbackValue=False}" />
+              <TextBlock Classes="sidebarnote" Text="{l:T sidebar.pins.readOnly}"
+                         IsVisible="{Binding SidebarPins.IsReadOnly, FallbackValue=False}" />
+              <ItemsControl ItemsSource="{Binding SidebarPins.Rows, FallbackValue={x:Null}}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Spacing="2" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SidebarPinRowViewModel">
+                    <!-- A missing playlist's row stays enabled: disabled, it
+                         couldn't take the focus or open its menu to unpin. -->
+                    <Button Classes="nav pin" Classes.active="{Binding IsActive}" Classes.missing="{Binding IsMissing}"
+                            Command="{Binding Owner.OpenCommand}" CommandParameter="{Binding}"
+                            AutomationProperties.Name="{Binding AccessibleName}"
+                            controls:SidebarPinMenu.Row="{Binding}">
+                      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                        <Border Classes="pinart">
+                          <Panel>
+                            <PathIcon Data="{StaticResource Icon.Queue}" Width="12" Height="12" Opacity="0.35" />
+                            <controls:RemoteImage Url="{Binding CoverUrl}" Stretch="UniformToFill" DecodeWidth="48"
+                                                  IsVisible="{Binding CoverUrl, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <controls:RemoteImage Url="{Binding LocalCover, Converter={x:Static conv:ArtworkConverter.Instance}}"
+                                                  Stretch="UniformToFill" DecodeWidth="48"
+                                                  IsVisible="{Binding LocalCover, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                          </Panel>
+                        </Border>
+                        <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center" />
+                      </Grid>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Panel>
           </StackPanel>
         </ScrollViewer>
       </DockPanel>

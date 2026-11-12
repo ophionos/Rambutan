@@ -128,6 +128,7 @@ public partial class App : Application
                 _services.GetRequiredService<AppSettings>().RecordPlays
                     ? _services.GetRequiredService<PlayLog>().ReadAsync()
                     : null;
+            collections.Pins = _services.GetRequiredService<Rambutan.Core.Sidebar.SidebarPinLibrary>();
             Controls.CollectionMenu.Actions = collections;
             // Rows show the downloaded mark through a binding; their spoken names
             // read the same set and are renamed when it changes.
@@ -394,6 +395,8 @@ public partial class App : Application
             new LocalFolderWatcher([dataDir, toolsDir]),
             () => sp.GetRequiredService<AppSettings>().WatchedFolders ?? []));
         services.AddSingleton(new LocalPlaylistLibrary(new LocalPlaylistStore(dataDir)));
+        services.AddSingleton(_ => new Rambutan.Core.Sidebar.SidebarPinLibrary(
+            new SidebarPinStore(dataDir), m => AppLog.Write("sidebar", m)));
         services.AddSingleton(sp => new KeptCovers(
             sp.GetRequiredService<DownloadStore>(), sp.GetRequiredService<LocalLibraryScans>().Index,
             sp.GetRequiredService<YouTubeMatches>().CoverPathFor));

@@ -125,6 +125,58 @@ public class CollectionMenuTests
     }
 
     [Fact]
+    public void AlbumAndPlaylistCards_OfferToPin_SignedOutToo_ArtistsAndSongsNever()
+    {
+        _collections.Pins = new Rambutan.Core.Sidebar.SidebarPinLibrary(new MemorySidebarPinStore());
+        string[] play = ["Play", "Shuffle", "Play next", "Add to queue"];
+
+        Assert.Equal([play, ["Pin to sidebar"], ["Go to artist", "Share"]], Headers(CollectionMenuModel.Build(Discovery, _collections)));
+        Assert.Equal([play, ["Pin to sidebar"], ["Share"]], Headers(CollectionMenuModel.Build(Mellow, _collections)));
+        Assert.Equal([["Play top songs", "Start a mix", "Shuffle all songs"], ["Share"]], Headers(CollectionMenuModel.Build(DaftPunk, _collections)));
+        Assert.Empty(CollectionMenuModel.Build(new SongEntry { Title = "a", Track = Track("a") }, _collections));
+
+        SignIn();
+        Assert.Equal(["Save to library", "Pin to sidebar"], Headers(CollectionMenuModel.Build(Discovery, _collections))[1]);
+    }
+
+    [Fact]
+    public void APinnedCard_OffersToUnpin_WhicheverFormItsPlaylistIdTakes()
+    {
+        var pins = new Rambutan.Core.Sidebar.SidebarPinLibrary(new MemorySidebarPinStore());
+        _collections.Pins = pins;
+        var thumbnailed = Mellow with { ThumbnailUrl = "https://art/mellow" };
+
+        var pin = Entry(thumbnailed, "Pin to sidebar");
+        pin.Command.Execute(pin.Parameter);
+
+        Assert.Equal([new Rambutan.Core.Sidebar.SidebarPin(Rambutan.Core.Sidebar.PinKind.Playlist, "RDCLAK5uy_x", "Mellow", "https://art/mellow")],
+            pins.Pins);
+        // The browse form of the same playlist is the same pin.
+        var unpin = Entry(Mellow with { PlaylistId = "VLRDCLAK5uy_x" }, "Unpin from sidebar");
+        unpin.Command.Execute(unpin.Parameter);
+        Assert.Empty(pins.Pins);
+
+        var album = Entry(Discovery, "Pin to sidebar");
+        album.Command.Execute(album.Parameter);
+        Assert.Equal(Rambutan.Core.Sidebar.PinKind.Album, Assert.Single(pins.Pins).Kind);
+        Assert.Equal("MPREb_disc", pins.Pins[0].Id);
+        Entry(Discovery, "Unpin from sidebar");
+    }
+
+    [Fact]
+    public void WithoutAPinLibrary_OrWithReadOnlyPins_NoCardOffersToPin()
+    {
+        Assert.DoesNotContain("Pin to sidebar", CollectionMenuModel.Build(Discovery, _collections).SelectMany(g => g).Select(e => e.Header));
+
+        _collections.Pins = new Rambutan.Core.Sidebar.SidebarPinLibrary(
+            new MemorySidebarPinStore(new([], ReadOnly: true)));
+        Assert.DoesNotContain(CollectionMenuModel.Build(Discovery, _collections).SelectMany(g => g),
+            e => e.Header is "Pin to sidebar" or "Unpin from sidebar");
+        Assert.DoesNotContain(CollectionMenuModel.Build(Mellow, _collections).SelectMany(g => g),
+            e => e.Header is "Pin to sidebar" or "Unpin from sidebar");
+    }
+
+    [Fact]
     public async Task Share_CopiesThePagesLink_AndIsDisabledWithoutOne()
     {
         var share = Entry(DaftPunk, "Share");

@@ -10,11 +10,12 @@ using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Downloads;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Sidebar;
 using Rambutan.App.Localization;
 
 namespace Rambutan.App.ViewModels;
 
-public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost
+public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost, IPinnablePage
 {
     private readonly ICatalog _catalog;
     private readonly PlaybackCoordinator _coordinator;
@@ -79,6 +80,17 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost
         _playlistId = playlistId;
     }
 
+    public PinKind PinKind => PinKind.Playlist;
+    public string PinId => CollectionActionsViewModel.PlaylistPinId(_playlistId);
+
+    private SidebarPinToggle? _pin;
+
+    /// <summary>The header's Pin entry; null where pins aren't composed.</summary>
+    public SidebarPinToggle? Pin =>
+        _pin ??= _navigation?.Collections is { Pins: not null } collections
+            ? new SidebarPinToggle(collections, PinKind.Playlist, PinId, () => Title, () => ThumbnailUrl)
+            : null;
+
     public async Task LoadAsync()
     {
         IsLoading = true;
@@ -102,6 +114,7 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost
             Summary = string.IsNullOrEmpty(playlist.SecondSubtitle)
                 ? DurationFormat.Summary(Tracks)
                 : playlist.SecondSubtitle;
+            Pin?.Refresh();
         }
         catch (Exception ex)
         {
@@ -411,6 +424,7 @@ public partial class PlaylistPageViewModel : ViewModelBase, ITrackMenuHost
         {
             await _catalog.RenamePlaylistAsync(_playlistId, name);
             Title = name;
+            Pin?.Refresh();
             _actions.NotifyLibraryChanged(LibrarySectionKind.Playlists);
             _actions.Report(Strings.Get("toast.playlist.renamed"));
         }

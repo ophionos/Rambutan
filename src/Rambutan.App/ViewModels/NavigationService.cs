@@ -10,6 +10,7 @@ using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Local;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Sidebar;
 using Rambutan.App.Localization;
 
 namespace Rambutan.App.ViewModels;
@@ -235,7 +236,7 @@ public partial class NavigationService : ViewModelBase
 
     public void OpenAlbum(string browseId)
     {
-        var page = new AlbumPageViewModel(_catalog, _coordinator, browseId) { Actions = _actions };
+        var page = new AlbumPageViewModel(_catalog, _coordinator, browseId) { Actions = _actions, Collections = Collections };
         Push(page);
         _ = page.LoadAsync();
     }
@@ -245,6 +246,34 @@ public partial class NavigationService : ViewModelBase
         var page = new PlaylistPageViewModel(_catalog, _coordinator, this, _actions, playlistId);
         Push(page);
         _ = page.LoadAsync();
+    }
+
+    /// <summary>
+    /// Opens a sidebar pin's page. A pin belongs to no destination, so none
+    /// reads as active while its page shows (a page opened from a destination
+    /// keeps that one lit); Back still lights the one it returns to. Nothing
+    /// changes when nothing opens (local playlists not composed), or when the
+    /// pin's page is the one showing.
+    /// </summary>
+    public void OpenPin(SidebarPin pin)
+    {
+        var before = Current;
+        if (before is IPinnablePage page && page.PinKind == pin.Kind && page.PinId == pin.Id)
+            return;
+        switch (pin.Kind)
+        {
+            case PinKind.Album:
+                OpenAlbum(pin.Id);
+                break;
+            case PinKind.Playlist:
+                OpenPlaylist(pin.Id);
+                break;
+            case PinKind.LocalPlaylist:
+                OpenLocalPlaylist(pin.Id);
+                break;
+        }
+        if (!ReferenceEquals(before, Current))
+            Section = NavSection.None;
     }
 
     /// <summary>The Spotify import's files and memory; null where it isn't
