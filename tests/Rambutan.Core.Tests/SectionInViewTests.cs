@@ -55,4 +55,43 @@ public class SectionInViewTests
     [Fact]
     public void Content_that_fits_marks_the_first_section() =>
         Assert.Equal(0, SectionInView.Index(Tops, 0, 1500, Extent));
+
+    // Two columns: sections 0 and 1 down the first (0 to 280, 300 to 700),
+    // sections 2 and 3 down the second (0 to 400, 420 to 650).
+    private static readonly double[] ColumnTops = [0, 300, 0, 420];
+    private static readonly double[] ColumnBottoms = [280, 700, 400, 650];
+
+    [Theory]
+    [InlineData(0, 0)]
+    // The first section has left the view: the next in order, not the second
+    // column's, which is also in view.
+    [InlineData(280, 1)]
+    [InlineData(300, 1)]
+    [InlineData(600, 1)]
+    // The first column has ended above the view: the second column's section there.
+    [InlineData(695, 3)]
+    [InlineData(1, 0)]
+    public void In_columns_the_first_section_in_order_that_is_in_view_is_marked(double offset, int index) =>
+        Assert.Equal(index, SectionInView.FirstInView(ColumnTops, ColumnBottoms, offset, 300));
+
+    [Fact]
+    public void In_columns_no_sections_is_no_section_and_none_in_view_is_the_last()
+    {
+        Assert.Equal(-1, SectionInView.FirstInView([], [], 0, 300));
+        Assert.Equal(3, SectionInView.FirstInView(ColumnTops, ColumnBottoms, 900, 300));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(292)]
+    [InlineData(500)]
+    [InlineData(700)]
+    public void In_one_column_both_rules_agree_before_the_end(double offset)
+    {
+        double[] bottoms = [280, 680, 980, 1200];
+
+        Assert.Equal(
+            SectionInView.Index(Tops, offset, Viewport, Extent),
+            SectionInView.FirstInView(Tops, bottoms, offset, Viewport));
+    }
 }

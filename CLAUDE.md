@@ -147,6 +147,13 @@ file sink), never to files directly.
   class persisted as JSON. Add fields with sensible defaults; a rename or change of
   meaning needs a migration. The model lives in App; a feature library that needs
   a setting gets the value passed in by App, not the model.
+- The Settings page: sections of rows in one column, and from a pane with
+  room for two columns beside the section list, two
+  (`Core/Layout/SettingsColumnFit`, `Controls/SettingsColumnsPanel`). The
+  sections keep their order, down the first column and then the second,
+  split where the two heights are nearest, and Tab follows that order. The
+  section list marks the section in view (`Core/Layout/SectionInView`; in
+  two columns, the first in order that is in view).
 - Credentials: `App/Services/CookieVault.cs`, `LastFmSessionVault.cs` and
   `RemoteTokenVault.cs` (the phone remote's pairing), all through `StoredCredential`: DPAPI on Windows; on Linux the Secret Service
   (`Integrations/Linux/SecretServiceStore`, D-Bus via Tmds.DBus.Protocol, no

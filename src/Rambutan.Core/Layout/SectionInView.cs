@@ -38,4 +38,25 @@ public static class SectionInView
         }
         return index;
     }
+
+    /// <summary>
+    /// The index of the section in view when the sections are in columns, so
+    /// their tops no longer ascend with their order: the first in order that
+    /// has a part in the viewport under its top edge (plus
+    /// <see cref="TopMargin"/>). In one column that is the section
+    /// <see cref="Index"/> marks before the scroll's end. -1 when there are no
+    /// sections; the last one when none is in view.
+    /// </summary>
+    public static int FirstInView(IReadOnlyList<double> tops, IReadOnlyList<double> bottoms, double offset, double viewport)
+    {
+        if (tops.Count == 0)
+            return -1;
+
+        for (var i = 0; i < tops.Count; i++)
+        {
+            if (bottoms[i] > offset + TopMargin && tops[i] < offset + viewport)
+                return i;
+        }
+        return tops.Count - 1;
+    }
 }

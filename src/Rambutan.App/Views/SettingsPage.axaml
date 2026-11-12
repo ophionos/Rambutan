@@ -38,8 +38,9 @@
        reach wherever the page is scrolled. The section list lies over the
        scroller to the right of the column, so the column never moves when the
        list shows and the scrollbar stays at the pane's edge. The code-behind
-       sizes the header and the empty state to the column, and shows the list
-       only from SectionListMinWidth. Rows and sections the filter hides keep
+       sizes the header and the empty state to the column, shows the list
+       only from SectionListMinWidth, and gives the sections two columns on a
+       wide pane (SettingsColumnFit); the header stays above the first. Rows and sections the filter hides keep
        their own IsVisible bindings: see SettingsPage.SetFilteredOut. -->
   <Grid RowDefinitions="Auto,*">
     <Grid x:Name="Header" Margin="4,0,0,16" HorizontalAlignment="Left" ColumnDefinitions="*,Auto">
@@ -66,7 +67,7 @@
 
   <ScrollViewer x:Name="Scroller" Grid.Row="1" Classes="pagescroll">
    <Panel>
-    <StackPanel x:Name="Column" Classes="settings" Margin="4,0,4,24" MaxWidth="1040" HorizontalAlignment="Left">
+    <controls:SettingsColumnsPanel x:Name="Column" Classes="settings" Margin="4,0,4,24" MaxWidth="1040" HorizontalAlignment="Left">
 
       <!-- The sign-in, what state it's in, and when it was last checked. -->
       <StackPanel Spacing="8">
@@ -949,7 +950,7 @@
           </StackPanel>
         </Border>
       </StackPanel>
-    </StackPanel>
+    </controls:SettingsColumnsPanel>
 
     <!-- A filter that matches nothing: said, in the column's place. -->
     <Panel x:Name="NoMatch" IsVisible="False" HorizontalAlignment="Left" Margin="4,48,4,24">
