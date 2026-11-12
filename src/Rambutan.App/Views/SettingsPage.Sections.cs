@@ -33,6 +33,7 @@ public partial class SettingsPage
     private readonly List<Section> _listed = [];
     private readonly ObservableCollection<string> _entries = [];
     private readonly List<double> _tops = [];
+    private readonly List<double> _bottoms = [];
     private readonly Dictionary<Control, IDisposable?> _filteredOut = [];
     private readonly Stopwatch _clock = new();
 
@@ -121,7 +122,9 @@ public partial class SettingsPage
     private void OnWidthChanged(double width)
     {
         var fit = SettingsColumnFit.For(width);
-        Column.Width = fit.Column;
+        Column.Columns = fit.Columns;
+        Column.MaxWidth = fit.Width;
+        Column.Width = fit.Width;
         Header.Width = fit.Column;
         NoMatch.Width = fit.Column;
         _wide = fit.ShowList;
@@ -290,9 +293,17 @@ public partial class SettingsPage
         if (index < 0)
         {
             _tops.Clear();
+            _bottoms.Clear();
             foreach (var section in _listed)
-                _tops.Add(section.Heading.TranslatePoint(default, content)?.Y ?? 0);
-            index = SectionInView.Index(_tops, Scroller.Offset.Y, Scroller.Viewport.Height, Scroller.Extent.Height);
+            {
+                var top = section.Heading.TranslatePoint(default, content)?.Y ?? 0;
+                _tops.Add(top);
+                _bottoms.Add((section.Panel.TranslatePoint(default, content)?.Y ?? top) + section.Panel.Bounds.Height);
+            }
+            // In two columns the headings' tops don't ascend with their order.
+            index = Column.Columns > 1
+                ? SectionInView.FirstInView(_tops, _bottoms, Scroller.Offset.Y, Scroller.Viewport.Height)
+                : SectionInView.Index(_tops, Scroller.Offset.Y, Scroller.Viewport.Height, Scroller.Extent.Height);
         }
         if (SectionList.SelectedIndex != index)
             SectionList.SelectedIndex = index;

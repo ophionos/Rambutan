@@ -137,17 +137,144 @@ public class SettingsNavigationTests
     [Fact]
     public void AVeryWidePane_StopsTheColumnAtTheMaximum_AndKeepsTheListAtTheRightEdge() => Headless.Run(() =>
     {
-        var s = Show(1720);
+        var s = Show(1700);
 
         Assert.Equal(SettingsColumnFit.MaxColumn, s.Column.Bounds.Width);
         Assert.Equal(SettingsColumnFit.MaxColumn, s.View.FindControl<Control>("Header")!.Bounds.Width);
         var listX = s.List.TranslatePoint(default, s.View)!.Value.X;
-        Assert.Equal(1720 - SettingsColumnFit.RightInset, listX + s.List.Bounds.Width, 0.5);
+        Assert.Equal(1700 - SettingsColumnFit.RightInset, listX + s.List.Bounds.Width, 0.5);
         Assert.True(listX >= 4 + s.Column.Bounds.Width + SettingsColumnFit.Gap);
 
         // The empty state takes the column's width too.
         s.Type("zqxjv");
         Assert.Equal(SettingsColumnFit.MaxColumn, s.NoMatch.Bounds.Width);
+        s.Window.Close();
+    });
+
+    private const double TwoColumns = 2244;
+
+    private static (Control[] First, Control[] Second) Columns(Shown s)
+    {
+        var panel = (SettingsColumnsPanel)s.Column;
+        var shown = panel.Children.Where(c => c.IsVisible).ToArray();
+        var first = panel.Children.Take(panel.FirstColumnCount).Where(c => c.IsVisible).ToArray();
+        return (first, shown.Skip(first.Length).ToArray());
+    }
+
+    [Fact]
+    public void AWidePane_LaysTheSectionsInTwoColumns_InOrder_ClearOfTheList() => Headless.Run(() =>
+    {
+        var s = Show(TwoColumns);
+        var fit = SettingsColumnFit.For(TwoColumns);
+        var (first, second) = Columns(s);
+
+        Assert.Equal(2, fit.Columns);
+        Assert.NotEmpty(first);
+        Assert.NotEmpty(second);
+        Assert.Equal(fit.Width, s.Column.Bounds.Width);
+        Assert.All(first, c => Assert.Equal(0, c.Bounds.Left));
+        Assert.All(second, c => Assert.Equal(fit.Column + SettingsColumnFit.ColumnGap, c.Bounds.Left));
+        Assert.All(first.Concat(second), c => Assert.Equal(fit.Column, c.Bounds.Width));
+
+        // Down each column in order, no section over another.
+        foreach (var column in new[] { first, second })
+        {
+            Assert.Equal(0, column[0].Bounds.Top);
+            for (var i = 1; i < column.Length; i++)
+                Assert.Equal(column[i - 1].Bounds.Bottom + 28, column[i].Bounds.Top);
+        }
+        Assert.Equal(Math.Max(first[^1].Bounds.Bottom, second[^1].Bounds.Bottom), s.Column.Bounds.Height);
+
+        // The header stays above the first column; the list beside the second.
+        Assert.Equal(fit.Column, s.View.FindControl<Control>("Header")!.Bounds.Width);
+        var listX = s.List.TranslatePoint(default, s.View)!.Value.X;
+        var columnX = s.Column.TranslatePoint(default, s.View)!.Value.X;
+        Assert.True(listX >= columnX + fit.Width + SettingsColumnFit.Gap, $"list at {listX}");
+        Assert.Equal(s.VisibleHeadings.Select(h => h.Text), s.Entries);
+        s.Window.Close();
+    });
+
+    [Fact]
+    public void BelowTheTwoColumnThreshold_TheSectionsStayInOneColumn() => Headless.Run(() =>
+    {
+        var s = Show(SettingsColumnFit.TwoColumnMinPane - 1);
+        var (first, second) = Columns(s);
+
+        Assert.Empty(second);
+        Assert.Equal(SettingsColumnFit.MaxColumn, s.Column.Bounds.Width);
+        Assert.All(first, c => Assert.Equal(SettingsColumnFit.MaxColumn, c.Bounds.Width));
+        s.Window.Close();
+    });
+
+    [Fact]
+    public void InTwoColumns_TabGoesDownTheFirstColumn_ThenTheSecond() => Headless.Run(() =>
+    {
+        var s = Show(TwoColumns, height: 3000);
+        var (first, second) = Columns(s);
+        s.Filter.Focus(NavigationMethod.Tab);
+
+        var visited = new List<Control>();
+        for (var i = 0; i < 200; i++)
+        {
+            s.Window.KeyPress(Key.Tab, RawInputModifiers.None, PhysicalKey.Tab, null);
+            if (s.Window.FocusManager!.GetFocusedElement() is not Control focused || focused == s.Filter)
+                break;
+            var section = first.Concat(second).FirstOrDefault(c => c.IsVisualAncestorOf(focused));
+            if (section is not null && (visited.Count == 0 || visited[^1] != section))
+                visited.Add(section);
+        }
+
+        // Each section once, in the sections' own order.
+        Assert.Equal(visited.Distinct().Count(), visited.Count);
+        Assert.Contains(visited, second.Contains);
+        var order = first.Concat(second).Where(visited.Contains).ToArray();
+        Assert.Equal(order, visited);
+        s.Window.Close();
+    });
+
+    [Fact]
+    public void InTwoColumns_ChoosingASectionOfTheSecondColumn_ScrollsToItAndMarksIt() => Headless.Run(() =>
+    {
+        var s = Show(TwoColumns, height: 500);
+        var (_, second) = Columns(s);
+        var heading = second[^1].GetVisualDescendants().OfType<TextBlock>().First(t => t.Classes.Contains("settingsheader"));
+        var index = Array.IndexOf(s.Entries, heading.Text);
+
+        Assert.Equal(0, s.List.SelectedIndex);
+        ((ListBoxItem)s.List.ContainerFromIndex(index)!).Focus(NavigationMethod.Tab);
+        s.Window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        s.Settle();
+
+        var top = Math.Min(s.TopInContent(heading), s.Scroller.Extent.Height - s.Scroller.Viewport.Height);
+        Assert.Equal(top, s.Scroller.Offset.Y, 0.5);
+        Assert.Equal(index, s.List.SelectedIndex);
+        Assert.Same(heading, s.Window.FocusManager!.GetFocusedElement());
+
+        // A scroll of the user's own marks the first section in order that is in view.
+        s.Scroller.Offset = new Vector(0, 0);
+        s.Settle();
+        Assert.Equal(0, s.List.SelectedIndex);
+        s.Window.Close();
+    });
+
+    [Fact]
+    public void InTwoColumns_AFilterThatLeavesOneSection_LeavesOneColumn_AndNoMatchKeepsAColumnsWidth() => Headless.Run(() =>
+    {
+        var s = Show(TwoColumns);
+
+        s.Type("crossfade");
+        var (first, second) = Columns(s);
+        Assert.Single(first);
+        Assert.Empty(second);
+        Assert.Equal(0, first[0].Bounds.Left);
+
+        s.Type("zqxjv");
+        Assert.True(s.NoMatch.IsVisible);
+        Assert.Equal(SettingsColumnFit.For(TwoColumns).Column, s.NoMatch.Bounds.Width);
+
+        s.Type("");
+        (first, second) = Columns(s);
+        Assert.NotEmpty(second);
         s.Window.Close();
     });
 
