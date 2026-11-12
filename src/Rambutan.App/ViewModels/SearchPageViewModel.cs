@@ -66,6 +66,10 @@ public sealed class SearchResultHeading(SearchResultGroup group, SearchTab? seeA
     event System.ComponentModel.PropertyChangedEventHandler? System.ComponentModel.INotifyPropertyChanged.PropertyChanged { add { } remove { } }
 }
 
+/// <summary>A group of the All tab's results as a shelf of cards in the side
+/// column. <see cref="SeeAll"/> is the tab that lists only that kind.</summary>
+public sealed record SearchSideShelf(Shelf Shelf, SearchTab? SeeAll);
+
 /// <summary>A query from this machine's search history, in the drop-down and on
 /// the resting page.</summary>
 public sealed record RecentQueryItem(string Query)
@@ -175,6 +179,40 @@ public partial class SearchPageViewModel : ViewModelBase
     /// order they first come in the answer, each kind's rows in theirs), as they
     /// are on a type's tab.</summary>
     public ObservableCollection<object> Rows { get; } = [];
+
+    /// <summary>The pane has room for a side column (the view says so, from
+    /// <see cref="Rambutan.Core.Layout.SideColumnFit"/>). While it has, the All
+    /// tab's albums, artists and playlists leave <see cref="Rows"/> for
+    /// <see cref="SideShelves"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSideColumn))]
+    private bool _hasSideRoom;
+
+    /// <summary>The All tab's groups of cards, in the order the kinds first come
+    /// in the answer. Empty without <see cref="HasSideRoom"/>, on a type's tab,
+    /// and when the answer has no such group.</summary>
+    public ObservableCollection<SearchSideShelf> SideShelves { get; } = [];
+
+    /// <summary>A first All search is loading with nothing on screen yet, on a
+    /// pane with a side column: both columns show their skeletons.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSideColumn))]
+    private bool _showsColumnSkeletons;
+
+    /// <summary>The side column shows: it has shelves, or their skeletons.</summary>
+    public bool ShowsSideColumn => HasSideRoom && (SideShelves.Count > 0 || ShowsColumnSkeletons);
+
+    /// <summary>Whether <see cref="Rows"/> are the All tab's, under headings.</summary>
+    private bool _grouped;
+
+    partial void OnHasSideRoomChanged(bool value)
+    {
+        if (!value)
+            ShowsColumnSkeletons = false;
+        // A type's tab has no groups to move, and its rows keep their place.
+        if (_grouped)
+            ShowRows(grouped: true);
+    }
 
     /// <summary>Searches the local index: the query, how many rows to return at
     /// most, and the search's token. Null where there is no local library.</summary>
@@ -333,7 +371,8 @@ public partial class SearchPageViewModel : ViewModelBase
         IsLoadingMore = false;
         MoreError = null;
         Results.Clear();
-        Rows.Clear();
+        ClearRows();
+        ShowsColumnSkeletons = false;
         TopResult = null;
         ShowLocal([], 0, expanded: false);
         HasSearched = false;
@@ -515,6 +554,7 @@ public partial class SearchPageViewModel : ViewModelBase
         var search = new CancellationTokenSource();
         _search = search;
         IsBusy = true;
+        ShowsColumnSkeletons = HasSideRoom && SelectedTab.Filter is null && Results.Count == 0 && TopResult is null;
         HasSearched = true;
         LoadError = null;
         try
@@ -537,6 +577,7 @@ public partial class SearchPageViewModel : ViewModelBase
             Results.Clear();
             foreach (var entry in entries)
                 Results.Add(entry);
+            ShowsColumnSkeletons = false;
             ShowRows(grouped: filter is null);
             _next = next;
             HasMore = next is not null;
@@ -548,7 +589,7 @@ public partial class SearchPageViewModel : ViewModelBase
                 // A failed search must not leave the previous query's results
                 // standing under the new query and filter.
                 Results.Clear();
-                Rows.Clear();
+                ClearRows();
                 TopResult = null;
                 LoadError = LoadError.From(ex, LoadSubject.SearchResults, SearchCommand);
             }
@@ -561,6 +602,7 @@ public partial class SearchPageViewModel : ViewModelBase
             if (_search == search)
             {
                 _search = null;
+                ShowsColumnSkeletons = false;
                 IsBusy = false;
             }
         }
@@ -706,6 +748,10 @@ public partial class SearchPageViewModel : ViewModelBase
             await _navigation.OpenEntryAsync(entry);
     }
 
+    /// <summary>A side shelf card's play button: the album, playlist or artist.</summary>
+    [RelayCommand]
+    private Task PlayEntryAsync(CatalogEntry entry) => _navigation.PlayEntryAsync(entry);
+
     /// <summary>A heading's See all: that kind's own tab.</summary>
     [RelayCommand]
     private void ShowTab(SearchTab? tab)
@@ -718,23 +764,44 @@ public partial class SearchPageViewModel : ViewModelBase
     /// when <paramref name="grouped"/> (the All tab's answer).</summary>
     private void ShowRows(bool grouped)
     {
+        _grouped = grouped;
         Rows.Clear();
-        foreach (var row in grouped ? Grouped(Results) : Results)
-            Rows.Add(row);
+        SideShelves.Clear();
+        if (!grouped)
+        {
+            foreach (var row in Results)
+                Rows.Add(row);
+        }
+        else
+        {
+            foreach (var group in Results.GroupBy(GroupOf))
+            {
+                var heading = new SearchResultHeading(group.Key, TabFor(group.Key));
+                if (HasSideRoom && IsCardGroup(group.Key))
+                {
+                    SideShelves.Add(new SearchSideShelf(new Shelf(heading.Title, group.ToList()), heading.SeeAll));
+                    continue;
+                }
+                Rows.Add(heading);
+                foreach (var entry in group)
+                    Rows.Add(entry);
+            }
+        }
+        OnPropertyChanged(nameof(ShowsSideColumn));
     }
 
-    /// <summary>A heading per kind, in the order the kinds first come, with each
-    /// kind's rows in their order. A row that plays goes by its
-    /// <see cref="TrackInfo.Kind"/>.</summary>
-    private IEnumerable<object> Grouped(IEnumerable<CatalogEntry> entries)
+    /// <summary>Empties what <see cref="ShowRows"/> filled.</summary>
+    private void ClearRows()
     {
-        foreach (var group in entries.GroupBy(GroupOf))
-        {
-            yield return new SearchResultHeading(group.Key, TabFor(group.Key));
-            foreach (var entry in group)
-                yield return entry;
-        }
+        Rows.Clear();
+        SideShelves.Clear();
+        OnPropertyChanged(nameof(ShowsSideColumn));
     }
+
+    /// <summary>The kinds the side column shows as cards; the rows that play,
+    /// and what has no card, stay rows.</summary>
+    private static bool IsCardGroup(SearchResultGroup group) =>
+        group is SearchResultGroup.Albums or SearchResultGroup.Artists or SearchResultGroup.Playlists;
 
     private static SearchResultGroup GroupOf(CatalogEntry entry) => entry switch
     {

@@ -387,6 +387,18 @@ file sink), never to files directly.
   the offset drops by as much so the rows stay put; a list too short for
   that never collapses, so it can't flip back and forth. A state shown only
   in the hero (a failed page's Try again) holds it up (`HoldExpanded`).
+- Side columns: `Core/Layout/SideColumnFit` says whether a pane has room for
+  a column of cards beside its main column (the main column's own width, a
+  gap, and three cards at least); a narrower pane keeps the one column. It
+  knows nothing of the page that asks. Search's All tab uses it: the top
+  result and the rows that play (songs, videos) keep the left column at the
+  rows' width (`SearchPage.FieldMaxWidth`), and the albums, artists and
+  playlists are shelves of cards (`ShelfView`) at the right, in the order
+  the answer gave their groups, each with See all. The view tells the view
+  model whether there is room (`SearchPageViewModel.HasSideRoom`), which
+  moves those groups between `Rows` and `SideShelves`; an answer without
+  such a group has no second column. The left column comes first in the
+  tree, so Tab and a screen reader go through it, then down the shelves.
 - Offline pages: `Core/Downloads/OfflineCatalog` wraps the `ICatalog` that App
   registers. When an album or playlist page, or the Library's Albums or Playlists
   tab, can't load, it serves the copy that "Download all" kept
