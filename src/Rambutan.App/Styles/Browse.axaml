@@ -201,7 +201,7 @@
 
   <Style Selector="TextBlock.rowtitle">
     <Setter Property="FontSize" Value="{StaticResource Token.Font.Body}" />
-    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="FontWeight" Value="{StaticResource Token.Weight.Item}" />
     <Setter Property="TextTrimming" Value="CharacterEllipsis" />
   </Style>
   <Style Selector="TextBlock.rowmeta">
@@ -327,7 +327,7 @@
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="FontWeight" Value="{StaticResource Token.Weight.Item}" />
   </Style>
   <Style Selector="ListBox.chips ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
@@ -352,8 +352,13 @@
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="FontWeight" Value="{StaticResource Token.Weight.Item}" />
     <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <!-- A string label gets the buttons' semibold from its AccessText, which
+       would win over the weight above. -->
+  <Style Selector="Button.chip > AccessText, Button.recentrun > AccessText">
+    <Setter Property="FontWeight" Value="{StaticResource Token.Weight.Item}" />
   </Style>
   <Style Selector="Button.chip /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
@@ -384,7 +389,7 @@
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="CornerRadius" Value="{StaticResource Token.Radius.Pill}" />
     <Setter Property="FontSize" Value="13" />
-    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="FontWeight" Value="{StaticResource Token.Weight.Item}" />
     <Setter Property="BorderThickness" Value="0" />
   </Style>
   <Style Selector="Button.recentrun /template/ ContentPresenter#PART_ContentPresenter,
