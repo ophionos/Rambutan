@@ -158,8 +158,9 @@ them the same way as the YouTube cookies.
 
 ### Updates
 
-The app checks this repository for new builds and offers them in the status
-strip at the bottom of the window.
+The app checks this repository for new builds and downloads them. The status
+strip at the bottom of the window says when one is ready. It installs when you
+quit Rambutan, or at once with Restart now; it never closes a running app.
 
 ## Settings
 

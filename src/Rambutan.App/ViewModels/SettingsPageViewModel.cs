@@ -533,8 +533,12 @@ public partial class SettingsPageViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Ends the run normally and installs the downloaded update,
+    /// starting the app again; set by the app.</summary>
+    public Action? RestartForUpdate { get; init; }
+
     [RelayCommand]
-    private void RestartNow() => _updates?.RestartNow();
+    private void RestartNow() => RestartForUpdate?.Invoke();
 
     partial void OnCrossfadeEnabledChanged(bool value)
     {
