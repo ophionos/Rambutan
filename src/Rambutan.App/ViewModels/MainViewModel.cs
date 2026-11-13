@@ -79,7 +79,8 @@ public partial class MainViewModel : ViewModelBase
 
     public bool HasStatus =>
         SidecarProgress.Length > 0 || SidecarsFailed || ShowSessionNotice ||
-        TrackWaitingForNetwork is not null || ReadingFiles is not null || CrashNotice?.IsVisible == true;
+        TrackWaitingForNetwork is not null || ReadingFiles is not null || CrashNotice?.IsVisible == true ||
+        UpdateNotice?.IsVisible == true;
 
     /// <summary>An expired session shows on the strip only while the sidebar is
     /// collapsed: an open sidebar already says "Session expired" with its own
@@ -167,6 +168,29 @@ public partial class MainViewModel : ViewModelBase
     }
 
     private CrashNoticeViewModel? _crashNotice;
+
+    /// <summary>A downloaded update waiting for the app to quit; set by the
+    /// app before the window exists, null in the designer.</summary>
+    public UpdateNoticeViewModel? UpdateNotice
+    {
+        get => _updateNotice;
+        set
+        {
+            _updateNotice = value;
+            if (value is not null)
+            {
+                value.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(UpdateNoticeViewModel.IsVisible))
+                        OnPropertyChanged(nameof(HasStatus));
+                };
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasStatus));
+        }
+    }
+
+    private UpdateNoticeViewModel? _updateNotice;
 
     // Design-time
     public MainViewModel()

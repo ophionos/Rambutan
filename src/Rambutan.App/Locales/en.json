@@ -854,7 +854,7 @@
     "settings.updates.failed": "Update check failed — try again later.",
     "settings.updates.header": "Updates",
     "settings.updates.notPackaged": "Updates apply to installed builds only.",
-    "settings.updates.ready": "Version {version} is ready — it installs when you close Rambutan.",
+    "settings.updates.ready": "Version {version} is ready — it installs when you quit Rambutan.",
     "settings.updates.restart": "Restart now",
     "settings.updates.upToDate": "You're up to date.",
     "settings.updates.version": "Rambutan {version}",
@@ -1116,6 +1116,7 @@
     "tray.next": "Next",
     "tray.playPause": "Play / Pause",
     "tray.previous": "Previous",
-    "tray.show": "Show Rambutan"
+    "tray.show": "Show Rambutan",
+    "update.notice": "Rambutan {version} is ready. It installs when you quit."
   }
 }

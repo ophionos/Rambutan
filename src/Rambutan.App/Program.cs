@@ -47,6 +47,10 @@ sealed class Program
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         // A profile switch starts the app again once this run has saved everything.
         App.AfterExit?.Invoke();
+        // Last of all: the updater kills this process 60 s after it starts, so it
+        // starts only once everything is saved. Nothing happens when the line
+        // above already installed the update.
+        App.Updates?.ApplyOnExit();
     }
 
     // Avalonia configuration, don't remove; also used by visual designer.

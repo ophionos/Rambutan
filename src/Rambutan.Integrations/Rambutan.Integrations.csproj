@@ -3,6 +3,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Rambutan.Core\Rambutan.Core.csproj" />
     <InternalsVisibleTo Include="Rambutan.Integrations.Tests" />
+    <!-- The update notice's tests stage an update through a fake updater. -->
+    <InternalsVisibleTo Include="Rambutan.App.Tests" />
   </ItemGroup>
 
   <ItemGroup>

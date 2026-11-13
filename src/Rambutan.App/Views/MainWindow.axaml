@@ -579,6 +579,18 @@
                   VerticalAlignment="Center"
                   Command="{Binding CrashNotice.DismissCommand}" />
         </StackPanel>
+        <!-- A downloaded update installs when the app quits. -->
+        <StackPanel Orientation="Horizontal" Spacing="8"
+                    IsVisible="{Binding UpdateNotice.IsVisible, FallbackValue=False}">
+          <TextBlock Text="{Binding UpdateNotice.Text}" FontSize="{StaticResource Token.Font.Caption}"
+                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <Button Content="{l:T settings.updates.restart}" FontSize="{StaticResource Token.Font.Caption}" Padding="12,2" MinHeight="0"
+                  VerticalAlignment="Center"
+                  Command="{Binding UpdateNotice.RestartNowCommand}" />
+          <Button Content="{l:T common.dismiss}" FontSize="{StaticResource Token.Font.Caption}" Padding="12,2" MinHeight="0"
+                  VerticalAlignment="Center"
+                  Command="{Binding UpdateNotice.DismissCommand}" />
+        </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8"
                     IsVisible="{Binding SidecarsFailed}">
           <!-- Tip on the TextBlock, not the panel: a Panel with no Background
