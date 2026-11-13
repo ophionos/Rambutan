@@ -63,7 +63,8 @@ public partial class App : Application
     public static UpdateService? Updates { get; private set; }
 
     /// <summary>Ends the run normally, so everything is saved, then installs the
-    /// downloaded update and starts the app again.</summary>
+    /// downloaded update and starts the app again; asks first while another
+    /// instance runs (<see cref="UpdateRestart"/>).</summary>
     private Action? _restartForUpdate;
 
     private ServiceProvider? _services;
@@ -191,12 +192,16 @@ public partial class App : Application
                 OpenInBrowserAsync, _services.GetRequiredService<ToastHostViewModel>());
             var updates = _services.GetRequiredService<UpdateService>();
             Updates = updates;
-            _restartForUpdate = () =>
-            {
-                AfterExit = () => updates.RestartNow();
-                _exitRequested = true;
-                desktop.Shutdown();
-            };
+            var restart = new UpdateRestart(updates,
+                async (message, accept) => desktop.MainWindow is { } owner
+                    && await new ConfirmDialog(message, accept).ShowDialog<bool>(owner),
+                () =>
+                {
+                    AfterExit = () => updates.RestartNow();
+                    _exitRequested = true;
+                    desktop.Shutdown();
+                });
+            _restartForUpdate = () => _ = restart.RunAsync();
             main.UpdateNotice = new UpdateNoticeViewModel(updates, _restartForUpdate);
             var window = new MainWindow { DataContext = main };
             // Avalonia's Wayland loop ticks on every commit, not on frame callbacks.

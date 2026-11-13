@@ -86,6 +86,10 @@ public sealed class UpdateService
 
     public string? StagedVersion => _staged?.TargetFullRelease.Version.ToString();
 
+    /// <summary>Whether another instance runs from this executable (another
+    /// profile or data folder); the updater would close it.</summary>
+    public bool OtherInstancesRunning() => _updater?.OtherInstancesRunning() ?? false;
+
     /// <summary>Raised on the thread that finished the download.</summary>
     public event Action? StagedChanged;
 

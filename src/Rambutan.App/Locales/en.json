@@ -1117,6 +1117,7 @@
     "tray.playPause": "Play / Pause",
     "tray.previous": "Previous",
     "tray.show": "Show Rambutan",
-    "update.notice": "Rambutan {version} is ready. It installs when you quit."
+    "update.notice": "Rambutan {version} is ready. It installs when you quit.",
+    "update.restartOthers": "Other Rambutan windows are open (another profile or data folder). Installing the update closes them without saving. Restart anyway?"
   }
 }
