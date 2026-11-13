@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Reflection;
+using Rambutan.Core.Diagnostics;
 using Velopack;
 using Velopack.Sources;
 
@@ -17,9 +19,11 @@ namespace Rambutan.Integrations;
 /// --waitPid</c> waits only 60 s for the process, then kills it and installs,
 /// which ended running sessions mid-playback. So the updater starts from
 /// <see cref="ApplyOnExit"/> or <see cref="RestartNow"/>, after everything is
-/// saved, and at most once per process. A download that was never applied
-/// (the app was killed) installs on the next start, which Velopack does by
-/// default.
+/// saved, and at most once per process. Velopack's own apply on startup is
+/// off for the same reason: it runs before the single-instance check, so a
+/// second launch (a shortcut, a rambutan:// link, an opened file) would kill
+/// the running app to install. A download left by a killed run is found again
+/// by the next check and installs when that run quits.
 /// </remarks>
 public sealed class UpdateService
 {
@@ -40,7 +44,9 @@ public sealed class UpdateService
             : new UpdateManager(feedUrlOrPath));
     }
 
-    internal UpdateService(IUpdater updater) => _updater = updater;
+    private UpdateService(IUpdater updater) => _updater = updater;
+
+    internal static UpdateService Over(IUpdater updater) => new(updater);
 
     internal static bool IsGitHubRepository(string feed) =>
         Uri.TryCreate(feed, UriKind.Absolute, out var uri)
@@ -55,7 +61,8 @@ public sealed class UpdateService
     /// </summary>
     public static void Startup(string[] args)
     {
-        var app = VelopackApp.Build().SetArgs(args);
+        // No apply on startup: see the class remarks.
+        var app = VelopackApp.Build().SetArgs(args).SetAutoApplyOnStartup(false);
         // Velopack runs these hooks on Windows only.
         if (OperatingSystem.IsWindows())
         {
@@ -120,12 +127,21 @@ public sealed class UpdateService
     /// Starts the updater to install the staged update once this process has
     /// exited, without starting the app again. Call it last, after the app has
     /// saved everything: the updater kills the process 60 s later. Does nothing
-    /// when nothing is staged or an install was already started.
+    /// when nothing is staged or an install was already started, and while
+    /// another instance runs from the same executable (another profile or
+    /// data folder): the updater would kill it too. The last one to quit installs.
     /// </summary>
     public void ApplyOnExit()
     {
-        if (_staged is { } staged && Claim())
-            _updater!.WaitExitThenApply(staged.TargetFullRelease);
+        if (_staged is not { } staged)
+            return;
+        if (_updater!.OtherInstancesRunning())
+        {
+            AppLog.Write("update", $"{StagedVersion} not installed on exit: another instance is running");
+            return;
+        }
+        if (Claim())
+            _updater.WaitExitThenApply(staged.TargetFullRelease);
     }
 
     /// <summary>Installs the staged update and starts the app again, with
@@ -153,6 +169,9 @@ internal interface IUpdater
     Task DownloadUpdatesAsync(UpdateInfo info, CancellationToken ct);
     void WaitExitThenApply(VelopackAsset target);
     void ApplyAndRestart(VelopackAsset target, string[]? args);
+
+    /// <summary>Whether another process runs from this process's executable.</summary>
+    bool OtherInstancesRunning();
 }
 
 internal sealed class VelopackUpdater(UpdateManager manager) : IUpdater
@@ -166,4 +185,29 @@ internal sealed class VelopackUpdater(UpdateManager manager) : IUpdater
         manager.WaitExitThenApplyUpdates(target, silent: true, restart: false);
     public void ApplyAndRestart(VelopackAsset target, string[]? args) =>
         manager.ApplyUpdatesAndRestart(target, args);
+
+    public bool OtherInstancesRunning()
+    {
+        if (Environment.ProcessPath is not { } path)
+            return false;
+        using var self = Process.GetCurrentProcess();
+        foreach (var process in Process.GetProcessesByName(self.ProcessName))
+        {
+            using (process)
+            {
+                if (process.Id == self.Id)
+                    continue;
+                try
+                {
+                    if (string.Equals(process.MainModule?.FileName, path, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
+                {
+                    // Exited meanwhile, or not ours to read.
+                }
+            }
+        }
+        return false;
+    }
 }

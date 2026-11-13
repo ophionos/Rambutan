@@ -18,7 +18,7 @@ public class UpdateServiceTests
     public async Task CheckAndStage_DownloadsButSchedulesNoInstall()
     {
         var updater = new FakeUpdater { Available = Release("1.0.1") };
-        var updates = new UpdateService(updater);
+        var updates = UpdateService.Over(updater);
 
         Assert.Equal("1.0.1", await updates.CheckAndStageAsync(TestContext.Current.CancellationToken));
         Assert.Equal(1, updater.Downloads);
@@ -29,7 +29,7 @@ public class UpdateServiceTests
     public async Task CheckAndStage_ChecksOnlyUntilSomethingIsStaged()
     {
         var updater = new FakeUpdater { Available = Release("1.0.1") };
-        var updates = new UpdateService(updater);
+        var updates = UpdateService.Over(updater);
 
         await updates.CheckAndStageAsync(TestContext.Current.CancellationToken);
         await updates.CheckAndStageAsync(TestContext.Current.CancellationToken);
@@ -42,7 +42,7 @@ public class UpdateServiceTests
     public async Task ApplyOnExit_SchedulesTheStagedReleaseOnce()
     {
         var updater = new FakeUpdater { Available = Release("1.0.1") };
-        var updates = new UpdateService(updater);
+        var updates = UpdateService.Over(updater);
         await updates.CheckAndStageAsync(TestContext.Current.CancellationToken);
 
         updates.ApplyOnExit();
@@ -52,10 +52,22 @@ public class UpdateServiceTests
     }
 
     [Fact]
+    public async Task ApplyOnExit_WhileAnotherInstanceRuns_LeavesTheUpdateStaged()
+    {
+        var updater = new FakeUpdater { Available = Release("1.0.1"), OthersRunning = true };
+        var updates = UpdateService.Over(updater);
+        await updates.CheckAndStageAsync(TestContext.Current.CancellationToken);
+
+        updates.ApplyOnExit();
+
+        Assert.Empty(updater.Applies);
+    }
+
+    [Fact]
     public void ApplyOnExit_WithNothingStaged_DoesNothing()
     {
         var updater = new FakeUpdater();
-        new UpdateService(updater).ApplyOnExit();
+        UpdateService.Over(updater).ApplyOnExit();
 
         Assert.Empty(updater.Applies);
     }
@@ -64,7 +76,7 @@ public class UpdateServiceTests
     public async Task RestartNow_AppliesOnce_AndExitAddsNoSecondApply()
     {
         var updater = new FakeUpdater { Available = Release("1.0.1") };
-        var updates = new UpdateService(updater);
+        var updates = UpdateService.Over(updater);
         await updates.CheckAndStageAsync(TestContext.Current.CancellationToken);
 
         updates.RestartNow(["--profile", "abc"]);
@@ -77,7 +89,7 @@ public class UpdateServiceTests
     public async Task NotInstalled_NeverChecks()
     {
         var updater = new FakeUpdater { IsInstalled = false, Available = Release("1.0.1") };
-        var updates = new UpdateService(updater);
+        var updates = UpdateService.Over(updater);
 
         Assert.Null(await updates.CheckAndStageAsync(TestContext.Current.CancellationToken));
         updates.ApplyOnExit();
@@ -94,6 +106,8 @@ public class UpdateServiceTests
         public bool IsInstalled { get; init; } = true;
         public string? CurrentVersion => "1.0.0";
         public UpdateInfo? Available { get; init; }
+        public bool OthersRunning { get; init; }
+        public bool OtherInstancesRunning() => OthersRunning;
         public int Checks { get; private set; }
         public int Downloads { get; private set; }
         public List<string> Applies { get; } = [];
