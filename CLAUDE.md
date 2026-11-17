@@ -240,10 +240,12 @@ file sink), never to files directly.
   isn't seen stops reading: the control stops while it is inactive or its
   window is minimized or hidden.
 - Native Wayland: `App/Services/WaylandFramePacing` (frame pacing) and
-  `App/Services/WaylandToplevel` (app id `rambutan`, raising a window)
-  reach into Avalonia.Wayland's internals by name; `WaylandFramePacingTests` and
+  `App/Services/WaylandToplevel` (raising a window) reach into
+  Avalonia.Wayland's internals by name; `WaylandFramePacingTests` and
   `WaylandToplevelTests` pin those names, so an Avalonia update that renames them
-  fails there. The dock icon comes from the hidden `rambutan.desktop` and hicolor
+  fails there. Every window's app id is `rambutan`, set through
+  `WaylandPlatformOptions.AppId` (`Program.WaylandOptions`); unset, Avalonia
+  sends the assembly's name. The dock icon comes from the hidden `rambutan.desktop` and hicolor
   PNGs that `Integrations/Linux/LinuxAppEntry` writes; the AppImage owns the
   entry, other runs on the installed data folder only fill a missing one.
 - Output device: it runs while anything plays, and `EngineAudioPlayer` stops

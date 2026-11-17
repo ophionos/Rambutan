@@ -207,8 +207,6 @@ public partial class App : Application
             // Avalonia's Wayland loop ticks on every commit, not on frame callbacks.
             if (WaylandFramePacing.Install(window))
                 AppLog.Write("render", "Wayland render loop paced on frame callbacks");
-            // Nor sets an app id, so docks can't find the window's icon.
-            WaylandToplevel.Install(window);
             if (Demo is not null)
                 window.Title = "Rambutan (demo: recorded data, no network)";
             if (main.Profiles.ShowsProfile)
