@@ -85,8 +85,15 @@ public sealed class InnerTubeClient : ICatalog, IDisposable
     /// no redirect, because .NET would send that manual Cookie header on to
     /// whatever host the redirect names: an API call answered with a redirect
     /// fails, and the sign-in's redirects are followed by hand against a list
-    /// of hosts.</summary>
-    public static SocketsHttpHandler NewTransport() => new() { UseCookies = false, AllowAutoRedirect = false };
+    /// of hosts. It asks for compressed answers, which .NET doesn't unless
+    /// told to: a page's JSON is a quarter of a megabyte to a megabyte, and
+    /// a tenth of that or less compressed.</summary>
+    public static SocketsHttpHandler NewTransport() => new()
+    {
+        UseCookies = false,
+        AllowAutoRedirect = false,
+        AutomaticDecompression = DecompressionMethods.All,
+    };
 
     public InnerTubeSession? Session => _session;
 

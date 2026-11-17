@@ -30,7 +30,9 @@ public sealed class LastFmStationClient : IStationSource
 
     public LastFmStationClient(HttpClient? http = null)
     {
-        _http = http ?? new HttpClient();
+        // .NET asks for no compression unless told to.
+        _http = http ?? new HttpClient(
+            new SocketsHttpHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
         var version = typeof(LastFmStationClient).Assembly.GetName().Version;
         _http.DefaultRequestHeaders.UserAgent.Add(
             new ProductInfoHeaderValue("Rambutan", version is null ? "dev" : version.ToString(3)));
