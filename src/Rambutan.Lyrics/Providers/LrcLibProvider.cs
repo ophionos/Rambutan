@@ -53,7 +53,10 @@ public sealed class LrcLibProvider : ILyricsProvider, IDisposable
     public LrcLibProvider(HttpClient? http = null, TimeProvider? time = null)
     {
         _ownsHttp = http is null;
-        _http = http ?? new HttpClient();
+        // .NET asks for no compression unless told to; a search answers with
+        // every candidate's whole lyrics.
+        _http = http ?? new HttpClient(
+            new SocketsHttpHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
         _time = time ?? TimeProvider.System;
     }
 

@@ -26,6 +26,9 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
     /// dropping the cache reference only makes them collectable once unused.</summary>
     private const long MemoryBudgetBytes = 48L * 1024 * 1024;
 
+    /// <summary>The budget in use; tests set a small one.</summary>
+    internal long MemoryBudget { get; init; } = MemoryBudgetBytes;
+
     /// <summary>On-disk budget (~50 KB per image → thousands of covers). Enforced
     /// at startup and every <see cref="TrimEveryNWrites"/> downloads, evicting
     /// least-recently-read first (reads touch the file timestamp).</summary>
@@ -40,8 +43,11 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
     private readonly ConcurrentDictionary<string, Task<Bitmap?>> _memory = new();
     private int _writesSinceTrim;
 
-    // Insertion/access order for eviction; guards _bytes too.
+    // Insertion/access order for eviction; guards _bytes too. Each key's node,
+    // so a touch (every image a list row asks for, on the UI thread) doesn't
+    // search the order.
     private readonly LinkedList<string> _order = new();
+    private readonly Dictionary<string, LinkedListNode<string>> _nodes = [];
     private readonly Dictionary<string, long> _sizes = [];
     private readonly Lock _sync = new();
     private long _bytes;
@@ -52,7 +58,9 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
     {
         lock (_sync)
             return _bytes == _sizes.Values.Sum() && _order.Count == _sizes.Count
-                && _order.Distinct().Count() == _order.Count;
+                && _order.Distinct().Count() == _order.Count
+                && _nodes.Count == _order.Count
+                && _nodes.All(n => ReferenceEquals(n.Value.List, _order) && n.Value.Value == n.Key);
     }
 
     /// <summary>Runs on the thread that is about to decode; lets a test see where.</summary>
@@ -164,8 +172,11 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
     {
         lock (_sync)
         {
-            if (_order.Remove(key))
-                _order.AddLast(key);
+            if (_nodes.TryGetValue(key, out var node) && !ReferenceEquals(node, _order.Last))
+            {
+                _order.Remove(node);
+                _order.AddLast(node);
+            }
         }
     }
 
@@ -177,16 +188,17 @@ public sealed class ArtworkCache(string dataDirectory, HttpMessageHandler? handl
 
         lock (_sync)
         {
-            _order.AddLast(key);
+            _nodes[key] = _order.AddLast(key);
             _sizes[key] = size;
             _bytes += size;
 
-            while (_bytes > MemoryBudgetBytes && _order.First is { } oldest)
+            while (_bytes > MemoryBudget && _order.First is { } oldest)
             {
                 if (oldest.Value == key)
                     break; // never evict what we just admitted
 
                 _order.RemoveFirst();
+                _nodes.Remove(oldest.Value);
                 if (_sizes.Remove(oldest.Value, out var evicted))
                     _bytes -= evicted;
                 _memory.TryRemove(oldest.Value, out _);

@@ -74,7 +74,10 @@ public sealed class SpotifyLinkReader
     /// <param name="spacing">The pause between pages; null for <see cref="PageSpacing"/>.</param>
     public SpotifyLinkReader(HttpClient? http = null, TimeSpan? spacing = null)
     {
-        _http = http ?? new HttpClient();
+        // .NET asks for no compression unless told to; the embed page is
+        // a few hundred kilobytes of HTML.
+        _http = http ?? new HttpClient(
+            new SocketsHttpHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
         _spacing = spacing ?? PageSpacing;
         var version = typeof(SpotifyLinkReader).Assembly.GetName().Version;
         _http.DefaultRequestHeaders.UserAgent.Add(

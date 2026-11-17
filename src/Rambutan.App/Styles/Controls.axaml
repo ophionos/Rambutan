@@ -301,7 +301,10 @@
       <RotateTransform />
     </Setter>
   </Style>
-  <Style Selector="Window:not(.reducedmotion) Arc.spinner">
+  <!-- Only while its own IsVisible is on (every spinner is shown and hidden by
+       it): an endless animation left on a hidden control keeps the UI thread
+       waking every frame (Controls/HiddenAnimations). -->
+  <Style Selector="Window:not(.reducedmotion) Arc.spinner[IsVisible=True]">
     <Style.Animations>
       <Animation Duration="0:0:0.9" IterationCount="Infinite">
         <KeyFrame Cue="0%">
@@ -657,16 +660,25 @@
     <Setter Property="MinHeight" Value="0" />
   </Style>
 
+  <!-- A "loading" bar is hidden, not removed, once its load ends; hidden, it
+       stops being indeterminate, so the theme's endless animation stops with it
+       (Controls/HiddenAnimations). -->
+  <Style Selector="ProgressBar">
+    <Setter Property="controls:HiddenAnimations.Stop" Value="True" />
+  </Style>
+
   <!-- Loading skeleton: dim shape pulsing while the first load is in flight.
        Pages show these only when loading AND the target list is still empty,
        so a refresh keeps real content on screen instead of flashing bones. -->
   <Style Selector="Border.skeleton">
     <Setter Property="Background" Value="{StaticResource Token.Brush.Overlay.14}" />
     <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="controls:HiddenAnimations.Stop" Value="True" />
   </Style>
   <!-- The pulse is motion, so reduced motion (MainWindow's .reducedmotion class)
-       leaves the bones still: they still say "loading" by shape. -->
-  <Style Selector="Window:not(.reducedmotion) Border.skeleton">
+       leaves the bones still: they still say "loading" by shape. Hidden bones
+       (the page loaded) don't pulse either: HiddenAnimations marks them unseen. -->
+  <Style Selector="Window:not(.reducedmotion) Border.skeleton:not(.unseen)">
     <Style.Animations>
       <Animation Duration="0:0:1.1" IterationCount="Infinite"
                  PlaybackDirection="Alternate" Easing="SineEaseInOut">

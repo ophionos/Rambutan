@@ -182,6 +182,12 @@ file sink), never to files directly.
   and dimmer it is drawn (from a greyed copy of its small decode, never a
   second pass per frame), so a pastel reads as neutral dark, not brown; a
   vivid cover is drawn as it is.
+  An endless animation (`IterationCount="Infinite"`) must stop matching a
+  hidden control: Avalonia only pauses it, and a paused one still wakes the UI
+  thread every frame. Its selector asks for `[IsVisible=True]`, or, when an
+  ancestor hides it, its style sets `controls:HiddenAnimations.Stop` and the
+  animation's selector leaves out `.unseen`; loading bars are covered for all
+  (`Controls/HiddenAnimations`, enforced by `HiddenAnimationsTests`).
 - Accent: the user's choice (Rambutan red, the cover's colour, or custom).
   `Services/ThemeColors` resolves it, `Core/Appearance/AccentPalette` makes it
   readable and derives the rest (the Fluent ramp, button states, white or dark

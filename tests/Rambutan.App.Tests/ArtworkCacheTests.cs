@@ -113,6 +113,27 @@ public class ArtworkCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task OverBudget_TheCoverAskedForLeastRecentlyGoesFirst()
+    {
+        Headless.Start();
+        // The 1x1 source decodes to 32x32: 4096 bytes a cover, so room for three.
+        using var cache = new ArtworkCache(_dir, new PngHandler()) { MemoryBudget = 3 * 32 * 32 * 4 };
+        Task<Bitmap?> Get(string name) =>
+            cache.GetAsync($"https://example.test/{name}.jpg", 32).WaitAsync(TimeSpan.FromSeconds(20));
+
+        var a = await Get("a");
+        var b = await Get("b");
+        await Get("c");
+        // Asked for again, "a" is the most recent; "b" is now the oldest.
+        Assert.Same(a, await Get("a"));
+        await Get("d");
+
+        Assert.Same(a, await Get("a"));
+        Assert.NotSame(b, await Get("b"));
+        Assert.True(cache.BooksBalance());
+    }
+
+    [Fact]
     public async Task AFailedLoad_GivesNullAndIsNotCached()
     {
         Headless.Start();
