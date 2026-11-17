@@ -69,20 +69,26 @@ sealed class Program
 #pragma warning disable AVALONIA_X11_CSD
             .With(new X11PlatformOptions { EnableDrawnDecorations = true })
 #pragma warning restore AVALONIA_X11_CSD
-#pragma warning disable AVALONIA_WAYLAND_FORCE_CSD
-            .With(new WaylandPlatformOptions
-            {
-                ForceDrawnDecorations = true,
-                // On NVIDIA's driver the default path renders in software.
-                UseDmabufSwapchain = Services.WaylandGraphics.DmabufSwapchain(),
-            })
-#pragma warning restore AVALONIA_WAYLAND_FORCE_CSD
+            .With(WaylandOptions())
 #if DEBUG
             .WithDeveloperTools()
 #endif
             .WithInterFont()
             .With(new FontManagerOptions { DefaultFamilyName = DefaultFamily, FontFallbacks = FontFallbacks })
             .LogToTrace();
+
+    internal static WaylandPlatformOptions WaylandOptions() => new()
+    {
+#pragma warning disable AVALONIA_WAYLAND_FORCE_CSD
+        ForceDrawnDecorations = true,
+#pragma warning restore AVALONIA_WAYLAND_FORCE_CSD
+        // On NVIDIA's driver the default path renders in software.
+        UseDmabufSwapchain = Services.WaylandGraphics.DmabufSwapchain(),
+        // A dock matches a window to its desktop file by the app id, and COSMIC
+        // has no protocol for a window to send its own icon. Unset, Avalonia
+        // sends the entry assembly's name, which no desktop file carries.
+        AppId = Services.WaylandToplevel.AppId,
+    };
 
     /// <summary>
     /// Figtree (Assets/Fonts, SIL OFL 1.1, OFL.txt beside it) is the UI face: five
