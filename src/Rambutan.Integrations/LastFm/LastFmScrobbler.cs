@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Integrations.Scrobbling;
 
 namespace Rambutan.Integrations.LastFm;
 
@@ -309,27 +310,9 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
         }
     }
 
-    /// <summary>
-    /// What Last.fm receives for a track. The first credited artist only: YouTube
-    /// Music lists features as separate credits, and "A, B" would make Last.fm
-    /// invent an artist called that.
-    /// </summary>
-    public static ScrobbleEntry? ToEntry(TrackInfo track, DateTimeOffset startedAt, TimeSpan? duration = null)
-    {
-        var artist = track.Artists.FirstOrDefault(a => !string.IsNullOrWhiteSpace(a.Name))?.Name;
-        if (artist is null || string.IsNullOrWhiteSpace(track.Title))
-            return null;
-
-        var length = duration ?? track.Duration;
-        return new ScrobbleEntry
-        {
-            Artist = artist,
-            Track = track.Title,
-            Album = string.IsNullOrWhiteSpace(track.Album) ? null : track.Album,
-            DurationSeconds = length is { } d && d > TimeSpan.Zero ? (int)Math.Round(d.TotalSeconds) : null,
-            Timestamp = startedAt.ToUnixTimeSeconds(),
-        };
-    }
+    /// <inheritdoc cref="ScrobbleEntries.From"/>
+    public static ScrobbleEntry? ToEntry(TrackInfo track, DateTimeOffset startedAt, TimeSpan? duration = null) =>
+        ScrobbleEntries.From(track, startedAt, duration);
 
     private async Task SendNowPlayingAsync(ScrobbleEntry entry)
     {

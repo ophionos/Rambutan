@@ -48,6 +48,11 @@ public sealed class AppSettings
     /// each listed track to YouTube Music as a signed-out search.</summary>
     public bool LastFmStationsOnHome { get; set; }
 
+    /// <summary>Send plays to ListenBrainz while connected. As with Last.fm, the
+    /// connection keeps the integration off by default: nothing is sent until
+    /// the user enters a token.</summary>
+    public bool ListenBrainzScrobbling { get; set; } = true;
+
     /// <summary>Match local files to YouTube Music songs, on demand. Off by
     /// default: each search sends a file's artist and title tags to YouTube
     /// Music, signed out.</summary>

@@ -1,12 +1,12 @@
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 
-namespace Rambutan.Integrations.LastFm;
+namespace Rambutan.Integrations.Scrobbling;
 
 public sealed record ScrobbleCandidate(TrackInfo Track, DateTimeOffset StartedAt, TimeSpan? Duration);
 
 /// <summary>
-/// Decides when a play becomes a scrobble (Last.fm's rules): the track
+/// Decides when a play becomes a scrobble (Last.fm's rules, which ListenBrainz follows too): the track
 /// is longer than 30 s, and the listener has heard half of it or 4 minutes,
 /// whichever comes first. With no known duration only the 4-minute rule applies.
 /// Pure: playback events and an injected clock in, at most one

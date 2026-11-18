@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using Rambutan.Integrations.Scrobbling;
 
 namespace Rambutan.Integrations.LastFm;
 

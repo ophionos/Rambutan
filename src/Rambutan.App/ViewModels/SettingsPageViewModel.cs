@@ -203,6 +203,9 @@ public partial class SettingsPageViewModel : ViewModelBase
     /// <summary>Told when the stations setting changes, so Home adds or removes them.</summary>
     public HomeStations? Stations { get; init; }
 
+    /// <summary>The ListenBrainz section; null only in the design-time view model.</summary>
+    public ListenBrainzSettingsViewModel? ListenBrainz { get; init; }
+
     /// <summary>Disconnect is how plays kept after Last.fm ended the connection
     /// are discarded, so it shows then too, beside Connect.</summary>
     public bool LastFmShowDisconnect => LastFmConnected ||
@@ -677,6 +680,7 @@ public partial class SettingsPageViewModel : ViewModelBase
             LastFmStatus = LastFmUnavailableText;
         RefreshLastFm();
         OnPropertyChanged(nameof(LastFmStationsNote));
+        ListenBrainz?.Refresh();
         // A check's outcome is a moment, not a state: it goes rather than stay
         // in the old language. A staged update or an unpackaged build is a state
         // and is re-said.

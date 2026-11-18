@@ -8,6 +8,7 @@ using Rambutan.App.Services;
 using Rambutan.App.ViewModels;
 using Rambutan.App.Views;
 using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.Scrobbling;
 
 namespace Rambutan.App.Tests;
 
@@ -314,7 +315,9 @@ public sealed class LastFmSettingsTests : IDisposable
         window.Show();
         window.UpdateLayout();
 
-        var connect = view.GetVisualDescendants().OfType<Button>().Single(b => b.Content as string == "Connect");
+        // The ListenBrainz section has a Connect of its own; without its view model it is hidden.
+        var connect = view.GetVisualDescendants().OfType<Button>()
+            .Single(b => b.Content as string == "Connect" && b.IsEffectivelyVisible);
         var toggle = view.GetVisualDescendants().OfType<ToggleSwitch>()
             .Single(c => Avalonia.Automation.AutomationProperties.GetName(c) == "Scrobble what I play");
         Assert.True(connect.IsVisible);

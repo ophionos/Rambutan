@@ -1,5 +1,7 @@
 using System.Net;
 using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.Scrobbling;
+using Rambutan.Integrations.Tests.Scrobbling;
 
 namespace Rambutan.Integrations.Tests.LastFm;
 

@@ -1,6 +1,8 @@
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.Scrobbling;
+using Rambutan.Integrations.Tests.Scrobbling;
 
 namespace Rambutan.Integrations.Tests.LastFm;
 

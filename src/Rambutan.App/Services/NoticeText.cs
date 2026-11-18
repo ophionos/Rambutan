@@ -1,6 +1,7 @@
 using Rambutan.App.Localization;
 using Rambutan.Core.Playback;
 using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.ListenBrainz;
 
 namespace Rambutan.App.Services;
 
@@ -47,6 +48,19 @@ public static class NoticeText
         LastFmNotice.SessionEnded => Strings.Get("settings.lastfm.notice.sessionEnded"),
         LastFmNotice.SlowedDown => Strings.Get("settings.lastfm.notice.slowedDown"),
         LastFmNotice.Unreachable => Strings.Get("settings.lastfm.notice.unreachable"),
+        _ => notice.ToString(),
+    };
+
+    public static string For(ListenBrainzNotice notice) => notice switch
+    {
+        ListenBrainzNotice.ConnectTokenInvalid => Strings.Get("settings.listenbrainz.notice.connectTokenInvalid"),
+        ListenBrainzNotice.ConnectUnreachable => Strings.Get("settings.listenbrainz.notice.connectUnreachable"),
+        ListenBrainzNotice.ConnectRateLimited => Strings.Get("settings.listenbrainz.notice.connectRateLimited"),
+        ListenBrainzNotice.ConnectNotAServer => Strings.Get("settings.listenbrainz.notice.connectNotAServer"),
+        ListenBrainzNotice.ConnectRefused => Strings.Get("settings.listenbrainz.notice.connectRefused"),
+        ListenBrainzNotice.TokenRefused => Strings.Get("settings.listenbrainz.notice.tokenRefused"),
+        ListenBrainzNotice.SlowedDown => Strings.Get("settings.listenbrainz.notice.slowedDown"),
+        ListenBrainzNotice.Unreachable => Strings.Get("settings.listenbrainz.notice.unreachable"),
         _ => notice.ToString(),
     };
 }

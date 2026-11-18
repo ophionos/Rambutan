@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.NetworkInformation;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -32,6 +33,8 @@ using Rambutan.Integrations;
 using Rambutan.Integrations.Notifications;
 using Rambutan.Integrations.Discord;
 using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.ListenBrainz;
+using Rambutan.Integrations.Scrobbling;
 using Rambutan.Integrations.Spotify;
 using Rambutan.LocalLibrary;
 using Rambutan.Lyrics.Providers;
@@ -75,6 +78,7 @@ public partial class App : Application
     private DispatcherTimer? _persistDebounce;
     private QueuePersistence? _queuePersistence;
     private LastFmScrobbler? _lastFm;
+    private ListenBrainzScrobbler? _listenBrainz;
     private bool _exitRequested;
 
     public override void Initialize()
@@ -231,6 +235,7 @@ public partial class App : Application
             _services.GetRequiredService<PlaybackListenerHub>()
                 .Attach(_services.GetRequiredService<PlaybackCoordinator>());
             _lastFm?.Start();
+            _listenBrainz?.Start();
             if (_services.GetRequiredService<AppSettings>().RemoteEnabled)
                 _ = _services.GetRequiredService<PhoneRemoteService>().SetEnabledAsync(true);
             if (_services.GetRequiredService<AppSettings>().OverlayEnabled)
@@ -572,6 +577,18 @@ public partial class App : Application
                 ScrobblingEnabled = settings.LastFmScrobbling,
             };
         }
+        // ListenBrainz needs no key of ours, only the user's token, so every
+        // build has it. Nothing is sent until the user connects.
+        var clientVersion = Assembly.GetEntryAssembly()
+            ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion.Split('+')[0] ?? "unknown";
+        var listenBrainz = _listenBrainz = new ListenBrainzScrobbler(
+            server => new ListenBrainzClient(server, clientVersion),
+            new ScrobbleQueue(dataDir, "listenbrainz-queue.json", "listenbrainz"),
+            new ListenBrainzTokenVault(dataDir, keyring))
+        {
+            ScrobblingEnabled = settings.ListenBrainzScrobbling,
+        };
         // Last.fm stations on Home, off by default. Matching searches go
         // through a signed-out client of their own: dozens of searches the user
         // never typed don't belong in the account's search history.
@@ -637,6 +654,7 @@ public partial class App : Application
             hub.Add(discord);
             if (_lastFm is not null)
                 hub.Add(_lastFm);
+            hub.Add(listenBrainz);
             hub.Add(sp.GetRequiredService<PlayLog>());
             hub.Add(sp.GetRequiredService<WatchHistory>());
             return hub;
@@ -792,6 +810,8 @@ public partial class App : Application
             sp.GetRequiredService<LyricsViewModel>())
         {
             Stations = sp.GetRequiredService<HomeStations>(),
+            ListenBrainz = new ListenBrainzSettingsViewModel(
+                listenBrainz, sp.GetRequiredService<AppSettings>(), () => RequestPersist(sp)),
 #if WINDOWS
             ApplyTaskbarControls = on => _taskbar?.SetOn(on),
 #endif
@@ -1269,6 +1289,7 @@ public partial class App : Application
         _services.GetRequiredService<DiscordPresenceService>().Dispose();
         // Queued scrobbles are already on disk; this only stops the worker.
         _lastFm?.Dispose();
+        _listenBrainz?.Dispose();
         // Writes the play running, so it counts.
         _services.GetRequiredService<PlayLog>().Dispose();
         // Off the UI thread, and bounded: a phone holding the event stream must
