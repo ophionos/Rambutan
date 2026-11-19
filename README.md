@@ -81,6 +81,8 @@ your own YouTube Music account to use your library.
   in the app.
 - **Last.fm:** scrobbling, plus your Last.fm stations on Home and on artist
   pages.
+- **ListenBrainz:** send what you play to ListenBrainz, or to a server of your
+  own that accepts ListenBrainz listens.
 - **Discord:** show what you are listening to in your status.
 
 **Your desktop**
@@ -95,7 +97,7 @@ your own YouTube Music account to use your library.
 - Profiles, each with its own sign-in, settings, queue and downloads.
 
 **Private by default.** Everything that sends data off your computer is off
-until you turn it on: Last.fm, Discord, online lyrics lookups, finding your
+until you turn it on: Last.fm, ListenBrainz, Discord, online lyrics lookups, finding your
 music files on YouTube Music and the phone remote. Each setting says exactly
 what it sends. There is no telemetry.
 
@@ -178,7 +180,7 @@ Everything is in **Settings**, in the sidebar. The sections are:
 | Music on this computer | The folders that hold your music files, Rescan, and finding them on YouTube Music (off until you turn it on). |
 | Phone remote | Turn the remote on and pair a phone. |
 | OBS overlay | Turn the overlay on, copy its address, and edit its style. |
-| Last.fm, Discord | Connect to Last.fm; turn on Discord and choose what it shows. |
+| Last.fm, ListenBrainz, Discord | Connect to Last.fm or ListenBrainz; turn on Discord and choose what it shows. |
 | Language | The display language. |
 | Updates | Check for a new build. |
 

@@ -1,6 +1,6 @@
-using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.Scrobbling;
 
-namespace Rambutan.Integrations.Tests.LastFm;
+namespace Rambutan.Integrations.Tests.Scrobbling;
 
 public sealed class ScrobbleQueueTests : IDisposable
 {

@@ -798,6 +798,77 @@
         </Border>
       </StackPanel>
 
+      <StackPanel Spacing="8" DataContext="{Binding ListenBrainz}" x:DataType="vm:ListenBrainzSettingsViewModel"
+                  IsVisible="{Binding $self.DataContext, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Classes="settingsheader" Text="{l:T settings.listenbrainz.header}" />
+        <Border Classes="settingsgroup">
+          <StackPanel>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                  <TextBlock Classes="settinglabel" Text="{Binding Status}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Notice}"
+                             Foreground="{StaticResource Token.Brush.Text}"
+                             IsVisible="{Binding Notice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                  <Button Content="{l:T settings.listenbrainz.connect}" Classes="accent"
+                          Command="{Binding ConnectCommand}"
+                          IsVisible="{Binding ShowConnect}"
+                          IsEnabled="{Binding CanConnect}" />
+                  <Button Content="{l:T settings.listenbrainz.disconnect}"
+                          Command="{Binding DisconnectCommand}"
+                          IsVisible="{Binding ShowDisconnect}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow" IsVisible="{Binding ShowConnect}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.listenbrainz.token}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.listenbrainz.token.help}" />
+                </StackPanel>
+                <TextBox Grid.Column="1" Text="{Binding Token}" PasswordChar="•" RevealPassword="False"
+                         Width="320" IsEnabled="{Binding !Busy}"
+                         AutomationProperties.Name="{l:T settings.listenbrainz.token}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow" IsVisible="{Binding ShowConnect}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.listenbrainz.server}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.listenbrainz.server.help}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding ServerNote}"
+                             Foreground="{StaticResource Token.Brush.Text}"
+                             IsVisible="{Binding ServerNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <TextBox Grid.Column="1" Text="{Binding ServerText}"
+                         Width="320" IsEnabled="{Binding !Busy}"
+                         AutomationProperties.Name="{l:T settings.listenbrainz.server}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow" IsVisible="{Binding Recording}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.listenbrainz.scrobble}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding Pending}"
+                             IsVisible="{Binding Pending, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Scrobbling}"
+                              AutomationProperties.Name="{l:T settings.listenbrainz.scrobble}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.ColumnSpan="2">
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.listenbrainz.disclosure}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
       <!-- Phone remote: off by default. The help says exactly what turning it
            on exposes; the code and link show only while it listens. -->
       <StackPanel Spacing="8" DataContext="{Binding Remote}" x:DataType="vm:RemoteSettingsViewModel"

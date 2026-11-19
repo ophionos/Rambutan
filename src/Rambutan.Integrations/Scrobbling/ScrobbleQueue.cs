@@ -2,9 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Rambutan.Core.Diagnostics;
 
-namespace Rambutan.Integrations.LastFm;
+namespace Rambutan.Integrations.Scrobbling;
 
-/// <summary>On-disk shape of <c>scrobble-queue.json</c>.</summary>
+/// <summary>On-disk shape of a scrobble queue file (<c>scrobble-queue.json</c> for Last.fm).</summary>
 public sealed class SavedScrobbleQueue
 {
     public const int CurrentVersion = 1;
@@ -12,7 +12,7 @@ public sealed class SavedScrobbleQueue
     public int Version { get; set; } = CurrentVersion;
     public List<ScrobbleEntry> Scrobbles { get; set; } = [];
 
-    /// <summary>Last.fm ended the connection, and plays are still recorded until
+    /// <summary>The service ended the connection, and plays are still recorded until
     /// the user connects again or chooses Disconnect. Added within version 1:
     /// files without it read as false.</summary>
     public bool SessionEnded { get; set; }
@@ -26,15 +26,15 @@ public sealed class SavedScrobbleQueue
 internal sealed partial class ScrobbleQueueJsonContext : JsonSerializerContext;
 
 /// <summary>
-/// Scrobbles waiting to reach Last.fm (the offline queue), oldest first,
-/// persisted as versioned JSON at <c>{dataDir}/scrobble-queue.json</c> with atomic
+/// Scrobbles waiting to reach a scrobbling service (the offline queue), oldest first,
+/// persisted as versioned JSON at <c>{dataDir}/{fileName}</c> with atomic
 /// writes. Every scrobble goes through here, online or not, so a crash between
 /// earning a scrobble and sending it loses nothing. Capped at
 /// <see cref="Capacity"/>: past that the oldest are dropped, with a log line.
 /// </summary>
 /// <remarks>
 /// A corrupt file, or one a newer build wrote, is moved aside to
-/// <c>scrobble-queue.json.unreadable</c> rather than overwritten, and the queue
+/// <c>{fileName}.unreadable</c> rather than overwritten, and the queue
 /// starts empty. Mutations come from one worker; <see cref="Count"/> may be read
 /// from anywhere.
 /// </remarks>
@@ -45,8 +45,15 @@ public sealed class ScrobbleQueue
     private readonly List<ScrobbleEntry> _entries = [];
     private readonly object _sync = new();
 
-    public ScrobbleQueue(string dataDirectory) =>
-        Path = System.IO.Path.Combine(dataDirectory, "scrobble-queue.json");
+    private readonly string _logCategory;
+
+    /// <param name="fileName">One file per service, so two queues never share entries.</param>
+    /// <param name="logCategory">The <see cref="AppLog"/> category of the service that owns the queue.</param>
+    public ScrobbleQueue(string dataDirectory, string fileName = "scrobble-queue.json", string logCategory = "lastfm")
+    {
+        Path = System.IO.Path.Combine(dataDirectory, fileName);
+        _logCategory = logCategory;
+    }
 
     public string Path { get; }
 
@@ -61,7 +68,7 @@ public sealed class ScrobbleQueue
 
     private bool _sessionEnded;
 
-    /// <summary>Last.fm ended the connection (not the user): plays are still
+    /// <summary>The service ended the connection (not the user): plays are still
     /// queued. Saved with the entries, so it outlasts a restart.</summary>
     public bool SessionEnded
     {
@@ -155,7 +162,7 @@ public sealed class ScrobbleQueue
         var excess = _entries.Count - Capacity;
         if (excess <= 0)
             return;
-        AppLog.Write("lastfm", $"Scrobble queue full; dropped the {excess} oldest.");
+        AppLog.Write(_logCategory, $"Scrobble queue full; dropped the {excess} oldest.");
         _entries.RemoveRange(0, excess);
     }
 
@@ -172,20 +179,20 @@ public sealed class ScrobbleQueue
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Still queued in memory; the next write tries again.
-            AppLog.Write("lastfm", $"Couldn't save the scrobble queue: {ex.Message}");
+            AppLog.Write(_logCategory, $"Couldn't save the scrobble queue: {ex.Message}");
         }
     }
 
     private void SetAside(string reason)
     {
-        AppLog.Write("lastfm", $"Setting the scrobble queue file aside ({reason}); starting empty.");
+        AppLog.Write(_logCategory, $"Setting the scrobble queue file aside ({reason}); starting empty.");
         try
         {
             File.Move(Path, Path + ".unreadable", overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            AppLog.Write("lastfm", $"Couldn't move it aside: {ex.Message}");
+            AppLog.Write(_logCategory, $"Couldn't move it aside: {ex.Message}");
         }
     }
 }

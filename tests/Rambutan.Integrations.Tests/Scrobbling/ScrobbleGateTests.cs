@@ -1,8 +1,8 @@
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
-using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.Scrobbling;
 
-namespace Rambutan.Integrations.Tests.LastFm;
+namespace Rambutan.Integrations.Tests.Scrobbling;
 
 public class ScrobbleGateTests
 {
