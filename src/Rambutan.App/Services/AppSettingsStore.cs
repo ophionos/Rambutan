@@ -53,6 +53,12 @@ public sealed class AppSettings
     /// the user enters a token.</summary>
     public bool ListenBrainzScrobbling { get; set; } = true;
 
+    /// <summary>Show the playlists ListenBrainz made for the stations' account
+    /// (Daily Jams, Weekly Jams, Weekly Exploration) on Home. Off by default: it
+    /// sends the user name to ListenBrainz, and each track to YouTube Music as
+    /// a signed-out search.</summary>
+    public bool ListenBrainzCreatedForOnHome { get; set; }
+
     /// <summary>Match local files to YouTube Music songs, on demand. Off by
     /// default: each search sends a file's artist and title tags to YouTube
     /// Music, signed out.</summary>

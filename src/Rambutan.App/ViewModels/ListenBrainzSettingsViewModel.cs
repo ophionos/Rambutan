@@ -45,13 +45,15 @@ public partial class ListenBrainzSettingsViewModel : ViewModelBase
     private bool _sessionEnded;
 
     /// <param name="stations">The stations' own account; null leaves out their rows.</param>
+    /// <param name="homeStations">Told when the Created for you setting changes.</param>
     public ListenBrainzSettingsViewModel(
-        ListenBrainzScrobbler scrobbler, AppSettings app, Action? persist, ListenBrainzStationsAccount? stations = null)
+        ListenBrainzScrobbler scrobbler, AppSettings app, Action? persist, ListenBrainzStationsAccount? stations = null,
+        HomeStations? homeStations = null)
     {
         _scrobbler = scrobbler;
         _app = app;
         _persist = persist;
-        Stations = stations is null ? null : new ListenBrainzStationsSettingsViewModel(stations);
+        Stations = stations is null ? null : new ListenBrainzStationsSettingsViewModel(stations, app, persist, homeStations);
         _scrobbling = app.ListenBrainzScrobbling;
         Refresh();
         scrobbler.Changed += () => Dispatcher.UIThread.Post(Refresh);

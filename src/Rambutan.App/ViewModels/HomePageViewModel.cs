@@ -11,6 +11,7 @@ using Rambutan.Core.Catalog;
 using Rambutan.Core.Diagnostics;
 using Rambutan.Core.Home;
 using Rambutan.Core.Models;
+using Rambutan.Core.Stations;
 
 namespace Rambutan.App.ViewModels;
 
@@ -76,6 +77,9 @@ public partial class HomePageViewModel : ViewModelBase
     /// <summary>The play log's read for the tiles, while one runs.</summary>
     internal Task RecentLoad { get; private set; } = Task.CompletedTask;
 
+    /// <summary>The last request for the list of the user's ListenBrainz playlists.</summary>
+    internal Task CreatedForRefresh { get; private set; } = Task.CompletedTask;
+
     /// <summary>YouTube Music's shelves, as it sent them, without the one that
     /// became <see cref="Tiles"/>.</summary>
     public ObservableCollection<Shelf> Shelves { get; } = [];
@@ -89,9 +93,10 @@ public partial class HomePageViewModel : ViewModelBase
     /// when there are no mood chips, so the page stays reachable from Home.</summary>
     public ObservableCollection<object> ChipRow { get; } = [MoodsChip.Instance];
 
-    /// <summary>What the page lists: <see cref="Shelves"/>, with the Last.fm
-    /// station shelves (<see cref="StationShelfViewModel"/>) after the first
-    /// <see cref="StationsAfter"/> of them while those are on.</summary>
+    /// <summary>What the page lists: <see cref="Shelves"/>, with the station
+    /// shelves (<see cref="StationShelfViewModel"/>) after the first
+    /// <see cref="StationsAfter"/> of them while those are on: Last.fm's, then
+    /// the playlists ListenBrainz made for the user.</summary>
     public ObservableCollection<object> Items { get; } = [];
 
     /// <summary>Station shelves go after this many YouTube Music shelves: high
@@ -169,6 +174,9 @@ public partial class HomePageViewModel : ViewModelBase
         IsLoading = true;
         LoadError = null;
         var generation = ++_generation;
+        // Not awaited: its Changed adds the shelves when the list arrives, so
+        // YouTube Music's shelves never wait for ListenBrainz.
+        StartCreatedForRefresh(freshStations);
         try
         {
             if (_navigation is not null)
@@ -316,18 +324,24 @@ public partial class HomePageViewModel : ViewModelBase
     /// </summary>
     private void RebuildItems(bool freshStations)
     {
-        var wanted = StationsWanted ? HomeStations.Shown : [];
         var kept = new List<StationShelfViewModel>();
-        foreach (var kind in wanted)
+        foreach (var kind in LastFmWanted ? HomeStations.Shown : [])
+            Keep(_stationShelves.FirstOrDefault(s => s.Playlist is null && s.Kind == kind),
+                () => new StationShelfViewModel(kind, _stations!, _play!));
+        foreach (var playlist in CreatedForWanted)
+            Keep(_stationShelves.FirstOrDefault(s => s.Playlist?.Id == playlist.Id),
+                () => new StationShelfViewModel(playlist, _stations!, _play!));
+
+        void Keep(StationShelfViewModel? existing, Func<StationShelfViewModel> create)
         {
-            var existing = _stationShelves.FirstOrDefault(s => s.Kind == kind);
-            var shelf = existing ?? new StationShelfViewModel(kind, _stations!, _play!);
+            var shelf = existing ?? create();
             kept.Add(shelf);
             if (freshStations)
                 _ = shelf.LoadAsync();
             else if (existing is null)
                 _ = shelf.ShowAsync();
         }
+
         foreach (var gone in _stationShelves.Except(kept))
             gone.Cancel();
         _stationShelves = kept;
@@ -351,24 +365,51 @@ public partial class HomePageViewModel : ViewModelBase
     }
 
     private bool HasSavedStations() =>
-        StationsWanted && HomeStations.Shown.Any(kind => _stations!.Saved(kind) is not null);
+        (LastFmWanted && HomeStations.Shown.Any(kind => _stations!.Saved(kind) is not null))
+        || CreatedForWanted.Any(p => _stations!.SavedCreatedFor(p.Id) is not null);
 
     /// <summary>Stations show on plain Home only: a mood chip is YouTube Music's pick for that mood.</summary>
-    private bool StationsWanted => _stations?.User is not null && _play is not null && _filter is null;
+    private bool StationsWanted => _stations is not null && _play is not null && _filter is null;
 
-    /// <summary>The setting or the Last.fm connection changed. Before Home has
-    /// loaded there is nothing to lay out; the first load places them.</summary>
+    private bool LastFmWanted => StationsWanted && _stations!.User is not null;
+
+    private IReadOnlyList<CreatedForPlaylist> CreatedForWanted =>
+        StationsWanted ? _stations!.CreatedForShown : [];
+
+    private void StartCreatedForRefresh(bool fresh)
+    {
+        if (StationsWanted)
+            CreatedForRefresh = _stations!.RefreshCreatedForAsync(fresh);
+    }
+
+    // Which shelves the station slot holds, in order: a Last.fm kind, or a playlist's id.
+    private List<string> WantedKeys() =>
+        (LastFmWanted ? HomeStations.Shown : []).Select(k => "lastfm:" + k)
+            .Concat(CreatedForWanted.Select(p => "listenbrainz:" + p.Id))
+            .ToList();
+
+    private List<string> ShownKeys() =>
+        _stationShelves.Select(s => s.Playlist is { } p ? "listenbrainz:" + p.Id : "lastfm:" + s.Kind).ToList();
+
+    /// <summary>A setting, a connection or the list of ListenBrainz playlists
+    /// changed. Before Home has loaded there is nothing to lay out; the first
+    /// load places them.</summary>
     private void OnStationsChanged()
     {
+        var laidOut = Shelves.Count > 0 || Items.Count > 0;
+        // The stations' ListenBrainz account or the setting may have just
+        // become ready; the list is asked for only when none fresh is saved.
+        if (laidOut)
+            StartCreatedForRefresh(fresh: false);
         // The scrobbler reports every change (a play queued, a retry); only a
         // change in which stations show moves anything.
-        var wanted = StationsWanted;
-        if (wanted == _stationShelves.Count > 0)
+        var wanted = WantedKeys();
+        if (wanted.SequenceEqual(ShownKeys()))
             return;
         // Items without Shelves: Home failed and shows only the saved lists.
-        if (Shelves.Count > 0 || Items.Count > 0)
+        if (laidOut)
             RebuildItems(freshStations: false);
-        else if (_stations?.User is null)
+        else if (wanted.Count == 0)
             _stationShelves.ForEach(s => s.Cancel());
     }
 

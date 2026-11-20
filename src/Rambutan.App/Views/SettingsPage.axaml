@@ -909,6 +909,18 @@
                 </StackPanel>
               </Grid>
             </Border>
+            <!-- Asks about the stations' account's user, so it needs that token connected. -->
+            <Border Classes="settingrow" IsVisible="{Binding Stations, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel>
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.listenbrainz.createdFor}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.listenbrainz.createdFor.disclosure}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsChecked="{Binding Stations.CreatedForOnHome, FallbackValue=False}"
+                              IsEnabled="{Binding Stations.Connected, FallbackValue=False}"
+                              AutomationProperties.Name="{l:T settings.listenbrainz.createdFor}" />
+              </Grid>
+            </Border>
           </StackPanel>
         </Border>
       </StackPanel>
