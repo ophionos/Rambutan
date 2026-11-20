@@ -132,7 +132,7 @@ libraries; a type two of them share belongs in Core.
 | `Rambutan.Audio` | Engine: ffmpeg decode → ring buffer → crossfade mixer → SoundFlow output, FFT analyzer. Reads googlevideo URLs directly (no proxy). Also reads local files' tags, length and cover (`FfmpegMediaFileReader`), so libav stays in one project. |
 | `Rambutan.LocalLibrary` | The local library: scans the watched folders into the per-profile index (`local-index.json`) and cover cache (`local-covers`), through Core's `IMediaFileReader`, and plays them (`LocalFirstSource`). Also the downloads (`DownloadStore`, played by `DownloadsFirstSource`; kept apart from the cache: no cap, no eviction), recorded on their files' entries in that index, the offline copies of pages (`KeptCollectionStore`), and the local playlists' file (`LocalPlaylistStore`, `local-playlists.json`; their rules and `LocalPlaylistLibrary` are `Core/Playlists`). |
 | `Rambutan.Lyrics` | Lyrics model + timing rules, LRC parser/writer, Lyricsfile (YAML subset) parser for LRCLIB's word-synced records, LRCLIB provider + chain, per-track cache, custom-lyrics store, `LyricsService`. |
-| `Rambutan.Integrations` | SMTC (Windows), MPRIS and the tray-host check (Linux, over D-Bus), track-change notifications (Windows toasts under the installed shortcut's AUMID, so never in a dev or portable run; `org.freedesktop.Notifications` on Linux), single-instance, Velopack updates, Discord Rich Presence (hand-rolled IPC), Last.fm scrobbling and stations, ListenBrainz scrobbling (the token kept with its server in `App/Services/ListenBrainzTokenVault`, so it never goes to another server). |
+| `Rambutan.Integrations` | SMTC (Windows), MPRIS and the tray-host check (Linux, over D-Bus), track-change notifications (Windows toasts under the installed shortcut's AUMID, so never in a dev or portable run; `org.freedesktop.Notifications` on Linux), single-instance, Velopack updates, Discord Rich Presence (hand-rolled IPC), Last.fm scrobbling and stations, ListenBrainz scrobbling (the token kept with its server in `App/Services/ListenBrainzTokenVault`, so it never goes to another server) and artists' stations (LB Radio). |
 | `Rambutan.LocalApi` | Kestrel host started on demand: `/remote` (the phone remote, on the LAN only while its setting is on; token pairing, state over SSE) and `/overlay` (the OBS overlay, in its own host on loopback only, port 41742 for the installed app's data folder, with its own read-only key; style file `overlay-style.json`, versioned). |
 | `Rambutan.App` | Avalonia UI (CommunityToolkit.Mvvm), custom controls, **plus app services**: settings store, cookie vault, artwork cache, logging, sidecar bootstrap, tray. |
 
@@ -586,6 +586,15 @@ file sink), never to files directly.
   of their own, never the account's, so they stay out of its search history.
   Bump `TrackMatcher.RulesVersion` when a rule change could change a pick; it
   invalidates the saved matches (`App/Services/StationStores`).
+  ListenBrainz gives an artist's station too, beside Last.fm's on the artist
+  page and its card menu: `Integrations/ListenBrainz/ListenBrainzRadioClient`
+  asks LB Radio (`artist:(…)`, easy mode) with a token of the stations' own
+  (`App/Services/ListenBrainzStationsAccount`, `ListenBrainzTokenVault.ForStations`),
+  apart from the scrobbling connection, whose server may be another one; this
+  token goes only to api.listenbrainz.org, and connecting it is the opt-in. A
+  prompt by name fails for a name MusicBrainz finds ambiguous, so the artist is
+  first looked up by up to three of its song titles to get its MusicBrainz id
+  (`Core/Stations/StationArtist` checks the lookup's credit is the artist).
 - Spotify import: Library's Import from Spotify, always in its header's More
   menu (`ActionRow.InMenu`; `SpotifyImportViewModel`,
   one for the app's lifetime) reads Spotify's data export (the zip or its

@@ -37,8 +37,8 @@ public partial class ArtistPage : UserControl
             Listen();
     }
 
-    // The station button follows the setting and the Last.fm connection, which
-    // can change while the page waits in the back stack.
+    // The station buttons follow the setting and the Last.fm and ListenBrainz
+    // connections, which can change while the page waits in the back stack.
     private void Listen()
     {
         if (DataContext is not ArtistPageViewModel { Stations: { } stations } vm)

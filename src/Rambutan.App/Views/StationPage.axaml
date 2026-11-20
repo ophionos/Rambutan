@@ -8,9 +8,10 @@
              x:Name="Root"
              x:DataType="vm:StationPageViewModel">
 
-  <!-- A Last.fm station's page: the shelf's own rows, every one of them.
-       A track with nothing to play stays in the list, marked; one that plays
-       Last.fm's YouTube link says so. -->
+  <!-- A Last.fm or ListenBrainz station's page: the shelf's own rows, every
+       one of them. A track with nothing to play stays in the list, marked; one
+       that plays Last.fm's YouTube link says so. The texts that name the
+       service come from the view model, which knows the station's. -->
   <Grid RowDefinitions="Auto,*" DataContext="{Binding Station}" x:DataType="vm:StationShelfViewModel">
     <!-- Gives way to a thin bar once the list is scrolled. A failed refresh
          keeps it up: its Try again is in the hero. -->
@@ -40,10 +41,10 @@
           </Button>
           <!-- A new sample, for this page and the shelf on Home alike. -->
           <Button Classes="icon outline" Command="{Binding LoadCommand}"
-                  ToolTip.Tip="{l:T station.page.refreshTip}" AutomationProperties.Name="{l:T station.page.refreshTip}">
+                  ToolTip.Tip="{Binding RefreshTip}" AutomationProperties.Name="{Binding RefreshTip}">
             <PathIcon Data="{StaticResource Icon.Refresh}" Width="18" Height="18" />
           </Button>
-          <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T home.station.loading}"
+          <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{Binding LoadingText}"
                        IsVisible="{Binding IsLoading}" />
         </controls:ActionRow>
         <ContentControl Content="{Binding LoadError}"
@@ -55,7 +56,7 @@
         <TextBlock Classes="headermeta" Text="{Binding Unavailable}" TextWrapping="Wrap" MaxWidth="640"
                    HorizontalAlignment="Left"
                    IsVisible="{Binding Unavailable, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-        <TextBlock Classes="headermeta" Text="{l:T station.page.empty}" IsVisible="{Binding HasNoTracks}" />
+        <TextBlock Classes="headermeta" Text="{Binding EmptyText}" IsVisible="{Binding HasNoTracks}" />
       </StackPanel>
     </Grid>
     </controls:CollapsingHero>

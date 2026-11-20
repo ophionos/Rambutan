@@ -82,7 +82,8 @@ your own YouTube Music account to use your library.
 - **Last.fm:** scrobbling, plus your Last.fm stations on Home and on artist
   pages.
 - **ListenBrainz:** send what you play to ListenBrainz, or to a server of your
-  own that accepts ListenBrainz listens.
+  own that accepts ListenBrainz listens; and, with your ListenBrainz token,
+  artists' stations from LB Radio on their pages, beside Last.fm's.
 - **Discord:** show what you are listening to in your status.
 
 **Your desktop**

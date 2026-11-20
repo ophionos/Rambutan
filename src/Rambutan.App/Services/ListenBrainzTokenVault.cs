@@ -28,12 +28,27 @@ internal sealed partial class ListenBrainzConnectionJsonContext : JsonSerializer
 /// token, not as a setting, so a token only ever goes to the server it was
 /// entered for. Called on the scrobbler's own worker, so the keyring's blocking
 /// calls never reach the UI thread.
+///
+/// The stations keep a token of their own (<see cref="ForStations"/>), apart
+/// from the scrobbling connection: the listens may go to another server (one
+/// that relays them to ListenBrainz), while LB Radio is only on ListenBrainz.
 /// </summary>
-public sealed class ListenBrainzTokenVault(string dataDirectory, SystemKeyring? keyring = null) : IListenBrainzTokenStore
+public sealed class ListenBrainzTokenVault : IListenBrainzTokenStore
 {
-    private readonly StoredCredential _credential = new(
-        dataDirectory, "listenbrainz-token.bin", "listenbrainz-token",
-        static () => Strings.Get("keyring.label.listenBrainz"), keyring ?? SystemKeyring.None);
+    private readonly StoredCredential _credential;
+
+    public ListenBrainzTokenVault(string dataDirectory, SystemKeyring? keyring = null)
+        : this(dataDirectory, keyring, "listenbrainz-token", static () => Strings.Get("keyring.label.listenBrainz"))
+    {
+    }
+
+    private ListenBrainzTokenVault(string dataDirectory, SystemKeyring? keyring, string kind, Func<string> label) =>
+        _credential = new(dataDirectory, kind + ".bin", kind, label, keyring ?? SystemKeyring.None);
+
+    /// <summary>The stations' token, its own file and keyring item.</summary>
+    public static ListenBrainzTokenVault ForStations(string dataDirectory, SystemKeyring? keyring = null) =>
+        new(dataDirectory, keyring, "listenbrainz-stations-token",
+            static () => Strings.Get("keyring.label.listenBrainzStations"));
 
     public ListenBrainzConnection? Load()
     {

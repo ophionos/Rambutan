@@ -89,7 +89,7 @@ public class HeroActionsTests
     });
 
     [Fact]
-    public void TheArtistHero_HasPlayTopSongsThenShuffleMixAndSubscribe_AndLastFmInMore() => Headless.Run(() =>
+    public void TheArtistHero_HasPlayTopSongsThenShuffleMixAndSubscribe_AndTheStationsInMore() => Headless.Run(() =>
     {
         var page = new ArtistPageViewModel(new FakeCatalog(), null!, null!, "UCdp");
         var view = new Views.ArtistPage { DataContext = page };
@@ -98,7 +98,7 @@ public class HeroActionsTests
         AssertPattern(view, new Hero(
             T("artist.playTopSongs"),
             [T("artist.shuffleSongs"), T("menu.startMix"), T("artist.subscribe")],
-            [T("artist.lastFmStation")]));
+            [T("artist.lastFmStation"), T("artist.listenBrainzStation")]));
         window.Close();
     });
 
@@ -132,7 +132,10 @@ public class HeroActionsTests
     [Fact]
     public void TheStationHero_HasPlayThenShuffleAndRefresh() => Headless.Run(() =>
     {
-        var view = new Views.StationPage();
+        // The refresh button's name names the station's service, so it comes from the view model.
+        var station = new StationShelfViewModel(StationKind.Mix,
+            new HomeStations(null!, null!, () => null), (_, _) => Task.CompletedTask);
+        var view = new Views.StationPage { DataContext = new StationPageViewModel(station) };
         var window = Show(view);
 
         AssertPattern(view, new Hero(T("common.play"), [T("common.shuffle"), T("station.page.refreshTip")], []));

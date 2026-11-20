@@ -12,6 +12,7 @@ using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
 using Rambutan.Core.Playlists;
 using Rambutan.Core.Sidebar;
+using Rambutan.Core.Stations;
 
 namespace Rambutan.App.ViewModels;
 
@@ -67,6 +68,10 @@ public sealed partial class CollectionActionsViewModel
     /// <summary>Whether an artist's Last.fm station can open: only while Last.fm
     /// stations are on and connected, as on the artist's page.</summary>
     public bool CanOpenStation => _stations?.User is not null && _openStation is not null;
+
+    /// <summary>Whether an artist's ListenBrainz station can open: only while the
+    /// stations' ListenBrainz account is connected, as on the artist's page.</summary>
+    public bool CanOpenListenBrainzStation => _stations?.ListenBrainzAvailable == true && _openStation is not null;
 
     /// <summary>The sidebar's pins; set at composition. Null (tests, the designer)
     /// offers no pinning anywhere.</summary>
@@ -297,6 +302,18 @@ public sealed partial class CollectionActionsViewModel
             return;
         _openStation(new StationShelfViewModel(
             artist.Title, _stations, (tracks, start) => _coordinator.PlayQueueAsync(tracks, start)));
+    }
+
+    /// <summary>Opens the ListenBrainz station of an artist and similar ones. A
+    /// card has no song titles, so ListenBrainz is sent the name alone.</summary>
+    [RelayCommand]
+    private void OpenListenBrainzStation(CatalogEntry? entry)
+    {
+        if (entry is not ArtistEntry artist || _stations is null || _openStation is null)
+            return;
+        _openStation(new StationShelfViewModel(
+            new ArtistSeed(artist.Title, []), StationService.ListenBrainz,
+            _stations, (tracks, start) => _coordinator.PlayQueueAsync(tracks, start)));
     }
 
     [RelayCommand]
