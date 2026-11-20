@@ -79,6 +79,7 @@ public partial class App : Application
     private QueuePersistence? _queuePersistence;
     private LastFmScrobbler? _lastFm;
     private ListenBrainzScrobbler? _listenBrainz;
+    private ListenBrainzStationsAccount? _listenBrainzStations;
     private bool _exitRequested;
 
     public override void Initialize()
@@ -236,6 +237,8 @@ public partial class App : Application
                 .Attach(_services.GetRequiredService<PlaybackCoordinator>());
             _lastFm?.Start();
             _listenBrainz?.Start();
+            // The keyring read runs off the UI thread; until it answers, the stations count as not connected.
+            _ = _listenBrainzStations?.LoadAsync();
             if (_services.GetRequiredService<AppSettings>().RemoteEnabled)
                 _ = _services.GetRequiredService<PhoneRemoteService>().SetEnabledAsync(true);
             if (_services.GetRequiredService<AppSettings>().OverlayEnabled)
@@ -598,6 +601,14 @@ public partial class App : Application
         // The lists and the search outcomes are saved in the profile's folder,
         // so startup shows the last lists and a known track isn't searched again.
         var lastFm = _lastFm;
+        // Artists' ListenBrainz stations have a token of their own, apart from
+        // the scrobbling connection, since the listens may go to another server
+        // and LB Radio is only on ListenBrainz. Connecting it is their opt-in.
+        // A demo has no recorded LB Radio, so it never asks for a station.
+        var listenBrainzStations = _listenBrainzStations = new ListenBrainzStationsAccount(
+            ListenBrainzTokenVault.ForStations(dataDir, keyring),
+            () => new ListenBrainzClient(ListenBrainzClient.DefaultServer, clientVersion));
+        services.AddSingleton(listenBrainzStations);
         var stationMatches = new StationMatchCache();
         var homeStations = new HomeStations(
             new LastFmStationClient(Demo is null ? null : new HttpClient(new DemoLastFmStationHandler(Demo))),
@@ -605,12 +616,16 @@ public partial class App : Application
             () => Demo is not null ? DemoOptions.LastFmUser
                 : lastFm is { Connection: LastFmConnection.Connected } ? lastFm.Username : null,
             new StationSnapshotStore(dataDir),
-            new StationMatchStore(dataDir, stationMatches))
+            new StationMatchStore(dataDir, stationMatches),
+            listenBrainz: Demo is null ? new ListenBrainzRadioClient(() => listenBrainzStations.Token) : null,
+            listenBrainzConnected: () => listenBrainzStations.Connected,
+            listenBrainzTokenRefused: listenBrainzStations.TokenRefused)
         {
             Enabled = settings.LastFmStationsOnHome,
         };
         if (lastFm is not null)
             lastFm.Changed += () => Dispatcher.UIThread.Post(homeStations.ConnectionChanged);
+        listenBrainzStations.Changed += () => Dispatcher.UIThread.Post(homeStations.ConnectionChanged);
         services.AddSingleton(homeStations);
         // The Spotify import's searches too, for the same reason; made when
         // the import page first opens, which reads its saved matches.
@@ -811,7 +826,8 @@ public partial class App : Application
         {
             Stations = sp.GetRequiredService<HomeStations>(),
             ListenBrainz = new ListenBrainzSettingsViewModel(
-                listenBrainz, sp.GetRequiredService<AppSettings>(), () => RequestPersist(sp)),
+                listenBrainz, sp.GetRequiredService<AppSettings>(), () => RequestPersist(sp),
+                sp.GetRequiredService<ListenBrainzStationsAccount>()),
 #if WINDOWS
             ApplyTaskbarControls = on => _taskbar?.SetOn(on),
 #endif

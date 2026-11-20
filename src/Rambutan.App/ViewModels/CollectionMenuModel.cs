@@ -71,6 +71,9 @@ public static class CollectionMenuModel
                 ];
                 if (actions.CanOpenStation)
                     play.Add(new(Strings.Get("artist.lastFmStation"), "Icon.Radio", actions.OpenStationCommand, entry));
+                if (actions.CanOpenListenBrainzStation)
+                    play.Add(new(Strings.Get("artist.listenBrainzStation"), "Icon.Radio",
+                        actions.OpenListenBrainzStationCommand, entry));
                 groups.Add(play);
                 if (actions.CanChangeLibrary)
                 {

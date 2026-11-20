@@ -9,6 +9,7 @@ using Rambutan.App.Services;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Models;
 using Rambutan.Core.Playback;
+using Rambutan.Core.Stations;
 
 namespace Rambutan.App.ViewModels;
 
@@ -20,8 +21,8 @@ public partial class ArtistPageViewModel : ViewModelBase
     private readonly string _browseId;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanOpenStation))]
-    [NotifyCanExecuteChangedFor(nameof(OpenStationCommand))]
+    [NotifyPropertyChangedFor(nameof(CanOpenStation), nameof(CanOpenListenBrainzStation))]
+    [NotifyCanExecuteChangedFor(nameof(OpenStationCommand), nameof(OpenListenBrainzStationCommand))]
     private string _name = "";
     [ObservableProperty] private string? _thumbnailUrl;
     [ObservableProperty] private bool _isLoading = true;
@@ -56,23 +57,34 @@ public partial class ArtistPageViewModel : ViewModelBase
     /// <summary>Set by navigation; null in tests, where outcomes go unreported.</summary>
     public TrackActionsViewModel? Actions { get; init; }
 
-    /// <summary>Last.fm stations; null hides the artist's station.</summary>
+    /// <summary>The stations; null hides the artist's stations.</summary>
     public HomeStations? Stations { get; init; }
 
-    // Kept, so the station's page shows the same rows when it opens again.
+    // Kept, so a station's page shows the same rows when it opens again.
     private StationShelfViewModel? _station;
+    private StationShelfViewModel? _listenBrainzStation;
+
+    /// <summary>How many top songs' titles help ListenBrainz find the artist.</summary>
+    private const int SeedTitles = 3;
 
     /// <summary>The artist's Last.fm station can open: the stations
     /// setting is on, Last.fm is connected, and the artist's name is known.</summary>
     public bool CanOpenStation => Stations?.User is not null && Name.Length > 0;
 
-    /// <summary>Call when the stations setting or the Last.fm connection may have
-    /// changed. The view listens only while it is shown, since pages wait in the
-    /// back stack and <see cref="HomeStations"/> lives as long as the app.</summary>
+    /// <summary>The artist's ListenBrainz station can open: the stations'
+    /// ListenBrainz account is connected and the artist's name is known.</summary>
+    public bool CanOpenListenBrainzStation => Stations?.ListenBrainzAvailable == true && Name.Length > 0;
+
+    /// <summary>Call when the stations setting, the Last.fm connection or the
+    /// stations' ListenBrainz connection may have changed. The view listens
+    /// only while it is shown, since pages wait in the back stack and
+    /// <see cref="HomeStations"/> lives as long as the app.</summary>
     public void StationsChanged()
     {
         OnPropertyChanged(nameof(CanOpenStation));
+        OnPropertyChanged(nameof(CanOpenListenBrainzStation));
         OpenStationCommand.NotifyCanExecuteChanged();
+        OpenListenBrainzStationCommand.NotifyCanExecuteChanged();
     }
 
     public ObservableCollection<TrackInfo> TopSongs { get; } = [];
@@ -193,8 +205,25 @@ public partial class ArtistPageViewModel : ViewModelBase
     {
         if (Stations is null)
             return;
-        var station = _station ??= new StationShelfViewModel(
-            Name, Stations, (tracks, start) => _coordinator.PlayQueueAsync(tracks, start));
+        Open(_station ??= new StationShelfViewModel(
+            Name, Stations, (tracks, start) => _coordinator.PlayQueueAsync(tracks, start)));
+    }
+
+    /// <summary>Opens the artist's ListenBrainz station, as <see cref="OpenStation"/>
+    /// opens Last.fm's. ListenBrainz is sent the name and the titles of the first
+    /// top songs on the page when it first opens, which help it find the artist.</summary>
+    [RelayCommand(CanExecute = nameof(CanOpenListenBrainzStation))]
+    private void OpenListenBrainzStation()
+    {
+        if (Stations is null)
+            return;
+        Open(_listenBrainzStation ??= new StationShelfViewModel(
+            new ArtistSeed(Name, TopSongs.Take(SeedTitles).Select(t => t.Title).ToList()),
+            StationService.ListenBrainz, Stations, (tracks, start) => _coordinator.PlayQueueAsync(tracks, start)));
+    }
+
+    private void Open(StationShelfViewModel station)
+    {
         _navigation.OpenStation(station);
         if (!station.IsLoading && station.Items.Count == 0)
             _ = station.LoadAsync();

@@ -57,10 +57,17 @@
                           IsVisible="{Binding Subscribed, Converter={x:Static vm:Converters.IsTrue}, FallbackValue=False}" />
               </Panel>
             </Button>
-            <!-- Only while Last.fm stations are on and connected. -->
+            <!-- The artist's stations, in More: Last.fm's only while Last.fm
+                 stations are on and connected, ListenBrainz's beside it while
+                 the stations' ListenBrainz account is connected. -->
             <Button Classes="icon outline" controls:ActionRow.InMenu="True"
                     Command="{Binding OpenStationCommand}" IsVisible="{Binding CanOpenStation}"
                     AutomationProperties.Name="{l:T artist.lastFmStation}">
+              <PathIcon Data="{StaticResource Icon.Radio}" Width="18" Height="18" />
+            </Button>
+            <Button Classes="icon outline" controls:ActionRow.InMenu="True"
+                    Command="{Binding OpenListenBrainzStationCommand}" IsVisible="{Binding CanOpenListenBrainzStation}"
+                    AutomationProperties.Name="{l:T artist.listenBrainzStation}">
               <PathIcon Data="{StaticResource Icon.Radio}" Width="18" Height="18" />
             </Button>
             <ProgressBar IsIndeterminate="True" Width="80" AutomationProperties.Name="{l:T common.loading}" IsVisible="{Binding IsLoading}" />

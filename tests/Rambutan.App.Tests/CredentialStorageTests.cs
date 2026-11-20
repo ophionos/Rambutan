@@ -3,6 +3,7 @@ using Rambutan.App.Services;
 using Rambutan.App.ViewModels;
 using Rambutan.Core.Remote;
 using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.ListenBrainz;
 using Rambutan.Integrations.Linux;
 
 namespace Rambutan.App.Tests;
@@ -332,6 +333,24 @@ public sealed class CredentialStorageTests : IDisposable
         vault.Clear();
         Assert.Empty(_fake.Items);
         Assert.Null(vault.Load());
+    }
+
+    [Fact]
+    public void TheStationsListenBrainzToken_IsKeptApartFromTheScrobblingOne()
+    {
+        var scrobbling = new ListenBrainzTokenVault(_dir, Keyring);
+        var stations = ListenBrainzTokenVault.ForStations(_dir, Keyring);
+        scrobbling.Save(new ListenBrainzConnection(new Uri("https://koito.example.org/apis/listenbrainz/"), "relay-user", "RELAY"));
+        stations.Save(new ListenBrainzConnection(new Uri("https://api.listenbrainz.org/"), "lb-user", "LB"));
+
+        Assert.Equal("RELAY", scrobbling.Load()?.Token);
+        Assert.Equal("LB", stations.Load()?.Token);
+        Assert.Equal(["listenbrainz-stations-token", "listenbrainz-token"],
+            _fake.Items.Values.Select(i => i.Attributes["kind"]).Order(StringComparer.Ordinal));
+
+        stations.Clear();
+        Assert.Null(stations.Load());
+        Assert.Equal("RELAY", scrobbling.Load()?.Token);
     }
 
     [Fact]
