@@ -78,6 +78,7 @@ public sealed class SavedStationMatch
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(SavedStations))]
 [JsonSerializable(typeof(SavedStationMatches))]
+[JsonSerializable(typeof(SavedCreatedFor))]
 internal sealed partial class StationJsonContext : JsonSerializerContext;
 
 /// <summary>One station as last loaded.</summary>
@@ -158,7 +159,7 @@ public sealed class StationSnapshotStore(string dataDirectory)
         _ => null,
     };
 
-    private static SavedStationRow FromRow(StationRow row) => new()
+    internal static SavedStationRow FromRow(StationRow row) => new()
     {
         Artist = row.Source.Artist,
         Title = row.Source.Title,
@@ -175,7 +176,7 @@ public sealed class StationSnapshotStore(string dataDirectory)
 
     /// <summary>A row as saved; null when it has no artist or title. A row
     /// that says it plays but has no track to play reads as not found.</summary>
-    private static StationRow? ToRow(SavedStationRow r)
+    internal static StationRow? ToRow(SavedStationRow r)
     {
         if (string.IsNullOrEmpty(r.Artist) || string.IsNullOrEmpty(r.Title))
             return null;

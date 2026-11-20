@@ -1,4 +1,5 @@
 using System.Net;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using Rambutan.Core.Stations;
@@ -15,8 +16,11 @@ namespace Rambutan.Integrations.ListenBrainz;
 /// id, which a prompt takes without ambiguity. It translates, it doesn't decide:
 /// a refusal is <see cref="StationTokenRejectedException"/>, any other answer
 /// without a station <see cref="StationUnavailableException"/>.
+///
+/// It also reads the playlists ListenBrainz makes for a user. Those are public, so
+/// their requests carry no token, even when one is set.
 /// </summary>
-public sealed class ListenBrainzRadioClient : IArtistStationSource
+public sealed class ListenBrainzRadioClient : IArtistStationSource, ICreatedForSource
 {
     public static readonly Uri BaseUri = new("https://api.listenbrainz.org/");
 
@@ -41,6 +45,26 @@ public sealed class ListenBrainzRadioClient : IArtistStationSource
 
     public static Uri LookupUri(string artist, string title) =>
         new(BaseUri, $"1/metadata/lookup/?artist_name={Uri.EscapeDataString(artist)}&recording_name={Uri.EscapeDataString(title)}");
+
+    public static Uri CreatedForUri(string user) =>
+        new(BaseUri, $"1/user/{Uri.EscapeDataString(user)}/playlists/createdfor?count=100");
+
+    public static Uri PlaylistUri(string id) =>
+        new(BaseUri, $"1/playlist/{Uri.EscapeDataString(id)}");
+
+    public async Task<IReadOnlyList<CreatedForPlaylist>> GetCreatedForAsync(string user, CancellationToken ct = default) =>
+        ParseCreatedFor(await FetchCreatedForAsync(user, ct));
+
+    public async Task<IReadOnlyList<StationTrack>> GetPlaylistAsync(string id, CancellationToken ct = default) =>
+        ParsePlaylist(await FetchPlaylistAsync(id, ct));
+
+    /// <summary>The raw list of playlists made for the user, for the fixture recorder.</summary>
+    public Task<string> FetchCreatedForAsync(string user, CancellationToken ct = default) =>
+        GetAsync(CreatedForUri(user), null, ct);
+
+    /// <summary>A playlist's raw answer, for the fixture recorder.</summary>
+    public Task<string> FetchPlaylistAsync(string id, CancellationToken ct = default) =>
+        GetAsync(PlaylistUri(id), null, ct);
 
     public async Task<IReadOnlyList<StationTrack>> GetArtistStationAsync(ArtistSeed artist, CancellationToken ct = default) =>
         ParseRadio(await FetchRadioAsync(artist, ct));
@@ -74,7 +98,7 @@ public sealed class ListenBrainzRadioClient : IArtistStationSource
         return null;
     }
 
-    private async Task<string> GetAsync(Uri uri, string token, CancellationToken ct)
+    private async Task<string> GetAsync(Uri uri, string? token, CancellationToken ct)
     {
         string body;
         HttpStatusCode status;
@@ -84,7 +108,8 @@ public sealed class ListenBrainzRadioClient : IArtistStationSource
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-                request.Headers.Authorization = new AuthenticationHeaderValue("Token", token);
+                if (token is not null)
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Token", token);
                 using var response = await _http.SendAsync(request, timeout.Token);
                 status = response.StatusCode;
                 body = await response.Content.ReadAsStringAsync(timeout.Token);
@@ -148,22 +173,109 @@ public sealed class ListenBrainzRadioClient : IArtistStationSource
                 !playlist.TryGetProperty("track", out var items) || items.ValueKind != JsonValueKind.Array)
                 throw new StationUnavailableException("ListenBrainz answered without a playlist.");
 
-            var tracks = new List<StationTrack>(items.GetArrayLength());
+            return ReadTracks(items);
+        }
+    }
+
+    /// <summary>The tracks of a playlist answer, in order, by the radio's rules.</summary>
+    public static IReadOnlyList<StationTrack> ParsePlaylist(string body)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(body);
+        }
+        catch (JsonException ex)
+        {
+            throw new StationUnavailableException("ListenBrainz answered without a playlist.", ex);
+        }
+
+        using (doc)
+        {
+            if (!TryGetObject(doc.RootElement, "playlist", out var playlist) ||
+                !playlist.TryGetProperty("track", out var items) || items.ValueKind != JsonValueKind.Array)
+                throw new StationUnavailableException("ListenBrainz answered without a playlist.");
+            return ReadTracks(items);
+        }
+    }
+
+    /// <summary>
+    /// The playlists of the known kinds in a list answer. Its <c>expires_at</c>
+    /// sometimes has no offset; that is UTC. A playlist without a readable date or
+    /// of another kind (the yearly ones) is skipped.
+    /// </summary>
+    public static IReadOnlyList<CreatedForPlaylist> ParseCreatedFor(string body)
+    {
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(body);
+        }
+        catch (JsonException ex)
+        {
+            throw new StationUnavailableException("ListenBrainz answered without a list of playlists.", ex);
+        }
+
+        using (doc)
+        {
+            if (doc.RootElement.ValueKind != JsonValueKind.Object ||
+                !doc.RootElement.TryGetProperty("playlists", out var items) || items.ValueKind != JsonValueKind.Array)
+                throw new StationUnavailableException("ListenBrainz answered without a list of playlists.");
+
+            var result = new List<CreatedForPlaylist>();
             foreach (var item in items.EnumerateArray())
             {
-                if (item.ValueKind != JsonValueKind.Object ||
-                    String(item, "title") is not { } title ||
-                    String(item, "creator") is not { } creator)
+                if (!TryGetObject(item, "playlist", out var playlist) ||
+                    String(playlist, "identifier") is not { } identifier ||
+                    identifier.TrimEnd('/').Split('/')[^1] is not { Length: > 0 } id ||
+                    ParseDate(String(playlist, "date")) is not { } created ||
+                    !TryGetObject(playlist, "extension", out var extension) ||
+                    !TryGetObject(extension, "https://musicbrainz.org/doc/jspf#playlist", out var jspf) ||
+                    !TryGetObject(jspf, "additional_metadata", out var meta))
                     continue;
 
-                TimeSpan? duration = item.TryGetProperty("duration", out var d) && d.ValueKind == JsonValueKind.Number &&
-                                     d.TryGetInt64(out var ms) && ms > 0
-                    ? TimeSpan.FromMilliseconds(ms)
+                var source = TryGetObject(meta, "algorithm_metadata", out var algorithm)
+                    ? String(algorithm, "source_patch")
                     : null;
-                tracks.Add(new StationTrack(creator, title, duration));
+                CreatedForKind? kind = source switch
+                {
+                    "daily-jams" => CreatedForKind.DailyJams,
+                    "weekly-jams" => CreatedForKind.WeeklyJams,
+                    "weekly-exploration" => CreatedForKind.WeeklyExploration,
+                    _ => null,
+                };
+                if (kind is null)
+                    continue;
+
+                result.Add(new CreatedForPlaylist(kind.Value, id, created, ParseDate(String(meta, "expires_at"))));
             }
-            return tracks;
+            return result;
         }
+    }
+
+    private static DateTimeOffset? ParseDate(string? text) =>
+        text is not null && DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var date)
+            ? date
+            : null;
+
+    private static List<StationTrack> ReadTracks(JsonElement items)
+    {
+        var tracks = new List<StationTrack>(items.GetArrayLength());
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object ||
+                String(item, "title") is not { } title ||
+                String(item, "creator") is not { } creator)
+                continue;
+
+            TimeSpan? duration = item.TryGetProperty("duration", out var d) && d.ValueKind == JsonValueKind.Number &&
+                                 d.TryGetInt64(out var ms) && ms > 0
+                ? TimeSpan.FromMilliseconds(ms)
+                : null;
+            tracks.Add(new StationTrack(creator, title, duration));
+        }
+        return tracks;
     }
 
     /// <summary>
