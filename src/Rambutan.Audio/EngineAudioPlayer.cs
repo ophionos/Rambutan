@@ -287,7 +287,13 @@ public sealed class EngineAudioPlayer : IAudioPlayer, IDisposable
                 _engine.DeviceRecovered += name =>
                     Task.Run(() => EventRaised?.Invoke(new DeviceChangedEvent(name)));
                 _engine.DeviceLost += () =>
+                {
+                    // The device is dead: the next play starts the engine again,
+                    // which opens one anew.
+                    lock (_sync)
+                        _deviceStarted = false;
                     Task.Run(() => EventRaised?.Invoke(new DeviceLostEvent()));
+                };
             }
             return _engine;
         }

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Rambutan.Core.Diagnostics;
 using SoundFlow.Abstracts;
 using SoundFlow.Abstracts.Devices;
@@ -18,19 +19,27 @@ namespace Rambutan.Audio;
 /// while it is present. If the device stops outside our control (unplugged,
 /// backend error), recovery opens again by the same rule and moves the pull
 /// graph over — the mixer and ring buffers never notice, so playback resumes
-/// where it stalled.
+/// where it stalled. SoundFlow doesn't report such a stop, so it is noticed by
+/// the device no longer pulling (<see cref="OutputStallWatch"/>).
 /// </summary>
 public sealed class PlaybackEngine : IDisposable
 {
     private const int RecoveryAttempts = 3;
     private static readonly TimeSpan RecoveryDelay = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan StallCheckPeriod = TimeSpan.FromMilliseconds(500);
 
     private readonly AudioEngine _engine;
     private readonly object _deviceLock = new();
     private AudioPlaybackDevice _device;
     private readonly PullComponent _pull;
+    private readonly OutputStallWatch _stall = new();
+    private readonly Timer _stallTimer;
+    private readonly long _origin = Stopwatch.GetTimestamp();
     private string? _preferred;
     private bool _started;
+    // The output was given up on (DeviceLost): the device is dead, so the next
+    // Start opens one anew rather than starting it.
+    private bool _lost;
     private volatile bool _idleStopped;
     private volatile bool _closing;
     private int _recovering;
@@ -57,6 +66,7 @@ public sealed class PlaybackEngine : IDisposable
         _device = Open(devices);
         _device.MasterMixer.AddComponent(_pull);
         _engine.DeviceStopped += OnDeviceStopped;
+        _stallTimer = new Timer(_ => CheckForStall(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         AppLog.Write("audio", $"output device: {Describe()} ({devices.Length} available)");
     }
 
@@ -94,8 +104,56 @@ public sealed class PlaybackEngine : IDisposable
             // A device that died under us may refuse to stop; it is let go either way.
             AppLog.Write("audio", $"closing the old output: {ex.Message}");
         }
+        _lost = false;
         if (_started)
+        {
             next.Start();
+            Watch();
+        }
+    }
+
+    /// <summary>Starts watching the running device for silence. Under <see cref="_deviceLock"/>.</summary>
+    private void Watch()
+    {
+        _stall.Started(Now());
+        _stallTimer.Change(StallCheckPeriod, StallCheckPeriod);
+    }
+
+    private TimeSpan Now() => Stopwatch.GetElapsedTime(_origin);
+
+    /// <summary>On a timer thread while the device runs.</summary>
+    private void CheckForStall()
+    {
+        OutputStallVerdict verdict;
+        lock (_deviceLock)
+        {
+            // A recovery under way restarts the watch when it opens a device.
+            if (_closing || !_started || Volatile.Read(ref _recovering) == 1)
+                return;
+            verdict = _stall.Check(Now(), _pull.LastPull is var at and not 0
+                ? Stopwatch.GetElapsedTime(_origin, at)
+                : null);
+            if (verdict == OutputStallVerdict.GiveUp)
+            {
+                _lost = true;
+                _stallTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            }
+        }
+
+        switch (verdict)
+        {
+            case OutputStallVerdict.Reopen:
+                // Following the default, DeviceName is the default when it opened,
+                // which the OS may have moved the stream away from since.
+                AppLog.Write("audio", $"output stalled: {(FollowsDefault ? "the system default" : DeviceName)} " +
+                    "stopped asking for audio; opening the output again");
+                BeginRecovery();
+                break;
+            case OutputStallVerdict.GiveUp:
+                AppLog.Write("audio", "output stalled again after reopening; the output is lost");
+                DeviceLost?.Invoke();
+                break;
+        }
     }
 
     private string Describe() => FollowsDefault ? $"system default, now {DeviceName}" : DeviceName;
@@ -146,9 +204,9 @@ public sealed class PlaybackEngine : IDisposable
         DeviceName.Contains("null", StringComparison.OrdinalIgnoreCase) ||
         DeviceName.StartsWith("Discard all samples", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Starts the output, or starts it again after <see cref="Stop"/>.
-    /// A device that went away while stopped is replaced by the usual rule; throws
-    /// when no device can be opened.</summary>
+    /// <summary>Starts the output, or starts it again after <see cref="Stop"/>
+    /// or after the output was lost. A device that went away meanwhile is replaced
+    /// by the usual rule; throws when no device can be opened.</summary>
     public void Start()
     {
         lock (_deviceLock)
@@ -156,20 +214,36 @@ public sealed class PlaybackEngine : IDisposable
             var restarting = _idleStopped;
             _idleStopped = false;
             _started = true;
+            if (_lost)
+            {
+                AppLog.Write("audio", "starting after the output was lost; opening it anew");
+                OpenAnew(null);
+                return;
+            }
             try
             {
+                // SoundFlow ignores miniaudio's result here: starting a device that
+                // went away while stopped seldom throws, it just never pulls, and
+                // the stall watch reopens it.
                 _device.Start();
+                Watch();
             }
             catch (Exception ex) when (restarting)
             {
                 AppLog.Write("audio", $"starting the output again: {ex.Message}; opening it anew");
-                _engine.UpdateAudioDevicesInfo();
-                var devices = _engine.PlaybackDevices;
-                if (devices.Length == 0)
-                    throw new InvalidOperationException("No playback devices available.", ex);
-                MoveTo(Open(devices));
+                OpenAnew(ex);
             }
         }
+    }
+
+    /// <summary>Under <see cref="_deviceLock"/>; throws when no device can be opened.</summary>
+    private void OpenAnew(Exception? cause)
+    {
+        _engine.UpdateAudioDevicesInfo();
+        var devices = _engine.PlaybackDevices;
+        if (devices.Length == 0)
+            throw new InvalidOperationException("No playback devices available.", cause);
+        MoveTo(Open(devices));
     }
 
     /// <summary>Stops the output while there is nothing to play; <see cref="Start"/>
@@ -183,6 +257,8 @@ public sealed class PlaybackEngine : IDisposable
             // Set first: the backend reports the stop through DeviceStopped.
             _idleStopped = true;
             _started = false;
+            _stall.Stopped();
+            _stallTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             try
             {
                 _device.Stop();
@@ -200,6 +276,11 @@ public sealed class PlaybackEngine : IDisposable
     {
         if (_closing || _idleStopped || !ReferenceEquals(e.Device, _device))
             return;
+        BeginRecovery();
+    }
+
+    private void BeginRecovery()
+    {
         if (Interlocked.Exchange(ref _recovering, 1) == 1)
             return;
         _ = Task.Run(RecoverDevice);
@@ -238,8 +319,14 @@ public sealed class PlaybackEngine : IDisposable
                 }
             }
 
-            if (!_closing)
-                DeviceLost?.Invoke();
+            if (_closing)
+                return;
+            lock (_deviceLock)
+            {
+                _lost = true;
+                _stallTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            }
+            DeviceLost?.Invoke();
         }
         finally
         {
@@ -251,6 +338,7 @@ public sealed class PlaybackEngine : IDisposable
     {
         _closing = true;
         _engine.DeviceStopped -= OnDeviceStopped;
+        _stallTimer.Dispose();
         lock (_deviceLock)
         {
             _device.MasterMixer.RemoveComponent(_pull);
@@ -266,9 +354,14 @@ public sealed class PlaybackEngine : IDisposable
         : SoundComponent(engine, format)
     {
         private readonly int _sampleRate = format.SampleRate;
-        private readonly System.Diagnostics.Stopwatch _clock = new();
+        private readonly Stopwatch _clock = new();
         private long _framesSincePaceStart;
         private volatile bool _paced;
+        private long _lastPull;
+
+        /// <summary>The <see cref="Stopwatch"/> timestamp of the
+        /// device's latest pull; 0 before the first.</summary>
+        public long LastPull => Volatile.Read(ref _lastPull);
 
         public override string Name { get; set; } = "RambutanMixer";
 
@@ -293,6 +386,7 @@ public sealed class PlaybackEngine : IDisposable
 
         protected override void GenerateAudio(Span<float> buffer, int channels)
         {
+            Volatile.Write(ref _lastPull, Stopwatch.GetTimestamp());
             mixer.Mix(buffer);
             equalizer.Process(buffer);
             analyzer.Feed(buffer);
