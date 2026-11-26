@@ -181,11 +181,37 @@ public partial class SettingsPageViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(LastFmShowDisconnect), nameof(LastFmRecording))]
     private bool _lastFmSessionEnded;
 
+    /// <summary>Which key the scrobbler signs with: the user's own, the build's, or none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LastFmCanConnect), nameof(LastFmOwnKey), nameof(LastFmKeyStatus))]
+    private LastFmKeySource _lastFmKeySource;
+
+    /// <summary>The user's own key and secret as typed; cleared once in use.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LastFmCanUseKey))]
+    private string _lastFmKeyInput = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LastFmCanUseKey))]
+    private string _lastFmSecretInput = "";
+
     public static string LastFmUnavailableText => Strings.Get("settings.lastfm.unavailable");
 
     public bool LastFmAvailable => _lastFm is not null;
-    public bool LastFmCanConnect => _lastFm is not null && LastFmConnection == LastFmConnection.Disconnected;
-    /// <summary>Connect shows whenever there's nothing else to do, disabled in a build without keys.</summary>
+    public bool LastFmCanConnect => _lastFm is not null && LastFmConnection == LastFmConnection.Disconnected
+        && LastFmKeySource != LastFmKeySource.None;
+    public bool LastFmOwnKey => LastFmKeySource == LastFmKeySource.Own;
+    public bool LastFmCanUseKey => _lastFm is not null && !LastFmBusy
+        && LastFmApiKey.From(LastFmKeyInput, LastFmSecretInput) is not null;
+
+    public string LastFmKeyStatus => LastFmKeySource switch
+    {
+        LastFmKeySource.Own => Strings.Get("settings.lastfm.key.own"),
+        LastFmKeySource.BuiltIn => Strings.Get("settings.lastfm.key.builtIn"),
+        _ => Strings.Get("settings.lastfm.key.none"),
+    };
+
+    /// <summary>Connect shows whenever there's nothing else to do, disabled while there is no key.</summary>
     public bool LastFmShowConnect => LastFmConnection == LastFmConnection.Disconnected;
     public bool LastFmAwaiting => LastFmConnection == LastFmConnection.AwaitingApproval;
     public bool LastFmConnected => LastFmConnection == LastFmConnection.Connected;
@@ -393,13 +419,17 @@ public partial class SettingsPageViewModel : ViewModelBase
         // Mid-request, the "Contacting…" line stands until the request answers.
         if (_lastFm is null || LastFmBusy)
             return;
+        LastFmKeySource = _lastFm.KeySource;
         LastFmConnection = _lastFm.Connection;
         LastFmSessionEnded = _lastFm.SessionEnded;
         LastFmStatus = LastFmConnection switch
         {
             LastFmConnection.Connected => Strings.Format("settings.lastfm.status.connected", ("user", _lastFm.Username)),
             LastFmConnection.AwaitingApproval => Strings.Get("settings.lastfm.status.awaiting"),
+            // The user's own key change ended it, not Last.fm.
+            _ when _lastFm.Notice == Integrations.LastFm.LastFmNotice.KeyChanged => Strings.Get("settings.lastfm.status.notConnected"),
             _ when LastFmSessionEnded => Strings.Get("settings.lastfm.status.ended"),
+            _ when LastFmKeySource == LastFmKeySource.None => Strings.Get("settings.lastfm.status.needsKey"),
             _ => Strings.Get("settings.lastfm.status.notConnected"),
         };
         if (LastFmConnection != LastFmConnection.AwaitingApproval)
@@ -412,6 +442,32 @@ public partial class SettingsPageViewModel : ViewModelBase
         LastFmPending = pending == 0
             ? ""
             : Strings.Format(LastFmRecording ? "settings.lastfm.pendingConnected" : "settings.lastfm.pending", ("count", pending));
+    }
+
+    partial void OnLastFmBusyChanged(bool value) => OnPropertyChanged(nameof(LastFmCanUseKey));
+
+    /// <summary>Signs with the key typed in from now on. A connection made with
+    /// another key ends; the plays waiting are kept for the next connection.</summary>
+    [RelayCommand]
+    private async Task UseLastFmKeyAsync()
+    {
+        if (_lastFm is null || LastFmBusy || LastFmApiKey.From(LastFmKeyInput, LastFmSecretInput) is not { } key)
+            return;
+        await _lastFm.UseKeyAsync(key);
+        // The vault has it now; the fields shouldn't keep the secret on screen.
+        LastFmKeyInput = "";
+        LastFmSecretInput = "";
+        RefreshLastFm();
+    }
+
+    /// <summary>Forgets the user's key and signs with the build's again, if it has one.</summary>
+    [RelayCommand]
+    private async Task RemoveLastFmKeyAsync()
+    {
+        if (_lastFm is null || LastFmBusy)
+            return;
+        await _lastFm.UseKeyAsync(null);
+        RefreshLastFm();
     }
 
     [RelayCommand]

@@ -15,15 +15,23 @@ public sealed class LastFmScrobblerTests : IDisposable
     private readonly ManualClock _clock = new(T0);
     private readonly FakeLastFmHandler _handler = new();
     private readonly MemorySessionStore _sessions = new();
+    private readonly MemoryKeyStore _keys = new();
     private readonly ScrobbleQueue _queue;
     private readonly LastFmScrobbler _scrobbler;
 
     public LastFmScrobblerTests()
     {
         _queue = new ScrobbleQueue(_dir.Path);
-        _scrobbler = new LastFmScrobbler(
-            new LastFmClient("k", "s", new HttpClient(_handler)), _queue, _sessions, _clock);
+        _scrobbler = Make(_queue, _sessions, _clock);
     }
+
+    private static readonly LastFmApiKey BuiltIn = new("k", "s");
+
+    private LastFmScrobbler Make(
+        ScrobbleQueue queue, ILastFmSessionStore sessions, TimeProvider clock,
+        ILastFmKeyStore? keys = null, bool withoutBuiltIn = false) =>
+        new(withoutBuiltIn ? null : BuiltIn, keys ?? _keys, k => new LastFmClient(k.Key, k.Secret, new HttpClient(_handler)),
+            queue, sessions, clock);
 
     public void Dispose()
     {
@@ -218,9 +226,7 @@ public sealed class LastFmScrobblerTests : IDisposable
         var clock = new ManualClock(T0, runsTimers: true);
         using var dir = new TempDir();
         var queue = new ScrobbleQueue(dir.Path);
-        using var scrobbler = new LastFmScrobbler(
-            new LastFmClient("k", "s", new HttpClient(_handler)), queue,
-            new MemorySessionStore { Saved = Session }, clock);
+        using var scrobbler = Make(queue, new MemorySessionStore { Saved = Session }, clock);
         new ScrobbleQueue(dir.Path).Enqueue(Tracks.Entry("T0", 1_700_000_000));
 
         _handler.EnqueueError("track.scrobble", 11, System.Net.HttpStatusCode.ServiceUnavailable);
@@ -341,6 +347,116 @@ public sealed class LastFmScrobblerTests : IDisposable
         Assert.Equal(LastFmNotice.KeyRefused, _scrobbler.Notice);
     }
 
+    private static readonly LastFmApiKey Own = new("own-key", "own-secret");
+
+    [Fact]
+    public async Task TheUsersOwnKey_SignsEveryCall_AndOutlastsARestart()
+    {
+        _scrobbler.Start();
+        await _scrobbler.UseKeyAsync(Own);
+
+        Assert.Equal(LastFmKeySource.Own, _scrobbler.KeySource);
+        Assert.Equal(Own, _keys.Saved);
+        var url = await _scrobbler.BeginConnectAsync();
+        Assert.Contains("api_key=own-key", url);
+        Assert.Equal("own-key", _handler.Calls("auth.getToken").Single().Form["api_key"]);
+
+        using var restarted = Make(new ScrobbleQueue(_dir.Path), new MemorySessionStore(), _clock);
+        Assert.Equal(LastFmKeySource.BuiltIn, restarted.KeySource);    // until Start reads the store
+        restarted.Start();
+        await restarted.WhenIdleAsync();
+        Assert.Equal(LastFmKeySource.Own, restarted.KeySource);
+    }
+
+    [Fact]
+    public async Task ChangingTheKey_EndsTheSession_KeepsThePlays_AndSendsThemWithTheNewKey()
+    {
+        // The build's key stops working (no Pro on its account): plays pile up.
+        _handler.EnqueueError("track.scrobble", 26, System.Net.HttpStatusCode.Forbidden);
+        await StartConnectedAsync();
+        Play(Tracks.Make(duration: TimeSpan.FromMinutes(3)), 90);
+        await _scrobbler.WhenIdleAsync();
+        Assert.Equal(LastFmNotice.KeyRefused, _scrobbler.Notice);
+
+        await _scrobbler.UseKeyAsync(Own);
+
+        Assert.Equal(LastFmConnection.Disconnected, _scrobbler.Connection);
+        Assert.Equal(LastFmNotice.KeyChanged, _scrobbler.Notice);
+        Assert.True(_scrobbler.SessionEnded);
+        Assert.Null(_sessions.Saved);
+        Assert.Equal(1, _scrobbler.PendingCount);
+
+        // Still recorded while disconnected, as after Last.fm ends a session.
+        _scrobbler.OnStateChanged(PlaybackState.Playing);
+        var second = Tracks.Make("Get Lucky", TimeSpan.FromMinutes(3));
+        _scrobbler.OnNowPlayingChanged(second);
+        for (var i = 0; i <= 90; i++)
+        {
+            _scrobbler.OnProgress(TimeSpan.FromSeconds(i), second.Duration);
+            _clock.Advance(TimeSpan.FromSeconds(1));
+        }
+        await _scrobbler.WhenIdleAsync();
+        Assert.Equal(2, _scrobbler.PendingCount);
+
+        await _scrobbler.BeginConnectAsync();
+        await _scrobbler.FinishConnectAsync();
+
+        Assert.Equal(LastFmConnection.Connected, _scrobbler.Connection);
+        Assert.Null(_scrobbler.Notice);
+        Assert.Equal(0, _scrobbler.PendingCount);
+        Assert.Equal("own-key", _handler.Calls("track.scrobble").Last().Form["api_key"]);
+    }
+
+    [Fact]
+    public async Task TheSameKeyAgain_KeepsTheConnection()
+    {
+        _scrobbler.Start();
+        await _scrobbler.UseKeyAsync(Own);
+        await _scrobbler.BeginConnectAsync();
+        await _scrobbler.FinishConnectAsync();
+
+        await _scrobbler.UseKeyAsync(new LastFmApiKey("own-key", "own-secret"));
+
+        Assert.Equal(LastFmConnection.Connected, _scrobbler.Connection);
+        Assert.NotNull(_sessions.Saved);
+    }
+
+    [Fact]
+    public async Task RemovingTheOwnKey_GoesBackToTheBuildsKey()
+    {
+        _scrobbler.Start();
+        await _scrobbler.UseKeyAsync(Own);
+        await _scrobbler.UseKeyAsync(null);
+
+        Assert.Equal(LastFmKeySource.BuiltIn, _scrobbler.KeySource);
+        Assert.Null(_keys.Saved);
+        await _scrobbler.BeginConnectAsync();
+        Assert.Equal("k", _handler.Calls("auth.getToken").Single().Form["api_key"]);
+    }
+
+    [Fact]
+    public async Task WithNoKeyAtAll_ConnectingSendsNothing_UntilTheUserEntersOne()
+    {
+        using var keyless = Make(new ScrobbleQueue(_dir.Path), new MemorySessionStore(), _clock, withoutBuiltIn: true);
+        keyless.Start();
+
+        Assert.Null(await keyless.BeginConnectAsync());
+        Assert.Equal(LastFmKeySource.None, keyless.KeySource);
+        Assert.Empty(_handler.Requests);
+
+        await keyless.UseKeyAsync(Own);
+        Assert.NotNull(await keyless.BeginConnectAsync());
+        Assert.Equal("own-key", _handler.Calls("auth.getToken").Single().Form["api_key"]);
+    }
+
+    [Fact]
+    public void AKey_IsTrimmed_AndNeedsBothHalves()
+    {
+        Assert.Equal(Own, LastFmApiKey.From("  own-key ", "own-secret\n"));
+        Assert.Null(LastFmApiKey.From("own-key", " "));
+        Assert.Null(LastFmApiKey.From(null, "own-secret"));
+    }
+
     [Fact]
     public async Task Finishing_BeforeApproval_KeepsWaiting()
     {
@@ -436,8 +552,7 @@ public sealed class LastFmScrobblerTests : IDisposable
         Play(Tracks.Make(duration: TimeSpan.FromMinutes(3)), 90);
         await _scrobbler.WhenIdleAsync();
 
-        using var restarted = new LastFmScrobbler(
-            new LastFmClient("k", "s", new HttpClient(_handler)), new ScrobbleQueue(_dir.Path), _sessions, _clock);
+        using var restarted = Make(new ScrobbleQueue(_dir.Path), _sessions, _clock);
         restarted.Start();
         await restarted.WhenIdleAsync();
 

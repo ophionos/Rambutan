@@ -87,6 +87,17 @@ internal sealed class FakeLastFmHandler : HttpMessageHandler
     };
 }
 
+internal sealed class MemoryKeyStore : ILastFmKeyStore
+{
+    public LastFmApiKey? Saved { get; set; }
+
+    public LastFmApiKey? Load() => Saved;
+
+    public void Save(LastFmApiKey key) => Saved = key;
+
+    public void Clear() => Saved = null;
+}
+
 internal sealed class MemorySessionStore : ILastFmSessionStore
 {
     public LastFmSession? Saved { get; set; }

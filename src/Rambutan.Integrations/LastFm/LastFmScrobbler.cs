@@ -30,12 +30,16 @@ public enum LastFmNotice
     ConnectUnreachable,
     /// <summary>Connecting was rate-limited.</summary>
     ConnectRateLimited,
-    /// <summary>Connecting failed because Last.fm refused this build's API key.</summary>
+    /// <summary>Connecting failed because Last.fm refused the API key in use.</summary>
     ConnectKeyRefused,
     /// <summary>Connecting failed for another reason Last.fm gave.</summary>
     ConnectRefused,
     /// <summary>Scrobbling hit a refused API key; scrobbles are kept.</summary>
     KeyRefused,
+    /// <summary>The user changed the API key, which ended the session made with
+    /// the old one. Plays are kept and still recorded until the user connects
+    /// again or disconnects, as after <see cref="SessionEnded"/>.</summary>
+    KeyChanged,
     /// <summary>Last.fm revoked the session. Scrobbles not yet sent are kept, and
     /// plays are still recorded until the user connects again or disconnects.</summary>
     SessionEnded,
@@ -64,7 +68,9 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
     public static readonly TimeSpan FirstRateLimitDelay = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan MaxRetryDelay = TimeSpan.FromMinutes(30);
 
-    private readonly LastFmClient _client;
+    private readonly LastFmApiKey? _builtInKey;
+    private readonly ILastFmKeyStore _keys;
+    private readonly Func<LastFmApiKey, LastFmClient> _clients;
     private readonly ScrobbleQueue _queue;
     private readonly ILastFmSessionStore _sessions;
     private readonly TimeProvider _clock;
@@ -77,6 +83,8 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
     private readonly Task _pump;
 
     // Worker-owned.
+    private LastFmClient? _client;
+    private LastFmApiKey? _ownKey;
     private LastFmSession? _session;
     private string? _pendingToken;
     private TimeSpan _retryDelay;
@@ -88,13 +96,23 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
     // Read from any thread (the settings page), written by the worker.
     private LastFmConnection _connection;
     private LastFmNotice? _notice;
+    private LastFmKeySource _keySource;
 
     private volatile bool _scrobblingEnabled = true;
 
+    /// <param name="builtInKey">The build's own key, used while the user has entered
+    /// none (maintainer, 2026-11-26); null in a build without one.</param>
+    /// <param name="keys">The user's own key, loaded by <see cref="Start"/>.</param>
+    /// <param name="clients">Makes the client that signs with a key.</param>
     public LastFmScrobbler(
-        LastFmClient client, ScrobbleQueue queue, ILastFmSessionStore sessions, TimeProvider? clock = null)
+        LastFmApiKey? builtInKey, ILastFmKeyStore keys, Func<LastFmApiKey, LastFmClient> clients,
+        ScrobbleQueue queue, ILastFmSessionStore sessions, TimeProvider? clock = null)
     {
-        _client = client;
+        _builtInKey = builtInKey;
+        _keys = keys;
+        _clients = clients;
+        _client = builtInKey is null ? null : clients(builtInKey);
+        _keySource = builtInKey is null ? LastFmKeySource.None : LastFmKeySource.BuiltIn;
         _queue = queue;
         _sessions = sessions;
         _clock = clock ?? TimeProvider.System;
@@ -144,6 +162,17 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
         }
     }
 
+    /// <summary>Which key calls are signed with: the user's own once
+    /// <see cref="Start"/> has loaded it, else the build's.</summary>
+    public LastFmKeySource KeySource
+    {
+        get
+        {
+            lock (_stateSync)
+                return _keySource;
+        }
+    }
+
     public int PendingCount => _queue.Count;
 
     /// <summary>
@@ -154,9 +183,12 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
     /// </summary>
     public bool SessionEnded => _queue.SessionEnded;
 
-    /// <summary>Loads the saved session and queue, then sends whatever is waiting.</summary>
+    /// <summary>Loads the user's key, the saved session and the queue, then sends
+    /// whatever is waiting.</summary>
     public void Start() => Post(async () =>
     {
+        if (_keys.Load() is { } own)
+            SwitchClient(own);
         _queue.Load();
         if (_sessions.Load() is { } saved)
         {
@@ -182,7 +214,10 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
     /// </summary>
     public Task<string?> BeginConnectAsync() => Run(async () =>
     {
-        var token = await _client.GetTokenAsync(_cts.Token);
+        // No key at all: Settings asks for one and offers no Connect.
+        if (_client is not { } client)
+            return null;
+        var token = await client.GetTokenAsync(_cts.Token);
         if (!token.IsOk)
         {
             AppLog.Write("lastfm", $"auth.getToken: {token}");
@@ -192,7 +227,7 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
 
         _pendingToken = token.Value;
         SetState(LastFmConnection.AwaitingApproval, null);
-        return _client.AuthorizeUrl(token.Value!);
+        return client.AuthorizeUrl(token.Value!);
     });
 
     /// <summary>
@@ -201,10 +236,10 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
     /// </summary>
     public Task FinishConnectAsync() => Run(async () =>
     {
-        if (_pendingToken is not { } token)
+        if (_pendingToken is not { } token || _client is not { } client)
             return true;
 
-        var result = await _client.GetSessionAsync(token, _cts.Token);
+        var result = await client.GetSessionAsync(token, _cts.Token);
         switch (result.Outcome)
         {
             case LastFmOutcome.Ok:
@@ -257,6 +292,54 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
         SetState(LastFmConnection.Disconnected, null);
         return Task.FromResult(true);
     });
+
+    /// <summary>
+    /// Signs calls with the user's own key from now on, or, given null, with the
+    /// build's again, and saves the choice. A session belongs to the key that
+    /// made it, so a change ends it; the plays waiting are kept and still
+    /// recorded until the user connects again or disconnects (maintainer,
+    /// 2026-11-26). The same key again changes nothing.
+    /// </summary>
+    public Task UseKeyAsync(LastFmApiKey? own) => Run(() =>
+    {
+        if (own == _ownKey)
+            return Task.FromResult(true);
+        if (own is null)
+            _keys.Clear();
+        else
+            _keys.Save(own);
+        SwitchClient(own);
+
+        _pendingToken = null;
+        _misconfigured = false;
+        _oneAtATime = 0;
+        ResetBackoff();
+        if (_session is not null || _queue.SessionEnded)
+        {
+            _session = null;
+            _sessions.Clear();
+            _queue.SessionEnded = true;
+            AppLog.Write("lastfm", "The API key changed; the session ended. Plays are kept until the user connects again or disconnects.");
+            SetState(LastFmConnection.Disconnected, LastFmNotice.KeyChanged);
+        }
+        else
+        {
+            SetState(LastFmConnection.Disconnected, null);
+        }
+        return Task.FromResult(true);
+    });
+
+    /// <summary>The user's key, else the build's, else none. Worker only.</summary>
+    private void SwitchClient(LastFmApiKey? own)
+    {
+        _ownKey = own;
+        var key = own ?? _builtInKey;
+        _client = key is null ? null : _clients(key);
+        lock (_stateSync)
+            _keySource = own is not null ? LastFmKeySource.Own
+                : _builtInKey is not null ? LastFmKeySource.BuiltIn
+                : LastFmKeySource.None;
+    }
 
     /// <summary>Completes once everything posted so far has run (for tests and shutdown).</summary>
     public Task WhenIdleAsync() => Run(() => Task.FromResult(true));
@@ -316,10 +399,10 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
 
     private async Task SendNowPlayingAsync(ScrobbleEntry entry)
     {
-        if (_session is not { } session || _misconfigured || InBackoff())
+        if (_session is not { } session || _client is not { } client || _misconfigured || InBackoff())
             return;
 
-        var result = await _client.UpdateNowPlayingAsync(session.Key, entry, _cts.Token);
+        var result = await client.UpdateNowPlayingAsync(session.Key, entry, _cts.Token);
         if (result.IsOk)
             return;
 
@@ -330,13 +413,13 @@ public sealed class LastFmScrobbler : IPlaybackListener, IDisposable
 
     private async Task DrainAsync()
     {
-        while (_session is { } session && !_misconfigured && !InBackoff())
+        while (_session is { } session && _client is { } client && !_misconfigured && !InBackoff())
         {
             var batch = _queue.Peek(_oneAtATime > 0 ? 1 : LastFmClient.MaxBatch);
             if (batch.Count == 0)
                 return;
 
-            var result = await _client.ScrobbleAsync(session.Key, batch, _cts.Token);
+            var result = await client.ScrobbleAsync(session.Key, batch, _cts.Token);
             switch (result.Outcome)
             {
                 case LastFmOutcome.Ok:

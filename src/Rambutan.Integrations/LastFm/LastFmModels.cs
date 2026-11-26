@@ -4,6 +4,27 @@ namespace Rambutan.Integrations.LastFm;
 
 public sealed record LastFmSession(string Username, string Key);
 
+/// <summary>
+/// A Last.fm API account's key and shared secret: the one built into a release,
+/// or one the user created. From 2026-12-01 Last.fm answers a key only while
+/// the account that created it has Last.fm Pro.
+/// </summary>
+public sealed record LastFmApiKey(string Key, string Secret)
+{
+    /// <summary>The key and secret as entered, trimmed; null when either is empty.</summary>
+    public static LastFmApiKey? From(string? key, string? secret) =>
+        key?.Trim() is { Length: > 0 } k && secret?.Trim() is { Length: > 0 } s ? new LastFmApiKey(k, s) : null;
+}
+
+/// <summary>Which API key the scrobbler signs its calls with.</summary>
+public enum LastFmKeySource
+{
+    /// <summary>The build has no key and the user entered none: connecting can't work.</summary>
+    None,
+    BuiltIn,
+    Own,
+}
+
 /// <summary>What a call's result means for the caller.</summary>
 public enum LastFmOutcome
 {
@@ -25,8 +46,9 @@ public enum LastFmOutcome
     TokenExpired,
 
     /// <summary>
-    /// Errors 10, 13 and 26: this build's API key or signing is wrong, not the
-    /// data. Nothing is dropped, and nothing will succeed until a fixed build runs.
+    /// Errors 10, 13 and 26: the API key or signing is refused, not the data
+    /// (a key whose account has no Pro, since 2026-12-01). Nothing is dropped,
+    /// and nothing will succeed until another key or a fixed build is used.
     /// </summary>
     ClientMisconfigured,
 

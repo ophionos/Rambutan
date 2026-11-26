@@ -154,7 +154,8 @@ file sink), never to files directly.
   split where the two heights are nearest, and Tab follows that order. The
   section list marks the section in view (`Core/Layout/SectionInView`; in
   two columns, the first in order that is in view).
-- Credentials: `App/Services/CookieVault.cs`, `LastFmSessionVault.cs` and
+- Credentials: `App/Services/CookieVault.cs`, `LastFmSessionVault.cs`,
+  `LastFmKeyVault.cs` (the user's own Last.fm API key and secret) and
   `RemoteTokenVault.cs` (the phone remote's pairing), all through `StoredCredential`: DPAPI on Windows; on Linux the Secret Service
   (`Integrations/Linux/SecretServiceStore`, D-Bus via Tmds.DBus.Protocol, no
   native libsecret), items keyed by the data folder. **With no keyring running,

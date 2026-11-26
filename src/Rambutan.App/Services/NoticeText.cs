@@ -45,6 +45,7 @@ public static class NoticeText
         LastFmNotice.ConnectKeyRefused => Strings.Get("settings.lastfm.notice.connectKeyRefused"),
         LastFmNotice.ConnectRefused => Strings.Get("settings.lastfm.notice.connectRefused"),
         LastFmNotice.KeyRefused => Strings.Get("settings.lastfm.notice.keyRefused"),
+        LastFmNotice.KeyChanged => Strings.Get("settings.lastfm.notice.keyChanged"),
         LastFmNotice.SessionEnded => Strings.Get("settings.lastfm.notice.sessionEnded"),
         LastFmNotice.SlowedDown => Strings.Get("settings.lastfm.notice.slowedDown"),
         LastFmNotice.Unreachable => Strings.Get("settings.lastfm.notice.unreachable"),

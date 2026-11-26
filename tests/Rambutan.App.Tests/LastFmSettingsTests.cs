@@ -42,10 +42,12 @@ public sealed class LastFmSettingsTests : IDisposable
         }
     }
 
-    private LastFmScrobbler Scrobbler(ILastFmSessionStore? sessions = null)
+    private LastFmScrobbler Scrobbler(ILastFmSessionStore? sessions = null, bool withoutBuiltIn = false)
     {
         var scrobbler = new LastFmScrobbler(
-            new LastFmClient("key", "secret", new HttpClient(new StubLastFm())),
+            withoutBuiltIn ? null : new LastFmApiKey("key", "secret"),
+            new LastFmKeyVault(_dir),
+            static k => new LastFmClient(k.Key, k.Secret, new HttpClient(new StubLastFm())),
             new ScrobbleQueue(_dir),
             sessions ?? new LastFmSessionVault(_dir));
         scrobbler.Start();
@@ -224,6 +226,128 @@ public sealed class LastFmSettingsTests : IDisposable
         Assert.Contains("Disconnect", names);
         Assert.Contains("Scrobble what I play", names);
         Assert.DoesNotContain("Connect", names);
+    }
+
+    [Fact]
+    public async Task WithNoKeyInTheBuild_ConnectWaitsForTheUsersOwnKey()
+    {
+        using var scrobbler = Scrobbler(withoutBuiltIn: true);
+        await scrobbler.WhenIdleAsync();
+        string? opened = null;
+        var page = Page(scrobbler, openUrl: url =>
+        {
+            opened = url;
+            return Task.FromResult(true);
+        });
+
+        Assert.False(page.LastFmCanConnect);
+        Assert.Equal("Not connected: enter an API key below to connect", page.LastFmStatus);
+        Assert.Equal("This build has no Last.fm API key. Enter your own to connect.", page.LastFmKeyStatus);
+        Assert.False(page.LastFmCanUseKey);
+
+        page.LastFmKeyInput = " mine ";
+        Assert.False(page.LastFmCanUseKey);   // the secret is still missing
+        page.LastFmSecretInput = "my-secret";
+        Assert.True(page.LastFmCanUseKey);
+
+        await page.UseLastFmKeyCommand.ExecuteAsync(null);
+
+        Assert.Equal("", page.LastFmKeyInput);
+        Assert.Equal("", page.LastFmSecretInput);
+        Assert.True(page.LastFmOwnKey);
+        Assert.True(page.LastFmCanConnect);
+        Assert.Equal(new LastFmApiKey("mine", "my-secret"), new LastFmKeyVault(_dir).Load());
+
+        await page.ConnectLastFmCommand.ExecuteAsync(null);
+        Assert.Equal("https://www.last.fm/api/auth/?api_key=mine&token=tok", opened);
+    }
+
+    [Fact]
+    public async Task AnotherKey_WhileConnected_EndsTheConnection_KeepsRecording_AndSaysWhy()
+    {
+        new LastFmSessionVault(_dir).Save(new LastFmSession("DemoListener", "SK"));
+        using var scrobbler = Scrobbler();
+        await scrobbler.WhenIdleAsync();
+        var page = Page(scrobbler);
+        Assert.True(page.LastFmConnected);
+        Assert.Equal("Using Rambutan's API key.", page.LastFmKeyStatus);
+
+        page.LastFmKeyInput = "mine";
+        page.LastFmSecretInput = "my-secret";
+        await page.UseLastFmKeyCommand.ExecuteAsync(null);
+
+        Assert.Equal("Not connected", page.LastFmStatus);
+        Assert.Contains("The API key changed", page.LastFmNotice);
+        Assert.True(page.LastFmRecording);
+        Assert.True(page.LastFmShowConnect);
+        Assert.True(page.LastFmShowDisconnect);
+        Assert.Null(new LastFmSessionVault(_dir).Load());
+        Assert.Equal("Using your own API key.", page.LastFmKeyStatus);
+
+        await page.RemoveLastFmKeyCommand.ExecuteAsync(null);
+
+        Assert.False(page.LastFmOwnKey);
+        Assert.Equal("Using Rambutan's API key.", page.LastFmKeyStatus);
+        Assert.Null(new LastFmKeyVault(_dir).Load());
+    }
+
+    [Fact]
+    public void KeyVault_IsVersionedJson_InAnOwnerOnlyFile()
+    {
+        var vault = new LastFmKeyVault(_dir);
+        vault.Save(new LastFmApiKey("mine", "my-secret"));
+
+        var path = Path.Combine(_dir, "lastfm-key.bin");
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
+            Assert.Equal("""{"version":1,"key":"mine","secret":"my-secret"}""", File.ReadAllText(path));
+        }
+        Assert.Equal(new LastFmApiKey("mine", "my-secret"), vault.Load());
+
+        vault.Clear();
+        Assert.Null(vault.Load());
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("""{"version":2,"key":"a","secret":"b"}""")]
+    [InlineData("""{"version":1,"key":"a","secret":" "}""")]
+    public void KeyVault_UnreadableOrNewer_IsNoKey(string contents)
+    {
+        if (OperatingSystem.IsWindows())
+            return; // DPAPI-wrapped there; plaintext fixtures don't apply
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(Path.Combine(_dir, "lastfm-key.bin"), contents);
+
+        Assert.Null(new LastFmKeyVault(_dir).Load());
+    }
+
+    [Fact]
+    public void TheStatusStripNotice_ShowsARefusedKey_UntilDismissedOrNoLongerTrue()
+    {
+        LastFmNotice? notice = null;
+        var strip = new LastFmKeyNoticeViewModel(() => notice);
+        Assert.False(strip.IsVisible);
+
+        notice = LastFmNotice.Unreachable;
+        strip.Refresh();
+        Assert.False(strip.IsVisible);   // only a refused key goes to the strip
+
+        notice = LastFmNotice.KeyRefused;
+        strip.Refresh();
+        Assert.True(strip.IsVisible);
+
+        strip.DismissCommand.Execute(null);
+        strip.Refresh();
+        Assert.False(strip.IsVisible);
+
+        // A scrobble went through: the refusal is over. A later one shows again.
+        notice = null;
+        strip.Refresh();
+        notice = LastFmNotice.KeyRefused;
+        strip.Refresh();
+        Assert.True(strip.IsVisible);
     }
 
     /// <summary>Last.fm ended the connection in an earlier run, with one play kept.</summary>

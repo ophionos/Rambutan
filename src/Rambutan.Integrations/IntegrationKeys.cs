@@ -9,8 +9,9 @@ namespace Rambutan.Integrations;
 /// client-side), but they stay out of the repository: the build takes them from
 /// the MSBuild properties <c>RambutanDiscordAppId</c>, <c>RambutanLastFmApiKey</c>
 /// and <c>RambutanLastFmSharedSecret</c>, which environment variables of the same
-/// names also set. A build without them says the integration isn't available in
-/// this build instead of failing at runtime.
+/// names also set. A build without Discord's says Discord isn't available in
+/// this build instead of failing at runtime; a build without Last.fm's asks
+/// the user for a key of their own.
 /// </summary>
 public static class IntegrationKeys
 {
