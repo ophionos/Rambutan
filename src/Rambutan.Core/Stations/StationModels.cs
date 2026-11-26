@@ -34,5 +34,10 @@ public sealed record StationRow(StationTrack Source, StationMatch Match, TrackIn
 /// undocumented and may change). Network failures stay
 /// <see cref="HttpRequestException"/>, so the two read differently.
 /// </summary>
-public sealed class StationUnavailableException(string message, Exception? inner = null)
+public class StationUnavailableException(string message, Exception? inner = null)
     : Exception(message, inner);
+
+/// <summary>The service refused the user's token (HTTP 401 or 403), or there is
+/// none. The user's own action, not a fault of the station, fixes it.</summary>
+public sealed class StationTokenRejectedException(string message, Exception? inner = null)
+    : StationUnavailableException(message, inner);

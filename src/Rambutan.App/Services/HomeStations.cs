@@ -9,20 +9,28 @@ using Rambutan.Core.Stations;
 namespace Rambutan.App.Services;
 
 /// <summary>
-/// The Last.fm stations Home shows and artists' stations: which
-/// ones, for whom, and loading one into rows that play. Active only while the
-/// setting is on and a Last.fm account is connected, since the account's name
-/// is what Last.fm is asked about. Off by default, like every outbound integration.
+/// The Last.fm stations Home shows, and artists' stations from Last.fm and
+/// ListenBrainz: which ones, for whom, and loading one into rows that play.
+/// Last.fm's are active only while the setting is on and a Last.fm account is
+/// connected, since the account's name is what Last.fm is asked about.
+/// ListenBrainz's artist stations are active while the stations' own
+/// ListenBrainz account is connected (<paramref name="listenBrainzConnected"/>),
+/// whatever the Last.fm setting: connecting that token is their opt-in. Both are
+/// off by default, like every outbound integration.
 ///
-/// Each list is saved as it loads (<see cref="StationSnapshotStore"/>), so Home
+/// Each Last.fm list is saved as it loads (<see cref="StationSnapshotStore"/>), so Home
 /// shows the last one at startup without asking Last.fm, and asks again only
 /// when it is older than <see cref="Freshness"/> or Home is refreshed. The
-/// search outcomes are saved too (<see cref="StationMatchStore"/>), so a track
-/// that comes round again isn't searched again.
+/// search outcomes of every station are saved too (<see cref="StationMatchStore"/>),
+/// so a track that comes round again, from either service, isn't searched again.
 /// </summary>
+/// <param name="listenBrainzTokenRefused">Called, on the loading thread, when
+/// ListenBrainz refuses the stations' token.</param>
 public sealed class HomeStations(
     IStationSource source, StationResolver resolver, Func<string?> username,
-    StationSnapshotStore? snapshots = null, StationMatchStore? matches = null, TimeProvider? clock = null)
+    StationSnapshotStore? snapshots = null, StationMatchStore? matches = null, TimeProvider? clock = null,
+    IArtistStationSource? listenBrainz = null, Func<bool>? listenBrainzConnected = null,
+    Action? listenBrainzTokenRefused = null)
 {
     /// <summary>A saved list older than this is replaced when Home shows it.</summary>
     public static readonly TimeSpan Freshness = TimeSpan.FromHours(12);
@@ -57,7 +65,11 @@ public sealed class HomeStations(
     /// <summary>Whose stations to load; null while Home shows none.</summary>
     public string? User => Enabled && username() is { Length: > 0 } name ? name : null;
 
-    /// <summary>Call when the Last.fm connection may have changed.</summary>
+    /// <summary>An artist's ListenBrainz station can load: the stations'
+    /// ListenBrainz account is connected.</summary>
+    public bool ListenBrainzAvailable => listenBrainz is not null && listenBrainzConnected?.Invoke() == true;
+
+    /// <summary>Call when the Last.fm or the stations' ListenBrainz connection may have changed.</summary>
     public void ConnectionChanged() => Changed?.Invoke();
 
     /// <summary>The list last loaded for the active user, or null.</summary>
@@ -102,6 +114,33 @@ public sealed class HomeStations(
         if (User is null)
             throw new InvalidOperationException("No Last.fm station is active.");
         var rows = await ResolveAsync(() => source.GetArtistStationAsync(artist, ct), ct);
+        await Save(null);
+        return (rows, _clock.GetUtcNow());
+    }
+
+    /// <summary>
+    /// A fresh sample of an artist's ListenBrainz station (LB Radio), resolved
+    /// as <see cref="LoadArtistAsync"/> resolves Last.fm's, with its exceptions;
+    /// <see cref="InvalidOperationException"/> when
+    /// <see cref="ListenBrainzAvailable"/> is false. A refused token
+    /// (<see cref="StationTokenRejectedException"/>) is reported to the account
+    /// first, then thrown.
+    /// </summary>
+    public async Task<(IReadOnlyList<StationRow> Rows, DateTimeOffset LoadedAt)> LoadListenBrainzArtistAsync(
+        ArtistSeed artist, CancellationToken ct = default)
+    {
+        if (!ListenBrainzAvailable)
+            throw new InvalidOperationException("No ListenBrainz station is active.");
+        IReadOnlyList<StationRow> rows;
+        try
+        {
+            rows = await ResolveAsync(() => listenBrainz!.GetArtistStationAsync(artist, ct), ct);
+        }
+        catch (StationTokenRejectedException)
+        {
+            listenBrainzTokenRefused?.Invoke();
+            throw;
+        }
         await Save(null);
         return (rows, _clock.GetUtcNow());
     }

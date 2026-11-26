@@ -44,15 +44,21 @@ public partial class ListenBrainzSettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(Recording), nameof(ShowDisconnect))]
     private bool _sessionEnded;
 
-    public ListenBrainzSettingsViewModel(ListenBrainzScrobbler scrobbler, AppSettings app, Action? persist)
+    /// <param name="stations">The stations' own account; null leaves out their rows.</param>
+    public ListenBrainzSettingsViewModel(
+        ListenBrainzScrobbler scrobbler, AppSettings app, Action? persist, ListenBrainzStationsAccount? stations = null)
     {
         _scrobbler = scrobbler;
         _app = app;
         _persist = persist;
+        Stations = stations is null ? null : new ListenBrainzStationsSettingsViewModel(stations);
         _scrobbling = app.ListenBrainzScrobbling;
         Refresh();
         scrobbler.Changed += () => Dispatcher.UIThread.Post(Refresh);
     }
+
+    /// <summary>The stations' rows; null when the app has no stations account.</summary>
+    public ListenBrainzStationsSettingsViewModel? Stations { get; }
 
     public bool Connected => Connection == ListenBrainzConnectionState.Connected;
 

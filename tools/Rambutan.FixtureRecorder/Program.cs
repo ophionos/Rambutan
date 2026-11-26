@@ -2,9 +2,11 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Rambutan.Core.Catalog;
 using Rambutan.Core.Models;
+using Rambutan.Core.Stations;
 using Rambutan.InnerTube;
 using Rambutan.InnerTube.Parsing;
 using Rambutan.Integrations.LastFm;
+using Rambutan.Integrations.ListenBrainz;
 
 // Records live InnerTube responses as parser test fixtures.
 // Authed recordings are scrubbed automatically — identity fields are redacted
@@ -12,6 +14,7 @@ using Rambutan.Integrations.LastFm;
 // account's own playlists and the channel they link. Review the
 // diff before committing anyway; the scrubber is a net, not a guarantee.
 
+const string ListenBrainzTokenVariable = "RAMBUTAN_LISTENBRAINZ_TOKEN";
 const string FixturesDir = "tests/Rambutan.InnerTube.Tests/Fixtures";
 
 // Properties whose values never feed a parser and may carry identity/session data.
@@ -57,6 +60,30 @@ if (positional[0] == "spotify" && positional.Count >= 2)
     return await SpotifyRecorder.RecordAsync(positional[1], outPath);
 if (positional[0] == "spotify-live-diff")
     return await SpotifyRecorder.LiveDiffAsync(positional.Count >= 2 ? positional[1] : null);
+
+// ListenBrainz's LB Radio: the token comes from the environment, never an argument.
+if (positional[0] == "lb-radio" && positional.Count >= 2)
+{
+    var lbToken = Environment.GetEnvironmentVariable(ListenBrainzTokenVariable);
+    if (string.IsNullOrWhiteSpace(lbToken))
+    {
+        Console.Error.WriteLine($"lb-radio needs a ListenBrainz user token in the {ListenBrainzTokenVariable} environment variable.");
+        return 1;
+    }
+    var radioBody = await new ListenBrainzRadioClient(() => lbToken)
+        .FetchRadioAsync(new ArtistSeed(positional[1], [.. positional.Skip(2)]));
+    if (outPath is null)
+    {
+        Console.WriteLine(radioBody);
+    }
+    else
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        File.WriteAllText(outPath, radioBody);
+        Console.WriteLine($"wrote: {outPath}");
+    }
+    return 0;
+}
 
 using var client = new InnerTubeClient();
 
@@ -413,6 +440,23 @@ static async Task<int> LiveDiffAsync(InnerTubeClient client)
             : throw new InvalidOperationException($"{tracks.Count} tracks, {linked} with a YouTube link");
     });
 
+    // LB Radio needs a user's token even to read, so CI, which has none, skips it.
+    if (Environment.GetEnvironmentVariable(ListenBrainzTokenVariable) is { Length: > 0 } lbToken)
+    {
+        await Check("listenbrainz artist station", async () =>
+        {
+            var tracks = await new ListenBrainzRadioClient(() => lbToken)
+                .GetArtistStationAsync(new ArtistSeed("Radiohead", ["Karma Police"]));
+            return tracks.Count > 0
+                ? $"{tracks.Count} tracks from {tracks.Select(t => t.Artist).Distinct().Count()} artists"
+                : throw new InvalidOperationException("no tracks");
+        });
+    }
+    else
+    {
+        Console.WriteLine($"SKIP listenbrainz artist station: no {ListenBrainzTokenVariable}");
+    }
+
     Console.WriteLine(failures == 0
         ? "live-diff: all parsers agree with live responses"
         : $"live-diff: {failures} check(s) FAILED");
@@ -433,7 +477,8 @@ static int Usage()
           dotnet run --project tools/Rambutan.FixtureRecorder -- suggestions <partial query>   (search-box completions)
           dotnet run --project tools/Rambutan.FixtureRecorder -- account-menu --cookies <file>   (the signed-in account menu; scrub its channel id and handle by hand)
           dotnet run --project tools/Rambutan.FixtureRecorder -- next <videoId> [--playlist <id> [--params <params>]]   (radio/automix watch queue; with --playlist, a page's mix, such as an artist's radio)
-          dotnet run --project tools/Rambutan.FixtureRecorder -- live-diff   (run all anonymous parsers against live YTM and Last.fm)
+          dotnet run --project tools/Rambutan.FixtureRecorder -- live-diff   (run all anonymous parsers against live YTM and Last.fm; and ListenBrainz when RAMBUTAN_LISTENBRAINZ_TOKEN is set)
+          dotnet run --project tools/Rambutan.FixtureRecorder -- lb-radio <artist> [<song title>...] [--out <file>]   (ListenBrainz's LB Radio for an artist, looked up by the song titles; reads the user token from RAMBUTAN_LISTENBRAINZ_TOKEN; into tests/Rambutan.Integrations.Tests/Fixtures/ListenBrainz)
           dotnet run --project tools/Rambutan.FixtureRecorder -- spotify <link> [--out <dir>]   (a Spotify playlist's or album's embed page and, past 100 songs, the web player's next page; into tests/Rambutan.Integrations.Tests/Fixtures/Spotify)
           dotnet run --project tools/Rambutan.FixtureRecorder -- spotify-live-diff [<link>]   (read a long public playlist from its link; the maintainer's machine only, not CI)
 

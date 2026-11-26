@@ -13,10 +13,12 @@ using Rambutan.Core.Stations;
 namespace Rambutan.App.ViewModels;
 
 /// <summary>
-/// One Last.fm station: a shelf on Home, or an artist's station opened
-/// from the artist's page. It loads on its own, so Home's YouTube
-/// Music shelves never wait for it, and it always shows a state: loading, the
-/// tracks, nothing in the list, Last.fm not sharing it, or a failure with Try again.
+/// One station: a Last.fm shelf on Home, or an artist's station from Last.fm
+/// or ListenBrainz, opened from the artist's page or card. It loads on its own,
+/// so Home's YouTube Music shelves never wait for it, and it always shows a
+/// state: loading, the tracks, nothing in the list, the service not sharing it
+/// (or refusing the token), or a failure with Try again. Every text that names
+/// the service names the station's own.
 ///
 /// The station is a fresh sample on every request, so the shelf keeps the rows
 /// it loaded; a card plays the station from that track, in the shelf's order.
@@ -28,7 +30,10 @@ public partial class StationShelfViewModel : ViewModelBase
 {
     private readonly HomeStations _stations;
     private readonly Func<IReadOnlyList<TrackInfo>, int, Task> _play;
+    private readonly ArtistSeed? _seed;
     private CancellationTokenSource? _load;
+    // The service refused the token, which Unavailable says in its own words.
+    private bool _tokenRefused;
 
     /// <summary>The user's station this is; null for an artist's.</summary>
     public StationKind? Kind { get; }
@@ -36,8 +41,12 @@ public partial class StationShelfViewModel : ViewModelBase
     /// <summary>The artist whose station this is; null for the user's.</summary>
     public string? Artist { get; }
 
+    public StationService Service { get; }
+
+    private bool IsListenBrainz => Service == StationService.ListenBrainz;
+
     public string Title => Artist is not null
-        ? Strings.Format("station.artist.title", ("name", Artist))
+        ? Strings.Format(IsListenBrainz ? "station.listenBrainz.title" : "station.artist.title", ("name", Artist))
         : Kind switch
         {
             StationKind.Mix => Strings.Get("home.station.mix"),
@@ -70,8 +79,18 @@ public partial class StationShelfViewModel : ViewModelBase
 
     /// <summary>"From Last.fm, loaded …", on the station's page.</summary>
     public string? LoadedText => LoadedAt is { } at
-        ? Strings.Format("station.page.from", ("date", at.ToLocalTime().ToString("g", Strings.Culture)))
+        ? Strings.Format(IsListenBrainz ? "station.listenBrainz.from" : "station.page.from",
+            ("date", at.ToLocalTime().ToString("g", Strings.Culture)))
         : null;
+
+    /// <summary>The page's line for a list with no tracks at all.</summary>
+    public string EmptyText => Strings.Get(IsListenBrainz ? "station.listenBrainz.empty" : "station.page.empty");
+
+    /// <summary>The page's refresh button: the tooltip and the screen-reader name.</summary>
+    public string RefreshTip => Strings.Get(IsListenBrainz ? "station.listenBrainz.refreshTip" : "station.page.refreshTip");
+
+    /// <summary>The loading bar's screen-reader name.</summary>
+    public string LoadingText => Strings.Get(IsListenBrainz ? "station.listenBrainz.loading" : "home.station.loading");
 
     /// <summary>"Showing the list from …": a load failed, and the list on show
     /// is the one loaded before.</summary>
@@ -118,11 +137,23 @@ public partial class StationShelfViewModel : ViewModelBase
         Kind = kind;
     }
 
-    /// <summary>An artist's station. Nothing is loaded until <see cref="LoadAsync"/>.</summary>
+    /// <summary>An artist's Last.fm station. Nothing is loaded until <see cref="LoadAsync"/>.</summary>
     public StationShelfViewModel(string artist, HomeStations stations, Func<IReadOnlyList<TrackInfo>, int, Task> play)
         : this(stations, play)
     {
         Artist = artist;
+    }
+
+    /// <summary>An artist's station from <paramref name="service"/>; for
+    /// ListenBrainz, the seed's song titles help find the artist. Nothing is
+    /// loaded until <see cref="LoadAsync"/>.</summary>
+    public StationShelfViewModel(
+        ArtistSeed artist, StationService service, HomeStations stations, Func<IReadOnlyList<TrackInfo>, int, Task> play)
+        : this(stations, play)
+    {
+        Artist = artist.Name;
+        Service = service;
+        _seed = artist;
     }
 
     private StationShelfViewModel(HomeStations stations, Func<IReadOnlyList<TrackInfo>, int, Task> play)
@@ -155,7 +186,9 @@ public partial class StationShelfViewModel : ViewModelBase
         {
             IReadOnlyList<StationRow> rows;
             DateTimeOffset loadedAt;
-            if (Artist is { } artist)
+            if (IsListenBrainz)
+                (rows, loadedAt) = await _stations.LoadListenBrainzArtistAsync(_seed!, load.Token);
+            else if (Artist is { } artist)
                 (rows, loadedAt) = await _stations.LoadArtistAsync(artist, load.Token);
             else
             {
@@ -169,20 +202,23 @@ public partial class StationShelfViewModel : ViewModelBase
         catch (OperationCanceledException) when (load.IsCancellationRequested)
         {
         }
-        catch (StationUnavailableException) when (!load.IsCancellationRequested)
+        catch (StationUnavailableException ex) when (!load.IsCancellationRequested)
         {
             Rows = [];
             Items = [];
             Shelf = null;
             LoadedAt = null;
+            _tokenRefused = ex is StationTokenRejectedException;
             Unavailable = UnavailableText;
         }
         catch (Exception ex) when (!load.IsCancellationRequested)
         {
             // Cards already on show stay; the failure shows beside the title.
             var error = LoadError.From(ex, LoadSubject.Station, LoadCommand);
-            // The generic offline title names YouTube Music; this list needs Last.fm too.
-            LoadError = error.IsOffline ? error with { Title = Strings.Get("home.station.offline") } : error;
+            // The generic offline title names YouTube Music; this list needs the station's service too.
+            LoadError = error.IsOffline
+                ? error with { Title = Strings.Get(IsListenBrainz ? "station.listenBrainz.offline" : "home.station.offline") }
+                : error;
         }
         finally
         {
@@ -191,8 +227,11 @@ public partial class StationShelfViewModel : ViewModelBase
         }
     }
 
-    private string UnavailableText =>
-        Strings.Get(Artist is null ? "home.station.unavailable" : "station.artist.unavailable");
+    private string UnavailableText => Strings.Get(
+        Artist is null ? "home.station.unavailable"
+        : !IsListenBrainz ? "station.artist.unavailable"
+        : _tokenRefused ? "station.listenBrainz.tokenRefused"
+        : "station.listenBrainz.unavailable");
 
     private void Show(IReadOnlyList<StationRow> rows, DateTimeOffset loadedAt)
     {
@@ -218,6 +257,10 @@ public partial class StationShelfViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(SavedNotice));
+        OnPropertyChanged(nameof(LoadedText));
+        OnPropertyChanged(nameof(EmptyText));
+        OnPropertyChanged(nameof(RefreshTip));
+        OnPropertyChanged(nameof(LoadingText));
         // The shelf control shows the title the Shelf was built with.
         if (Shelf is { } shelf)
             Shelf = shelf with { Title = Title };
