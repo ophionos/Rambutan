@@ -133,6 +133,10 @@ public sealed class FfmpegExportWriterTests : IDisposable
         var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var a in args)
             psi.ArgumentList.Add(a);
+        // As the app runs it: the Linux sidecar finds its libraries only through this.
+        if (FfmpegManager.ProcessEnvironment(exe) is { } environment)
+            foreach (var (name, value) in environment)
+                psi.Environment[name] = value;
         using var p = Process.Start(psi)!;
         var output = await p.StandardOutput.ReadToEndAsync();
         var error = await p.StandardError.ReadToEndAsync();
