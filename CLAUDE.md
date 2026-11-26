@@ -595,6 +595,16 @@ file sink), never to files directly.
   prompt by name fails for a name MusicBrainz finds ambiguous, so the artist is
   first looked up by up to three of its song titles to get its MusicBrainz id
   (`Core/Stations/StationArtist` checks the lookup's credit is the artist).
+  The playlists ListenBrainz makes for that account (Daily Jams, Weekly Jams,
+  Weekly Exploration) show on Home after Last.fm's stations, behind a setting
+  of their own (`AppSettings.ListenBrainzCreatedForOnHome`, off, usable only
+  while the stations' token is connected). They are asked for by the
+  account's user name, without the token. Home shows the newest of each kind
+  that hasn't expired (`Core/Stations/CreatedFor`; ListenBrainz keeps listing
+  weeks it stopped making), and no shelf for a kind without one. The list is
+  fetched again when older than `HomeStations.Freshness`; a playlist's tracks
+  never change, so they load once and are kept with the list in
+  `listenbrainz-stations.json` (`App/Services/CreatedForStore`, versioned).
 - Spotify import: Library's Import from Spotify, always in its header's More
   menu (`ActionRow.InMenu`; `SpotifyImportViewModel`,
   one for the app's lifetime) reads Spotify's data export (the zip or its

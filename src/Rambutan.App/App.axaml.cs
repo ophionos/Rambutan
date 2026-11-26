@@ -610,6 +610,9 @@ public partial class App : Application
             () => new ListenBrainzClient(ListenBrainzClient.DefaultServer, clientVersion));
         services.AddSingleton(listenBrainzStations);
         var stationMatches = new StationMatchCache();
+        // One client for the artists' stations and the user's playlists; the
+        // playlists' requests carry no token, only the stations' account's name.
+        var listenBrainzRadio = Demo is null ? new ListenBrainzRadioClient(() => listenBrainzStations.Token) : null;
         var homeStations = new HomeStations(
             new LastFmStationClient(Demo is null ? null : new HttpClient(new DemoLastFmStationHandler(Demo))),
             new StationResolver(stationSearch.SearchSongsAsync, cache: stationMatches),
@@ -617,11 +620,15 @@ public partial class App : Application
                 : lastFm is { Connection: LastFmConnection.Connected } ? lastFm.Username : null,
             new StationSnapshotStore(dataDir),
             new StationMatchStore(dataDir, stationMatches),
-            listenBrainz: Demo is null ? new ListenBrainzRadioClient(() => listenBrainzStations.Token) : null,
+            listenBrainz: listenBrainzRadio,
             listenBrainzConnected: () => listenBrainzStations.Connected,
-            listenBrainzTokenRefused: listenBrainzStations.TokenRefused)
+            listenBrainzTokenRefused: listenBrainzStations.TokenRefused,
+            createdFor: listenBrainzRadio,
+            listenBrainzUser: () => listenBrainzStations.Username,
+            createdForStore: new CreatedForStore(dataDir))
         {
             Enabled = settings.LastFmStationsOnHome,
+            CreatedForEnabled = settings.ListenBrainzCreatedForOnHome,
         };
         if (lastFm is not null)
             lastFm.Changed += () => Dispatcher.UIThread.Post(homeStations.ConnectionChanged);
@@ -827,7 +834,7 @@ public partial class App : Application
             Stations = sp.GetRequiredService<HomeStations>(),
             ListenBrainz = new ListenBrainzSettingsViewModel(
                 listenBrainz, sp.GetRequiredService<AppSettings>(), () => RequestPersist(sp),
-                sp.GetRequiredService<ListenBrainzStationsAccount>()),
+                sp.GetRequiredService<ListenBrainzStationsAccount>(), sp.GetRequiredService<HomeStations>()),
 #if WINDOWS
             ApplyTaskbarControls = on => _taskbar?.SetOn(on),
 #endif

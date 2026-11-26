@@ -15,6 +15,7 @@ using Rambutan.Integrations.ListenBrainz;
 // diff before committing anyway; the scrubber is a net, not a guarantee.
 
 const string ListenBrainzTokenVariable = "RAMBUTAN_LISTENBRAINZ_TOKEN";
+const string ListenBrainzUserVariable = "RAMBUTAN_LISTENBRAINZ_USER";
 const string FixturesDir = "tests/Rambutan.InnerTube.Tests/Fixtures";
 
 // Properties whose values never feed a parser and may carry identity/session data.
@@ -82,6 +83,19 @@ if (positional[0] == "lb-radio" && positional.Count >= 2)
         File.WriteAllText(outPath, radioBody);
         Console.WriteLine($"wrote: {outPath}");
     }
+    return 0;
+}
+
+// The playlists ListenBrainz makes for a user are public: no token.
+if (positional[0] == "lb-created-for" && positional.Count >= 2)
+{
+    var lb = new ListenBrainzRadioClient(() => null);
+    var listed = await lb.GetCreatedForAsync(positional[1]);
+    var current = CreatedFor.Current(listed, DateTimeOffset.UtcNow);
+    foreach (var p in listed.OrderByDescending(p => p.CreatedAt))
+        Console.WriteLine($"{p.Kind} {p.Id} created {p.CreatedAt:u} expires {(p.ExpiresAt is { } e ? e.ToString("u") : "never")}{(current.Contains(p) ? " [current]" : "")}");
+    foreach (var p in current)
+        Console.WriteLine($"{p.Kind} {p.Id}: {(await lb.GetPlaylistAsync(p.Id)).Count} tracks");
     return 0;
 }
 
@@ -457,6 +471,24 @@ static async Task<int> LiveDiffAsync(InnerTubeClient client)
         Console.WriteLine($"SKIP listenbrainz artist station: no {ListenBrainzTokenVariable}");
     }
 
+    // The playlists made for a user are public, but asking needs a user name.
+    if (Environment.GetEnvironmentVariable(ListenBrainzUserVariable) is { Length: > 0 } lbUser)
+    {
+        await Check("listenbrainz created-for", async () =>
+        {
+            var lb = new ListenBrainzRadioClient(() => null);
+            var current = CreatedFor.Current(await lb.GetCreatedForAsync(lbUser), DateTimeOffset.UtcNow);
+            foreach (var playlist in current)
+                if ((await lb.GetPlaylistAsync(playlist.Id)).Count == 0)
+                    throw new InvalidOperationException($"{playlist.Kind} has no tracks");
+            return $"{current.Count} current playlists, all with tracks";
+        });
+    }
+    else
+    {
+        Console.WriteLine($"SKIP listenbrainz created-for: no {ListenBrainzUserVariable}");
+    }
+
     Console.WriteLine(failures == 0
         ? "live-diff: all parsers agree with live responses"
         : $"live-diff: {failures} check(s) FAILED");
@@ -479,6 +511,7 @@ static int Usage()
           dotnet run --project tools/Rambutan.FixtureRecorder -- next <videoId> [--playlist <id> [--params <params>]]   (radio/automix watch queue; with --playlist, a page's mix, such as an artist's radio)
           dotnet run --project tools/Rambutan.FixtureRecorder -- live-diff   (run all anonymous parsers against live YTM and Last.fm; and ListenBrainz when RAMBUTAN_LISTENBRAINZ_TOKEN is set)
           dotnet run --project tools/Rambutan.FixtureRecorder -- lb-radio <artist> [<song title>...] [--out <file>]   (ListenBrainz's LB Radio for an artist, looked up by the song titles; reads the user token from RAMBUTAN_LISTENBRAINZ_TOKEN; into tests/Rambutan.Integrations.Tests/Fixtures/ListenBrainz)
+          dotnet run --project tools/Rambutan.FixtureRecorder -- lb-created-for <user>   (the playlists ListenBrainz made for a user, which are current, and their track counts; needs no token; live-diff checks it too when RAMBUTAN_LISTENBRAINZ_USER is set)
           dotnet run --project tools/Rambutan.FixtureRecorder -- spotify <link> [--out <dir>]   (a Spotify playlist's or album's embed page and, past 100 songs, the web player's next page; into tests/Rambutan.Integrations.Tests/Fixtures/Spotify)
           dotnet run --project tools/Rambutan.FixtureRecorder -- spotify-live-diff [<link>]   (read a long public playlist from its link; the maintainer's machine only, not CI)
 

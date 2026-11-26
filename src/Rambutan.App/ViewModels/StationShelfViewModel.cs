@@ -13,8 +13,9 @@ using Rambutan.Core.Stations;
 namespace Rambutan.App.ViewModels;
 
 /// <summary>
-/// One station: a Last.fm shelf on Home, or an artist's station from Last.fm
-/// or ListenBrainz, opened from the artist's page or card. It loads on its own,
+/// One station: a Last.fm shelf on Home, a playlist ListenBrainz made for the
+/// user on Home, or an artist's station from Last.fm or ListenBrainz, opened
+/// from the artist's page or card. It loads on its own,
 /// so Home's YouTube Music shelves never wait for it, and it always shows a
 /// state: loading, the tracks, nothing in the list, the service not sharing it
 /// (or refusing the token), or a failure with Try again. Every text that names
@@ -41,11 +42,21 @@ public partial class StationShelfViewModel : ViewModelBase
     /// <summary>The artist whose station this is; null for the user's.</summary>
     public string? Artist { get; }
 
+    /// <summary>The ListenBrainz playlist made for the user this is; null for a station.</summary>
+    public CreatedForPlaylist? Playlist { get; }
+
     public StationService Service { get; }
 
     private bool IsListenBrainz => Service == StationService.ListenBrainz;
 
-    public string Title => Artist is not null
+    public string Title => Playlist is { } playlist
+        ? playlist.Kind switch
+        {
+            CreatedForKind.DailyJams => Strings.Get("home.station.listenBrainz.dailyJams"),
+            CreatedForKind.WeeklyJams => Strings.Get("home.station.listenBrainz.weeklyJams"),
+            _ => Strings.Get("home.station.listenBrainz.weeklyExploration"),
+        }
+        : Artist is not null
         ? Strings.Format(IsListenBrainz ? "station.listenBrainz.title" : "station.artist.title", ("name", Artist))
         : Kind switch
         {
@@ -87,7 +98,10 @@ public partial class StationShelfViewModel : ViewModelBase
     public string EmptyText => Strings.Get(IsListenBrainz ? "station.listenBrainz.empty" : "station.page.empty");
 
     /// <summary>The page's refresh button: the tooltip and the screen-reader name.</summary>
-    public string RefreshTip => Strings.Get(IsListenBrainz ? "station.listenBrainz.refreshTip" : "station.page.refreshTip");
+    public string RefreshTip => Strings.Get(
+        Playlist is not null ? "station.listenBrainz.createdFor.refreshTip"
+        : IsListenBrainz ? "station.listenBrainz.refreshTip"
+        : "station.page.refreshTip");
 
     /// <summary>The loading bar's screen-reader name.</summary>
     public string LoadingText => Strings.Get(IsListenBrainz ? "station.listenBrainz.loading" : "home.station.loading");
@@ -156,6 +170,15 @@ public partial class StationShelfViewModel : ViewModelBase
         _seed = artist;
     }
 
+    /// <summary>A ListenBrainz playlist made for the user, on Home.</summary>
+    public StationShelfViewModel(
+        CreatedForPlaylist playlist, HomeStations stations, Func<IReadOnlyList<TrackInfo>, int, Task> play)
+        : this(stations, play)
+    {
+        Playlist = playlist;
+        Service = StationService.ListenBrainz;
+    }
+
     private StationShelfViewModel(HomeStations stations, Func<IReadOnlyList<TrackInfo>, int, Task> play)
     {
         _stations = stations;
@@ -164,9 +187,17 @@ public partial class StationShelfViewModel : ViewModelBase
     }
 
     /// <summary>The shelf comes on Home: shows the list saved last time, and
-    /// loads a new one only when there is none or it is old.</summary>
+    /// loads a new one only when there is none or it is old. A playlist's
+    /// tracks never change, so a saved one is never old.</summary>
     public Task ShowAsync()
     {
+        if (Playlist is { } playlist)
+        {
+            if (_stations.SavedCreatedFor(playlist.Id) is not { } loaded)
+                return LoadAsync();
+            Show(loaded.Rows, loaded.LoadedAt);
+            return Task.CompletedTask;
+        }
         if (Kind is not { } kind || _stations.Saved(kind) is not { } saved)
             return LoadAsync();
         Show(saved.Rows, saved.LoadedAt);
@@ -186,7 +217,12 @@ public partial class StationShelfViewModel : ViewModelBase
         {
             IReadOnlyList<StationRow> rows;
             DateTimeOffset loadedAt;
-            if (IsListenBrainz)
+            if (Playlist is { } playlist)
+            {
+                var loaded = await _stations.LoadCreatedForAsync(playlist, load.Token);
+                (rows, loadedAt) = (loaded.Rows, loaded.LoadedAt);
+            }
+            else if (IsListenBrainz)
                 (rows, loadedAt) = await _stations.LoadListenBrainzArtistAsync(_seed!, load.Token);
             else if (Artist is { } artist)
                 (rows, loadedAt) = await _stations.LoadArtistAsync(artist, load.Token);
@@ -228,7 +264,8 @@ public partial class StationShelfViewModel : ViewModelBase
     }
 
     private string UnavailableText => Strings.Get(
-        Artist is null ? "home.station.unavailable"
+        Playlist is not null ? "station.listenBrainz.createdFor.unavailable"
+        : Artist is null ? "home.station.unavailable"
         : !IsListenBrainz ? "station.artist.unavailable"
         : _tokenRefused ? "station.listenBrainz.tokenRefused"
         : "station.listenBrainz.unavailable");

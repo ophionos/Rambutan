@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -15,6 +16,14 @@ namespace Rambutan.App.ViewModels;
 public partial class ListenBrainzStationsSettingsViewModel : ViewModelBase
 {
     private readonly ListenBrainzStationsAccount _account;
+    private readonly AppSettings? _app;
+    private readonly Action? _persist;
+    private readonly HomeStations? _homeStations;
+
+    /// <summary>Show the playlists ListenBrainz made for the user on Home
+    /// (<see cref="AppSettings.ListenBrainzCreatedForOnHome"/>); it can be
+    /// changed only while <see cref="Connected"/>.</summary>
+    [ObservableProperty] private bool _createdForOnHome;
 
     [ObservableProperty] private string _status = "";
     [ObservableProperty] private string _notice = "";
@@ -31,9 +40,17 @@ public partial class ListenBrainzStationsSettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(ShowConnect), nameof(CanConnect))]
     private bool _connected;
 
-    public ListenBrainzStationsSettingsViewModel(ListenBrainzStationsAccount account)
+    /// <param name="app">Holds the Created for you setting; null leaves it unsaved.</param>
+    /// <param name="homeStations">Told when that setting changes, so Home adds or removes the shelves.</param>
+    public ListenBrainzStationsSettingsViewModel(
+        ListenBrainzStationsAccount account, AppSettings? app = null, Action? persist = null,
+        HomeStations? homeStations = null)
     {
         _account = account;
+        _app = app;
+        _persist = persist;
+        _homeStations = homeStations;
+        _createdForOnHome = app?.ListenBrainzCreatedForOnHome ?? false;
         Refresh();
         account.Changed += () => Dispatcher.UIThread.Post(Refresh);
     }
@@ -92,5 +109,14 @@ public partial class ListenBrainzStationsSettingsViewModel : ViewModelBase
     {
         await _account.DisconnectAsync();
         Refresh();
+    }
+
+    partial void OnCreatedForOnHomeChanged(bool value)
+    {
+        if (_app is not null)
+            _app.ListenBrainzCreatedForOnHome = value;
+        if (_homeStations is not null)
+            _homeStations.CreatedForEnabled = value;
+        _persist?.Invoke();
     }
 }
