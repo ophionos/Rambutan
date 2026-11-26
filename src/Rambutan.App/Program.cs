@@ -16,6 +16,9 @@ sealed class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // First, while this is the only thread: setenv isn't thread-safe.
+        Integrations.Linux.PulseStreamProperties.Apply();
+
         // A launch from a rambutan:// link keeps only the link, before
         // anything reads the arguments.
         args = Core.Links.DeepLinkArgs.Sanitize(args);
