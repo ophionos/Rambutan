@@ -3,6 +3,7 @@ using Rambutan.Core.Diagnostics;
 using SoundFlow.Abstracts;
 using SoundFlow.Abstracts.Devices;
 using SoundFlow.Backends.MiniAudio;
+using SoundFlow.Backends.MiniAudio.Devices;
 using SoundFlow.Enums;
 using SoundFlow.Structs;
 using SoundFlow.Structs.Events;
@@ -70,6 +71,18 @@ public sealed class PlaybackEngine : IDisposable
         AppLog.Write("audio", $"output device: {Describe()} ({devices.Length} available)");
     }
 
+    /// <summary>
+    /// SoundFlow's own default (a 960-frame period, shared mode; a config of our
+    /// own replaces it whole, so the period is restated) plus the stream's name,
+    /// which PulseAudio and PipeWire show in their mixers in place of
+    /// "miniaudio:0" (maintainer, 2026-11-26). Other backends ignore it.
+    /// </summary>
+    internal static MiniAudioDeviceConfig DeviceConfig() => new()
+    {
+        PeriodSizeInFrames = 960,
+        Pulse = new PulseSettings { StreamNamePlayback = "Rambutan" },
+    };
+
     /// <summary>The chosen device when it is present, otherwise the system default
     /// (a null device for SoundFlow). Sets <see cref="DeviceName"/> and pacing for it.</summary>
     private AudioPlaybackDevice Open(DeviceInfo[] devices)
@@ -77,7 +90,7 @@ public sealed class PlaybackEngine : IDisposable
         DeviceInfo? chosen = OutputDeviceChoice.Find(devices.Select(d => d.Name), _preferred) is { } i
             ? devices[i]
             : null;
-        var device = _engine.InitializePlaybackDevice(chosen, AudioFormat.DvdHq);
+        var device = _engine.InitializePlaybackDevice(chosen, AudioFormat.DvdHq, DeviceConfig());
         FollowsDefault = chosen is null;
         DeviceName = (chosen ?? devices.FirstOrDefault(d => d.IsDefault, devices[0])).Name ?? "(unknown)";
         _pull.Paced = IsNullDevice;
