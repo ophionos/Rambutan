@@ -782,6 +782,42 @@
                 </StackPanel>
               </Grid>
             </Border>
+            <!-- The user's own API key; its two fields are .sub rows, so the
+                 filter keeps them with it. -->
+            <Border Classes="settingrow" IsVisible="{Binding LastFmAvailable}">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                  <TextBlock Classes="settinglabel" Text="{l:T settings.lastfm.key.header}" />
+                  <TextBlock Classes="settinghelp" Text="{Binding LastFmKeyStatus}"
+                             Foreground="{StaticResource Token.Brush.Text}" />
+                  <TextBlock Classes="settinghelp" Text="{l:T settings.lastfm.key.help}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                  <Button Content="{l:T settings.lastfm.key.use}"
+                          Command="{Binding UseLastFmKeyCommand}"
+                          IsEnabled="{Binding LastFmCanUseKey}" />
+                  <Button Content="{l:T settings.lastfm.key.remove}"
+                          Command="{Binding RemoveLastFmKeyCommand}"
+                          IsVisible="{Binding LastFmOwnKey}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <Border Classes="settingrow sub" IsVisible="{Binding LastFmAvailable}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="settinglabel" Text="{l:T settings.lastfm.key.key}" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding LastFmKeyInput}"
+                         Width="320" IsEnabled="{Binding !LastFmBusy}"
+                         AutomationProperties.Name="{l:T settings.lastfm.key.key}" />
+              </Grid>
+            </Border>
+            <Border Classes="settingrow sub" IsVisible="{Binding LastFmAvailable}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="settinglabel" Text="{l:T settings.lastfm.key.secret}" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1" Text="{Binding LastFmSecretInput}" PasswordChar="•" RevealPassword="False"
+                         Width="320" IsEnabled="{Binding !LastFmBusy}"
+                         AutomationProperties.Name="{l:T settings.lastfm.key.secret}" />
+              </Grid>
+            </Border>
             <!-- After the scrobbling disclosure, which is about scrobbling only. -->
             <Border Classes="settingrow" IsVisible="{Binding LastFmAvailable}">
               <Grid ColumnDefinitions="*,Auto">

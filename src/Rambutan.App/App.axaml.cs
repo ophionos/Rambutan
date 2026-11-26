@@ -208,6 +208,12 @@ public partial class App : Application
                 });
             _restartForUpdate = () => _ = restart.RunAsync();
             main.UpdateNotice = new UpdateNoticeViewModel(updates, _restartForUpdate);
+            if (_lastFm is { } lastFmForNotice)
+            {
+                var keyNotice = new LastFmKeyNoticeViewModel(() => lastFmForNotice.Notice);
+                lastFmForNotice.Changed += () => Dispatcher.UIThread.Post(keyNotice.Refresh);
+                main.LastFmKeyNotice = keyNotice;
+            }
             var window = new MainWindow { DataContext = main };
             // Avalonia's Wayland loop ticks on every commit, not on frame callbacks.
             if (WaylandFramePacing.Install(window))
@@ -568,18 +574,18 @@ public partial class App : Application
         var discord = new DiscordPresenceService(IntegrationKeys.DiscordAppId);
         discord.Configure(settings.DiscordEnabled, SettingsPageViewModel.DiscordOptions(settings));
         services.AddSingleton(discord);
-        // Last.fm exists only in builds given its keys; without them the settings
-        // section says so (IntegrationKeys). Nothing is sent until the user connects.
-        if (IntegrationKeys.LastFmApiKey is { } lastFmKey && IntegrationKeys.LastFmSharedSecret is { } lastFmSecret)
+        // Every build has Last.fm: the user's own key, else the build's
+        // (IntegrationKeys), else Settings asks for a key. Nothing is sent until
+        // the user connects.
+        _lastFm = new LastFmScrobbler(
+            LastFmApiKey.From(IntegrationKeys.LastFmApiKey, IntegrationKeys.LastFmSharedSecret),
+            new LastFmKeyVault(dataDir, keyring),
+            static key => new LastFmClient(key.Key, key.Secret),
+            new ScrobbleQueue(dataDir),
+            new LastFmSessionVault(dataDir, keyring))
         {
-            _lastFm = new LastFmScrobbler(
-                new LastFmClient(lastFmKey, lastFmSecret),
-                new ScrobbleQueue(dataDir),
-                new LastFmSessionVault(dataDir, keyring))
-            {
-                ScrobblingEnabled = settings.LastFmScrobbling,
-            };
-        }
+            ScrobblingEnabled = settings.LastFmScrobbling,
+        };
         // ListenBrainz needs no key of ours, only the user's token, so every
         // build has it. Nothing is sent until the user connects.
         var clientVersion = Assembly.GetEntryAssembly()

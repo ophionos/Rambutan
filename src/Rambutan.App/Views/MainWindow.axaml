@@ -591,6 +591,18 @@
                   VerticalAlignment="Center"
                   Command="{Binding UpdateNotice.DismissCommand}" />
         </StackPanel>
+        <!-- Last.fm refused the API key: scrobbling stopped, plays are kept. -->
+        <StackPanel Orientation="Horizontal" Spacing="8"
+                    IsVisible="{Binding LastFmKeyNotice.IsVisible, FallbackValue=False}">
+          <TextBlock Text="{l:T status.lastFmKeyRefused}" FontSize="{StaticResource Token.Font.Caption}"
+                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <Button Content="{l:T settings.title}" FontSize="{StaticResource Token.Font.Caption}" Padding="12,2" MinHeight="0"
+                  VerticalAlignment="Center"
+                  Command="{Binding GoSettingsCommand}" />
+          <Button Content="{l:T common.dismiss}" FontSize="{StaticResource Token.Font.Caption}" Padding="12,2" MinHeight="0"
+                  VerticalAlignment="Center"
+                  Command="{Binding LastFmKeyNotice.DismissCommand}" />
+        </StackPanel>
         <StackPanel Orientation="Horizontal" Spacing="8"
                     IsVisible="{Binding SidecarsFailed}">
           <!-- Tip on the TextBlock, not the panel: a Panel with no Background

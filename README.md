@@ -80,7 +80,9 @@ your own YouTube Music account to use your library.
 - **OBS overlay:** show what is playing on your stream, in a style you edit
   in the app.
 - **Last.fm:** scrobbling, plus your Last.fm stations on Home and on artist
-  pages.
+  pages. From 1 December 2026, Last.fm accepts an API key only while the
+  account that created it has Last.fm Pro, so you can scrobble with an API
+  key of your own.
 - **ListenBrainz:** send what you play to ListenBrainz, or to a server of your
   own that accepts ListenBrainz listens; and, with your ListenBrainz token,
   artists' stations from LB Radio on their pages, beside Last.fm's, and the

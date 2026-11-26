@@ -112,7 +112,7 @@ jobs:
           **Linux:** run the `.AppImage` (x64). Media keys and the panel's media
           controls work through MPRIS. It has been checked on real hardware with one
           desktop so far (COSMIC on Wayland). On Linux, your YouTube
-          Music cookies, Last.fm session and phone remote pairing go into the system keyring. When no
+          Music cookies, Last.fm session and API key, and phone remote pairing go into the system keyring. When no
           keyring is running, they are stored **unencrypted**, in a file that only
           your user account can read; the sign-in screen says so too.
 

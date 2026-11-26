@@ -80,7 +80,7 @@ public partial class MainViewModel : ViewModelBase
     public bool HasStatus =>
         SidecarProgress.Length > 0 || SidecarsFailed || ShowSessionNotice ||
         TrackWaitingForNetwork is not null || ReadingFiles is not null || CrashNotice?.IsVisible == true ||
-        UpdateNotice?.IsVisible == true;
+        UpdateNotice?.IsVisible == true || LastFmKeyNotice?.IsVisible == true;
 
     /// <summary>An expired session shows on the strip only while the sidebar is
     /// collapsed: an open sidebar already says "Session expired" with its own
@@ -191,6 +191,29 @@ public partial class MainViewModel : ViewModelBase
     }
 
     private UpdateNoticeViewModel? _updateNotice;
+
+    /// <summary>Last.fm refused the API key; set by the app before the window
+    /// exists, null in the designer.</summary>
+    public LastFmKeyNoticeViewModel? LastFmKeyNotice
+    {
+        get => _lastFmKeyNotice;
+        set
+        {
+            _lastFmKeyNotice = value;
+            if (value is not null)
+            {
+                value.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(LastFmKeyNoticeViewModel.IsVisible))
+                        OnPropertyChanged(nameof(HasStatus));
+                };
+            }
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasStatus));
+        }
+    }
+
+    private LastFmKeyNoticeViewModel? _lastFmKeyNotice;
 
     // Design-time
     public MainViewModel()
